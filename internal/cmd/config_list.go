@@ -10,7 +10,7 @@ import (
 var configListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all configured providers",
-	Long:  `List displays all providers configured in the ply configuration.`,
+	Long:  `List displays all providers configured in ply configuration.`,
 	Run:   runConfigList,
 }
 
@@ -29,6 +29,10 @@ func runConfigList(cmd *cobra.Command, args []string) {
 		return
 	}
 
+	// Load default provider ID
+	var defaultID string
+	defaultID, _ = fs.LoadDefaultProvider()
+
 	// Get all entries
 	entries := db.ListEntries()
 
@@ -43,7 +47,13 @@ func runConfigList(cmd *cobra.Command, args []string) {
 
 	// Output each entry
 	for _, e := range entries {
-		cmd.Printf("  ❯ %s\n", e.Label)
+		// Show (default) marker if this is the default
+		label := e.Label
+		if e.ID == defaultID {
+			label = e.Label + " (default)"
+		}
+
+		cmd.Printf("  ❯ %s\n", label)
 		cmd.Printf("    ID       : %s\n", e.ID)
 		cmd.Printf("    Provider : %s\n", e.Provider)
 		cmd.Printf("    Created  : %s\n", e.CreatedAt.Format("2006-01-02T15:04:05Z"))
