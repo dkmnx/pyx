@@ -1,19 +1,10 @@
 package cmd
 
 import (
-	"encoding/json"
-
 	"github.com/dkmnx/ply/internal/database"
 	"github.com/dkmnx/ply/internal/fs"
 	"github.com/spf13/cobra"
 )
-
-type listEntry struct {
-	ID        string `json:"id"`
-	Label     string `json:"label"`
-	Provider  string `json:"provider"`
-	CreatedAt string `json:"created_at"`
-}
 
 //nolint:unused // Used in init() via config.go
 var configListCmd = &cobra.Command{
@@ -46,24 +37,18 @@ func runConfigList(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	// Convert to output format (exclude cipher and nonce)
-	output := make([]listEntry, len(entries))
-	for i, e := range entries {
-		output[i] = listEntry{
-			ID:        e.ID,
-			Label:     e.Label,
-			Provider:  e.Provider,
-			CreatedAt: e.CreatedAt.Format("2006-01-02T15:04:05Z"),
-		}
+	// Output header
+	cmd.Println("Configured providers:")
+	cmd.Println()
+
+	// Output each entry
+	for _, e := range entries {
+		cmd.Printf("  ❯ %s\n", e.Label)
+		cmd.Printf("    ID       : %s\n", e.ID)
+		cmd.Printf("    Provider : %s\n", e.Provider)
+		cmd.Printf("    Created  : %s\n", e.CreatedAt.Format("2006-01-02T15:04:05Z"))
+		cmd.Println()
 	}
 
-	// Output as pretty JSON
-	outputJSON, err := json.MarshalIndent(output, "", "  ")
-	if err != nil {
-		cmd.Printf("Error formatting output: %v\n", err)
-		return
-	}
-
-	cmd.Printf("%s\n", outputJSON)
-	cmd.Printf("\nTotal: %d provider(s)\n", len(entries))
+	cmd.Printf("Total: %d provider(s)\n", len(entries))
 }

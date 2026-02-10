@@ -1,9 +1,8 @@
 package cmd
 
 import (
-	"encoding/json"
 	"os"
-	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/dkmnx/ply/internal/crypto"
@@ -27,7 +26,7 @@ func TestConfigList_Empty(t *testing.T) {
 	_ = db.Save()
 
 	// Create output capture file
-	outputFile := filepath.Join(tempDir, "output.txt")
+	outputFile := tempDir + "/output.txt"
 	f, _ := os.Create(outputFile)
 	defer f.Close()
 
@@ -59,7 +58,7 @@ func TestConfigList_NoDatabase(t *testing.T) {
 	_, _ = fs.EnsureDataDir()
 
 	// Create output capture file
-	outputFile := filepath.Join(tempDir, "output.txt")
+	outputFile := tempDir + "/output.txt"
 	f, _ := os.Create(outputFile)
 	defer f.Close()
 
@@ -117,7 +116,7 @@ func TestConfigList_WithEntries(t *testing.T) {
 	}
 
 	// Create output capture file
-	outputFile := filepath.Join(tempDir, "output.txt")
+	outputFile := tempDir + "/output.txt"
 	f, _ := os.Create(outputFile)
 	defer f.Close()
 
@@ -130,57 +129,54 @@ func TestConfigList_WithEntries(t *testing.T) {
 
 	// Read output
 	data, _ := os.ReadFile(outputFile)
-	outputStr := string(data)
+	output := string(data)
 
-	// Find JSON part (before the "Total:" line)
-	totalIndex := indexSubstring(outputStr, "Total:")
-	if totalIndex == -1 {
-		t.Fatalf("No 'Total:' found in output")
+	// Verify header
+	if !strings.Contains(output, "Configured providers:") {
+		t.Error("Output missing 'Configured providers:' header")
 	}
 
-	// Find the start of the "Total:" line
-	jsonEnd := -1
-	for i := totalIndex - 1; i >= 0; i-- {
-		if outputStr[i] == '\n' {
-			jsonEnd = i
-			break
-		}
+	// Verify all labels are present
+	if !strings.Contains(output, "openai-main") {
+		t.Error("Output missing 'openai-main' label")
+	}
+	if !strings.Contains(output, "anthropic-prod") {
+		t.Error("Output missing 'anthropic-prod' label")
+	}
+	if !strings.Contains(output, "google-dev") {
+		t.Error("Output missing 'google-dev' label")
 	}
 
-	if jsonEnd == -1 {
-		jsonEnd = 0
+	// Verify ID field is present
+	if !strings.Contains(output, "ID       : ") {
+		t.Error("Output missing 'ID :' field")
 	}
 
-	jsonData := []byte(outputStr[:jsonEnd])
-
-	// Verify JSON output
-	var entries []listEntry
-	if err := json.Unmarshal(jsonData, &entries); err != nil {
-		t.Fatalf("Failed to parse JSON output: %v", err)
+	// Verify Provider field is present
+	if !strings.Contains(output, "Provider : ") {
+		t.Error("Output missing 'Provider :' field")
 	}
 
-	if len(entries) != 3 {
-		t.Errorf("Expected 3 entries, got %d", len(entries))
+	// Verify Created field is present
+	if !strings.Contains(output, "Created  : ") {
+		t.Error("Output missing 'Created :' field")
 	}
 
-	// Verify entry structure
-	for _, e := range entries {
-		if e.ID == "" {
-			t.Error("Entry missing ID")
-		}
-		if e.Label == "" {
-			t.Error("Entry missing label")
-		}
-		if e.Provider == "" {
-			t.Error("Entry missing provider")
-		}
-		if e.CreatedAt == "" {
-			t.Error("Entry missing created_at")
-		}
+	// Verify sensitive fields are NOT present
+	if strings.Contains(output, "cipher") {
+		t.Error("Output should not contain 'cipher' field")
+	}
+	if strings.Contains(output, "nonce") {
+		t.Error("Output should not contain 'nonce' field")
+	}
+
+	// Verify bullet point
+	if !strings.Contains(output, "❯") {
+		t.Error("Output should contain bullet point '❯'")
 	}
 
 	// Verify count message
-	if !contains(outputStr, "Total: 3 provider(s)") {
+	if !strings.Contains(output, "Total: 3 provider(s)") {
 		t.Error("Output missing count message")
 	}
 }
@@ -207,7 +203,7 @@ func TestConfigList_Format(t *testing.T) {
 	_ = db.Save()
 
 	// Create output capture file
-	outputFile := filepath.Join(dataDir, "output.txt")
+	outputFile := tempDir + "/output.txt"
 	f, _ := os.Create(outputFile)
 	defer f.Close()
 
@@ -220,75 +216,112 @@ func TestConfigList_Format(t *testing.T) {
 
 	// Read output
 	data, _ := os.ReadFile(outputFile)
-	outputStr := string(data)
+	output := string(data)
 
-	// Find JSON part (before the "Total:" line)
-	totalIndex := indexSubstring(outputStr, "Total:")
-	if totalIndex == -1 {
-		t.Fatalf("No 'Total:' found in output")
+	// Verify format structure
+	lines := strings.Split(output, "\n")
+
+	if len(lines) < 5 {
+		t.Errorf("Expected at least 5 lines, got %d", len(lines))
 	}
 
-	// Find the start of the "Total:" line
-	jsonEnd := -1
-	for i := totalIndex - 1; i >= 0; i-- {
-		if outputStr[i] == '\n' {
-			jsonEnd = i
+	// Line 1 should be header
+	if !strings.Contains(lines[0], "Configured providers:") {
+		t.Errorf("First line should be header, got: %s", lines[0])
+	}
+
+	// Find first entry line (after blank)
+	entryLineIndex := -1
+	for i := 2; i < len(lines); i++ {
+		if strings.Contains(lines[i], "❯") {
+			entryLineIndex = i
 			break
 		}
 	}
 
-	if jsonEnd == -1 {
-		jsonEnd = 0
+	if entryLineIndex == -1 {
+		t.Fatal("Could not find entry line with bullet point")
 	}
 
-	jsonData := []byte(outputStr[:jsonEnd])
-
-	// Verify pretty JSON (has indentation)
-	if !contains(string(jsonData), "  \"id\"") && !contains(string(jsonData), "\n  {") {
-		t.Error("Output should be pretty-printed JSON")
+	// Verify entry format
+	if !strings.Contains(lines[entryLineIndex], "test-label") {
+		t.Errorf("Entry line should contain label, got: %s", lines[entryLineIndex])
 	}
 
-	// Verify required fields are present
-	if !contains(string(jsonData), "\"id\"") {
-		t.Error("Output missing id field")
-	}
-	if !contains(string(jsonData), "\"label\"") {
-		t.Error("Output missing label field")
-	}
-	if !contains(string(jsonData), "\"provider\"") {
-		t.Error("Output missing provider field")
-	}
-	if !contains(string(jsonData), "\"created_at\"") {
-		t.Error("Output missing created_at field")
-	}
-
-	// Verify sensitive fields are NOT present
-	if contains(string(jsonData), "\"cipher\"") {
-		t.Error("Output should not contain cipher field")
-	}
-	if contains(string(jsonData), "\"nonce\"") {
-		t.Error("Output should not contain nonce field")
-	}
-}
-
-func indexSubstring(s, substr string) int {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return i
+	// Verify field format (with spacing for alignment)
+	expectedFields := []string{"ID       :", "Provider :", "Created  :"}
+	for _, field := range expectedFields {
+		found := false
+		for _, line := range lines {
+			if strings.Contains(line, field) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Output missing field: %s", field)
 		}
 	}
-	return -1
 }
 
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && findSubstring(s, substr))
-}
+func TestConfigList_MultipleEntriesFormat(t *testing.T) {
+	tempDir := t.TempDir()
 
-func findSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
+	// Set up environment for test
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tempDir)
+	defer os.Setenv("HOME", origHome)
+
+	// Initialize and add multiple entries
+	dataDir, _ := fs.EnsureDataDir()
+	masterKey, _ := crypto.GenerateKey()
+	_ = fs.SaveMasterKey(masterKey)
+
+	db := database.New(dataDir)
+	_ = db.Load()
+
+	providers := []struct {
+		label    string
+		provider string
+	}{
+		{"first", "openai"},
+		{"second", "anthropic"},
+		{"third", "google"},
 	}
-	return false
+
+	for _, p := range providers {
+		cipher, nonce, _ := crypto.Encrypt(masterKey, "key")
+		entry := database.NewEntry(p.label, p.provider, cipher, nonce)
+		_ = db.AddEntry(entry)
+	}
+	_ = db.Save()
+
+	// Create output capture file
+	outputFile := tempDir + "/output.txt"
+	f, _ := os.Create(outputFile)
+	defer f.Close()
+
+	// Create mock command
+	cmd := &cobra.Command{}
+	cmd.SetOut(f)
+
+	// Run list
+	runConfigList(cmd, nil)
+
+	// Read output
+	data, _ := os.ReadFile(outputFile)
+	output := string(data)
+
+	// Count bullet points
+	bulletCount := strings.Count(output, "❯")
+	if bulletCount != 3 {
+		t.Errorf("Expected 3 bullet points, got %d", bulletCount)
+	}
+
+	// Verify each entry is separated by blank line
+	// Check that there are at least 2 blank lines between entries
+	blankLineCount := strings.Count(output, "\n\n")
+	if blankLineCount < 2 {
+		t.Error("Entries should be separated by blank lines")
+	}
 }
