@@ -1,43 +1,51 @@
 # ply
 
-A CLI tool for managing AI provider configurations.
+A CLI tool for managing AI provider configurations for the pi coding agent.
+
+## Overview
+
+Ply provides secure storage and management of API keys for AI providers.
+It encrypts credentials using AES-256-GCM and integrates with pi by setting
+the appropriate environment variables.
+
+## Quick Start
+
+```bash
+# Install
+go install github.com/dkmnx/ply/cmd/ply@latest
+
+# Initialize configuration
+ply setup
+
+# List providers
+ply config list
+
+# Set default provider
+ply default openai
+
+# Run pi with provider credentials
+ply
+```
 
 ## Commands
 
-- `setup` - Initialize ply configuration
-- `config` - Manage provider configurations
-  - `list` - List all configured providers
-  - `edit [provider name or id]` - Edit a provider configuration
-  - `delete [provider name or id]` - Delete a provider configuration
-- `default [provider name or id]` - Set or view the default provider
-- `completion` - Generate shell completion script
-- `version` - Print version information
+| Command | Description |
+|---------|-------------|
+| `ply setup` | Initialize configuration and add a provider |
+| `ply config list` | List all configured providers |
+| `ply config edit <name\|id>` | Edit a provider configuration |
+| `ply config delete <name\|id>` | Delete a provider |
+| `ply default [name\|id]` | Set or view the default provider |
+| `ply [provider\|id]` | Run pi with the specified or default provider |
+| `ply completion [bash\|zsh\|fish\|powershell]` | Generate shell completion |
+| `ply version` | Print version information |
 
-## Installation
+## Features
 
-```bash
-go install github.com/dkmnx/ply/cmd/ply@latest
-```
-
-## Development
-
-### Build
-
-```bash
-go build ./cmd/ply
-```
-
-### Tests
-
-```bash
-go test ./... -race -cover
-```
-
-### Linting
-
-```bash
-golangci-lint run
-```
+- **Secure Storage**: AES-256-GCM encryption for all API keys
+- **Multiple Providers**: Support for Anthropic, OpenAI, Google, Groq, and more
+- **Model Filtering**: Automatically filters models by provider
+- **Shell Completion**: Full bash, zsh, fish, and PowerShell support
 
 ## Project Structure
 
@@ -45,21 +53,25 @@ golangci-lint run
 ply/
 ├── cmd/
 │   └── ply/           # Main application entry point
-│       ├── main.go
-│       └── README.md
 ├── internal/
-│   ├── cmd/           # CLI commands
-│   │   ├── root.go
-│   │   ├── setup.go
-│   │   ├── config.go
-│   │   ├── config_list.go
-│   │   ├── config_edit.go
-│   │   ├── config_delete.go
-│   │   ├── default.go
-│   │   ├── completion.go
-│   │   └── version.go
-│   └── config/        # Configuration management
-├── pkg/               # Public libraries
-├── go.mod
-└── README.md
+│   ├── cmd/           # CLI commands implementation
+│   ├── crypto/        # Encryption utilities (AES-256-GCM)
+│   ├── database/      # Encrypted credential storage
+│   ├── fs/            # File system utilities
+│   └── prompt/        # Interactive input utilities
+├── docs/              # Documentation
+├── Makefile           # Build automation
+└── README.md          # This file
 ```
+
+## Documentation
+
+- [Getting Started](docs/getting-started.md) - Setup and configuration
+- [Usage Guide](docs/usage.md) - Complete command reference
+- [Architecture](docs/architecture.md) - System design and security
+- [Contributing](docs/contributing.md) - Development guide
+- [Troubleshooting](docs/troubleshooting.md) - Common issues and solutions
+
+## License
+
+MIT
