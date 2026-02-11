@@ -223,14 +223,6 @@ When closing issues via commit:
 - If the user approves: create a feature branch, pull PR, rebase on main, apply adjustments, commit, merge into main, push, close PR, and leave a comment in the user's tone
 - You never open PRs yourself. We work in feature branches until everything is according to the user's requirements, then merge into main, and push.
 
-## Style
-
-- Keep answers short and concise
-- No emojis in commits, issues, PR comments, or code
-- No fluff or cheerful filler text
-- Technical prose only, be kind but direct (e.g., "Thanks @user" not "Thanks so much @user!")
-- Maximum line length: 100-120 characters (soft limit, prefer readability over strict limits)
-
 ## Naming Conventions
 
 - **Packages**: lowercase, single word, no underscores or camelCase
@@ -251,49 +243,6 @@ When closing issues via commit:
 - Order in file: constants, variables, types, then functions (alphabetical or logical)
 - Use `//go:generate` directives for code generation
 - Separate interfaces from implementations (e.g., `interface.go` and `impl.go`)
-
-## Changelog
-
-Location: `cmd/*/CHANGELOG.md` and `pkg/*/CHANGELOG.md` (per package)
-
-### Format
-
-Use these sections under `## [Unreleased]`:
-
-- `### Breaking Changes` - API changes requiring migration
-- `### Added` - New features
-- `### Changed` - Changes to existing functionality
-- `### Fixed` - Bug fixes
-- `### Removed` - Removed features
-
-### Rules
-
-- Before adding entries, read the full `[Unreleased]` section to see which subsections already exist
-- New entries ALWAYS go under `## [Unreleased]` section
-- Append to existing subsections (e.g., `### Fixed`), do not create duplicates
-- NEVER modify already-released version sections (e.g., `## [1.2.0]`)
-- Each version section is immutable once released
-
-### Attribution
-
-- **Internal changes (from issues)**: `Fixed foo bar ([#123](https://github.com/user/repo/issues/123))`
-- **External contributions**: `Added feature X ([#456](https://github.com/user/repo/pull/456) by [@username](https://github.com/username))`
-
-## Versioning and Releases
-
-Follow semantic versioning: `MAJOR.MINOR.PATCH`
-
-- **MAJOR**: Incompatible API changes
-- **MINOR**: New functionality in backwards-compatible manner
-- **PATCH**: Backwards-compatible bug fixes
-
-### Release Steps
-
-1. Update CHANGELOGs with all changes
-2. Update version in `go.mod` (if module version)
-3. Commit: `git commit -m "chore: release v1.2.3"`
-4. Tag: `git tag v1.2.3`
-5. Push: `git push && git push --tags`
 
 ## Adding a New Package/Module
 
@@ -382,12 +331,6 @@ func run(cmd *cobra.Command, args []string) {
     // implementation
 }
 ```
-
-### 3. Documentation
-
-- Add usage examples in README.md
-- Document all flags and subcommands
-- Update main README.md with command list
 
 ## Security
 
