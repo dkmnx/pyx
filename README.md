@@ -74,4 +74,4 @@ ply/
 
 ## License
 
-MIT
+[MIT](LICENSE)
