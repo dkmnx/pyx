@@ -7,7 +7,7 @@ import (
 var rootCmd = &cobra.Command{
 	Use:   "ply",
 	Short: "A CLI tool for managing AI providers",
-	Long:  `Ply is a command-line tool for managing and configuring AI provider configurations.`,
+	Long:  `Ply is a command-line tool for managing and configuring AI provider configurations for pi coding agent.`,
 }
 
 // Execute runs the root command.
