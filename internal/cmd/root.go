@@ -12,10 +12,11 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "ply",
+	Use:   "ply [provider|id] [args...]",
 	Short: "A CLI tool for managing AI providers",
 	Long:  `Ply is a command-line tool for managing and configuring AI provider configurations for pi coding agent.`,
 	Run:   runRoot,
+	Args:  cobra.ArbitraryArgs,
 }
 
 // Execute runs the root command.
