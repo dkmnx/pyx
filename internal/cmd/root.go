@@ -47,20 +47,44 @@ func runRoot(cmd *cobra.Command, args []string) {
 	var entry database.Entry
 
 	// Check if a provider name or id is provided
-	if len(args) > 0 {
+	// Look for -- delimiter to separate provider args from pi args
+	var providerArg string
+	var piArgs []string
+	skipModelsFilter := false
+
+	for i, arg := range args {
+		if arg == "--" {
+			skipModelsFilter = true
+			// Everything before -- could be a provider argument
+			if i > 0 {
+				providerArg = args[0]
+			}
+			// Everything after -- goes to pi
+			piArgs = args[i+1:]
+			break
+		}
+	}
+
+	if !skipModelsFilter {
+		// No -- delimiter, first arg might be provider
+		if len(args) > 0 {
+			providerArg = args[0]
+			piArgs = args[1:]
+		}
+	}
+
+	if providerArg != "" {
 		// Try to find provider by label first
-		entry, err = db.GetEntryByLabel(args[0])
+		entry, err = db.GetEntryByLabel(providerArg)
 		if err != nil {
 			// If not found by label, try by ID
-			entry, err = db.GetEntry(args[0])
+			entry, err = db.GetEntry(providerArg)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error: provider '%s' not found\n", args[0])
+				fmt.Fprintf(os.Stderr, "Error: provider '%s' not found\n", providerArg)
 				fmt.Fprintf(os.Stderr, "Use 'ply config list' to see all configured providers.\n")
 				os.Exit(1)
 			}
 		}
-		// Pass remaining args to pi
-		args = args[1:]
 	} else {
 		// No provider specified, use default provider
 		defaultID, err := fs.LoadDefaultProvider()
@@ -114,12 +138,16 @@ func runRoot(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	// Build pi arguments with models filter for the provider
-	piArgs := []string{"--models", fmt.Sprintf("%s/*", entry.Provider)}
-	piArgs = append(piArgs, args...)
+	// Build pi arguments
+	var finalPiArgs []string
+	if !skipModelsFilter {
+		// Add models filter only if -- delimiter is not present
+		finalPiArgs = []string{"--models", fmt.Sprintf("%s/*", entry.Provider)}
+	}
+	finalPiArgs = append(finalPiArgs, piArgs...)
 
 	// Run pi with arguments passed through
-	piCmd := exec.Command("pi", piArgs...)
+	piCmd := exec.Command("pi", finalPiArgs...)
 	piCmd.Stdin = os.Stdin
 	piCmd.Stdout = os.Stdout
 	piCmd.Stderr = os.Stderr
