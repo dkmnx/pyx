@@ -24,20 +24,26 @@ read README.md, then ask which module(s) to work on. Based on the answer, read t
 
 ## Commands
 
-- After code changes (not documentation changes): run checks:
+- After code changes (not documentation changes): run checks using Make:
 
   ```bash
-  go vet ./...
-  go fmt ./...
-  golangci-lint run
+  make check
+  ```
+
+  Or run individual checks:
+
+  ```bash
+  make fmt
+  make vet
+  make lint
+  make test
   ```
 
 - Fix all errors and warnings before committing
-- Run tests: `go test ./... -race -cover`
-- Run specific tests: `go test ./path/to/package -run TestSpecificFunction -v`
+- Run specific tests: `make test-run RUN=TestSpecificFunction`
 - NEVER run: `go run main.go` in production contexts
-- Build: `go build ./cmd/appname`
-- Build for production: `go build -ldflags="-s -w" ./cmd/appname`
+- Build: `make build`
+- Build for production: `make build-prod`
 - NEVER commit unless user asks
 
 ## Module Structure
@@ -108,10 +114,10 @@ project/
 
 ## Dependencies
 
-- Run `go mod tidy` after adding/removing dependencies
+- Run `make mod-tidy` after adding/removing dependencies
 - Pin specific versions for production; use `go get package@version`
 - Prefer standard library over external dependencies when possible
-- Check for outdated dependencies: `go list -u -m all`
+- Check for outdated dependencies: `make deps-outdated`
 - Verify dependency licenses: `go-licenses check ./...`
 - Keep `go.sum` in version control
 - Use `replace` directives only for local development; never commit them for production
@@ -150,12 +156,8 @@ project/
 
 ## Linting and Formatting
 
-- Always run `go fmt ./...` before committing
-- Use `golangci-lint` with standard rules:
-
-  ```bash
-  golangci-lint run --timeout 5m
-  ```
+- Always run `make fmt` before committing
+- Use `make lint` which runs `golangci-lint` with standard rules
 
 - Configure `.golangci.yml` in project root
 - Common linters to enable: `go vet`, `staticcheck`, `errcheck`, `gosimple`, `unused`, `gocyclo`
@@ -337,37 +339,20 @@ func run(cmd *cobra.Command, args []string) {
 - Never commit secrets, API keys, or credentials
 - Use `.env` files (in `.gitignore`) for local development
 - Validate all user inputs
-- Use `gosec` for security scanning: `gosec ./...`
+- Run security checks: `make security` `gosec` (runs and `govulncheck`)
 - Keep dependencies updated; use `go get -u ./...` regularly
-- Review dependency security advisories: `govulncheck ./...`
+- Review dependency security advisories with `make deps-outdated`
 - Use `sqlx` or parameterized queries to prevent SQL injection
 - Sanitize output to prevent XSS when generating HTML/JS
 
 ## Build and CI
 
-- Use `Makefile` for common commands:
-
-  ```makefile
-  build:
-      go build -ldflags="-s -w" ./cmd/app
-
-  test:
-      go test ./... -race -cover
-
-  lint:
-      golangci-lint run
-
-  fmt:
-      go fmt ./...
-
-  .PHONY: build test lint fmt
-  ```
-
+- Use `Makefile` for common commands (see `Makefile` in project root)
 - Configure CI (GitHub Actions, GitLab CI, etc.) with:
-  - Lint checks
-  - Tests with coverage
-  - Security scans (govulncheck, gosec)
-  - Build verification
+  - `make lint` - Lint checks
+  - `make test` - Tests with coverage
+  - `make security` - Security scans (gosec, govulncheck)
+  - `make build` - Build verification
 - Use `docker` for containerized deployments
 
 ## Docker
