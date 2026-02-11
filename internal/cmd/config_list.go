@@ -14,6 +14,11 @@ var configListCmd = &cobra.Command{
 	Run:   runConfigList,
 }
 
+// runConfigList displays all configured providers in the ply configuration.
+//
+// Reads the database, retrieves all provider entries, and displays them
+// in a formatted list. The default provider is marked with "(default)".
+// Shows total count of configured providers at the end.
 func runConfigList(cmd *cobra.Command, args []string) {
 	// Get data directory
 	dataDir, err := fs.DataDir()

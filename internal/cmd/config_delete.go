@@ -15,6 +15,11 @@ var configDeleteCmd = &cobra.Command{
 	Run:   runConfigDelete,
 }
 
+// runConfigDelete removes a provider configuration from the database.
+//
+// The target can be specified by label or ID. Searches the database for
+// a matching entry, removes it, and persists the changes. Displays a
+// confirmation message upon successful deletion.
 func runConfigDelete(cmd *cobra.Command, args []string) {
 	target := args[0]
 

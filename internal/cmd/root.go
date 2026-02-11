@@ -19,7 +19,10 @@ var rootCmd = &cobra.Command{
 	Args:  cobra.ArbitraryArgs,
 }
 
-// Execute runs the root command.
+// Execute runs the root command and returns any error encountered during execution.
+//
+// This function is the entry point for the ply CLI application. It delegates
+// to cobra's command execution and propagates any errors.
 func Execute() error {
 	return rootCmd.Execute()
 }
@@ -29,6 +32,10 @@ func init() {
 }
 
 // runRoot is the default behavior when running ply without subcommands.
+//
+// The function handles provider selection (default or specified), decrypts
+// the API key, sets the appropriate environment variable, and executes pi
+// with optional model filtering.
 func runRoot(cmd *cobra.Command, args []string) {
 	// Get data directory
 	dataDir, err := fs.DataDir()
@@ -167,7 +174,13 @@ func runRoot(cmd *cobra.Command, args []string) {
 	}
 }
 
-// providerEnvVar returns the environment variable name for a given provider.
+// providerEnvVar maps a provider name to its corresponding environment variable
+// for API key authentication.
+//
+// The mapping is based on pi coding agent's supported providers. Returns the
+// environment variable name and a boolean indicating if the provider is supported.
+//
+// Returns ("", false) for unknown providers.
 func providerEnvVar(provider string) (string, bool) {
 	envMap := map[string]string{
 		"anthropic":              "ANTHROPIC_API_KEY",

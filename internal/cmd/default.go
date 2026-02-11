@@ -43,6 +43,11 @@ func runDefault(cmd *cobra.Command, args []string) {
 	setDefault(cmd, db, args[0])
 }
 
+// displayDefault outputs the current default provider configuration to the terminal.
+//
+// Reads the default provider ID from storage, looks up the corresponding entry
+// in the database, and prints formatted information including label, ID,
+// provider type, and creation timestamp.
 func displayDefault(cmd *cobra.Command, db *database.Database) {
 	defaultID, err := fs.LoadDefaultProvider()
 	if err != nil {
@@ -72,6 +77,11 @@ func displayDefault(cmd *cobra.Command, db *database.Database) {
 	cmd.Printf("  Created  : %s\n", entry.CreatedAt.Format("2006-01-02T15:04:05Z"))
 }
 
+// setDefault saves the specified provider as the default.
+//
+// The target parameter can be either a provider label or ID. The function
+// searches for a matching entry in the database and saves its ID as the
+// default provider. Displays success message or error if not found.
 func setDefault(cmd *cobra.Command, db *database.Database, target string) {
 	// Try to find entry by label first
 	entry, err := db.GetEntryByLabel(target)

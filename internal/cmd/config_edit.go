@@ -16,6 +16,11 @@ func init() {
 	// Add flags if needed
 }
 
+// runConfigEdit modifies an existing provider configuration.
+//
+// Accepts a provider label or ID as argument and allows modification of
+// the provider settings. Currently displays the target provider name;
+// full edit functionality is pending implementation.
 func runConfigEdit(cmd *cobra.Command, args []string) {
 	provider := args[0]
 	// TODO: Implement edit logic

@@ -10,10 +10,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// setupOutput represents the structured JSON output returned after
+// successful provider configuration.
 type setupOutput struct {
-	ID        string `json:"id"`
-	Label     string `json:"label"`
-	Provider  string `json:"provider"`
+	// ID is the unique identifier for the provider entry.
+	ID string `json:"id"`
+	// Label is the user-friendly name for the provider.
+	Label string `json:"label"`
+	// Provider is the provider type name (e.g., "anthropic", "openai").
+	Provider string `json:"provider"`
+	// CreatedAt is the ISO 8601 timestamp of entry creation.
 	CreatedAt string `json:"created_at"`
 }
 
@@ -28,6 +34,12 @@ func init() {
 	rootCmd.AddCommand(setupCmd)
 }
 
+// runSetup initializes ply configuration and adds a new provider.
+//
+// The setup process creates the data directory if needed, initializes or
+// loads the master encryption key, prompts the user for provider selection,
+// label, and API key, then encrypts and stores the credentials securely.
+// Outputs the configured provider details in JSON format.
 func runSetup(cmd *cobra.Command, args []string) {
 	// Create data directory
 	dataDir, err := fs.EnsureDataDir()

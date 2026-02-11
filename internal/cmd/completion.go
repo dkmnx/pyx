@@ -54,6 +54,11 @@ func init() {
 	rootCmd.AddCommand(completionCmd)
 }
 
+// runCompletion generates and outputs shell completion scripts.
+//
+// Based on the shell argument (bash, zsh, fish, powershell), generates
+// the appropriate completion script and writes it to stdout. The script
+// enables shell tab-completion for ply commands and arguments.
 func runCompletion(cmd *cobra.Command, args []string) {
 	switch args[0] {
 	case "bash":

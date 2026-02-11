@@ -1,4 +1,8 @@
-// Package prompt provides utilities for interactive user input.
+// Package prompt provides interactive user input utilities for configuring
+// AI provider credentials in the ply CLI tool.
+//
+// This package handles prompting users for provider selection, labels,
+// and API keys with secure input handling.
 package prompt
 
 import (
@@ -36,6 +40,12 @@ var Providers = []string{
 }
 
 // PromptProvider prompts the user to select a provider from the supported list.
+//
+// The function displays all available providers with numbered options and
+// accepts either a number (1-based index) or a provider name as input.
+// Input is case-insensitive for provider names.
+//
+// Returns the selected provider name or an error if input fails.
 func PromptProvider(cmd *cobra.Command) (string, error) {
 	cmd.Printf("Select a provider:\n")
 	for i, p := range Providers {
@@ -72,7 +82,13 @@ func PromptProvider(cmd *cobra.Command) (string, error) {
 	}
 }
 
-// PromptLabel prompts the user for a label, with a default suggestion.
+// PromptLabel prompts the user for a provider label with an auto-generated default.
+//
+// The default label is formatted as "{provider}-{random-suffix}" where the suffix
+// is a 4-character hex string. Pressing Enter accepts the default; entering
+// custom text replaces it.
+//
+// Returns the label (custom or default) or an error if input fails.
 func PromptLabel(cmd *cobra.Command, provider string) (string, error) {
 	suffix := randomSuffix(4)
 	defaultLabel := fmt.Sprintf("%s-%s", provider, suffix)
@@ -91,7 +107,12 @@ func PromptLabel(cmd *cobra.Command, provider string) (string, error) {
 	return input, nil
 }
 
-// PromptAPIKey prompts the user for an API key with hidden input.
+// PromptAPIKey prompts the user for an API key with hidden terminal input.
+//
+// The API key is read without echoing to the terminal for security.
+// Empty input is rejected and prompts are repeated until valid input is received.
+//
+// Returns the API key string or an error if input fails.
 func PromptAPIKey(cmd *cobra.Command) (string, error) {
 	cmd.Print("Enter API key: ")
 	input, err := readPassword()
