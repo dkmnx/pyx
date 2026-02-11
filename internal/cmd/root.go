@@ -36,19 +36,6 @@ func runRoot(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	// Load default provider
-	defaultID, err := fs.LoadDefaultProvider()
-	if err != nil {
-		if err == fs.ErrDefaultNotFound {
-			fmt.Fprintf(os.Stderr, "No default provider set.\n")
-			fmt.Fprintf(os.Stderr, "Run 'ply default [label|id]' to set a default provider.\n")
-			fmt.Fprintf(os.Stderr, "Use 'ply config list' to see all configured providers.\n")
-		} else {
-			fmt.Fprintf(os.Stderr, "Error loading default provider: %v\n", err)
-		}
-		os.Exit(1)
-	}
-
 	// Load database
 	db := database.New(dataDir)
 	if err := db.Load(); err != nil {
@@ -56,13 +43,46 @@ func runRoot(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	// Get the default provider entry
-	entry, err := db.GetEntry(defaultID)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: default provider entry not found (ID: %s)\n", defaultID)
-		fmt.Fprintf(os.Stderr, "The default provider may have been deleted.\n")
-		fmt.Fprintf(os.Stderr, "Use 'ply default [label|id]' to set a new default provider.\n")
-		os.Exit(1)
+	var entry database.Entry
+
+	// Check if a provider name or id is provided
+	if len(args) > 0 {
+		// Try to find provider by label first
+		entry, err = db.GetEntryByLabel(args[0])
+		if err != nil {
+			// If not found by label, try by ID
+			entry, err = db.GetEntry(args[0])
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: provider '%s' not found\n", args[0])
+				fmt.Fprintf(os.Stderr, "Use 'ply config list' to see all configured providers.\n")
+				os.Exit(1)
+			}
+		}
+		// Pass remaining args to pi
+		args = args[1:]
+	} else {
+		// No provider specified, use default provider
+		defaultID, err := fs.LoadDefaultProvider()
+		if err != nil {
+			if err == fs.ErrDefaultNotFound {
+				fmt.Fprintf(os.Stderr, "No default provider set.\n")
+				fmt.Fprintf(os.Stderr, "Run 'ply default [label|id]' to set a default provider.\n")
+				fmt.Fprintf(os.Stderr, "Or use 'ply [label|id]' to specify a provider.\n")
+				fmt.Fprintf(os.Stderr, "Use 'ply config list' to see all configured providers.\n")
+			} else {
+				fmt.Fprintf(os.Stderr, "Error loading default provider: %v\n", err)
+			}
+			os.Exit(1)
+		}
+
+		// Get the default provider entry
+		entry, err = db.GetEntry(defaultID)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: default provider entry not found (ID: %s)\n", defaultID)
+			fmt.Fprintf(os.Stderr, "The default provider may have been deleted.\n")
+			fmt.Fprintf(os.Stderr, "Use 'ply default [label|id]' to set a new default provider.\n")
+			os.Exit(1)
+		}
 	}
 
 	// Load master key
@@ -93,7 +113,7 @@ func runRoot(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	// Run pi with all arguments passed through
+	// Run pi with remaining arguments passed through
 	piCmd := exec.Command("pi", args...)
 	piCmd.Stdin = os.Stdin
 	piCmd.Stdout = os.Stdout
