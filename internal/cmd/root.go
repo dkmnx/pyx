@@ -68,8 +68,13 @@ func runRoot(cmd *cobra.Command, args []string) {
 	if !skipModelsFilter {
 		// No -- delimiter, first arg might be provider
 		if len(args) > 0 {
-			providerArg = args[0]
-			piArgs = args[1:]
+			// If first arg looks like a flag (starts with -), treat all args as pi args
+			if len(args[0]) > 0 && args[0][0] == '-' {
+				piArgs = args
+			} else {
+				providerArg = args[0]
+				piArgs = args[1:]
+			}
 		}
 	}
 
