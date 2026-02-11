@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/spf13/cobra"
 )
 
@@ -43,7 +46,7 @@ PowerShell:
 `,
 	DisableFlagsInUseLine: true,
 	ValidArgs:             []string{"bash", "zsh", "fish", "powershell"},
-	Args:                  cobra.ExactValidArgs(1),
+	Args:                  cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
 	Run:                   runCompletion,
 }
 
@@ -54,12 +57,24 @@ func init() {
 func runCompletion(cmd *cobra.Command, args []string) {
 	switch args[0] {
 	case "bash":
-		cmd.Root().GenBashCompletion(cmd.OutOrStdout())
+		if err := cmd.Root().GenBashCompletion(cmd.OutOrStdout()); err != nil {
+			fmt.Fprintf(os.Stderr, "Error generating bash completion: %v\n", err)
+			os.Exit(1)
+		}
 	case "zsh":
-		cmd.Root().GenZshCompletion(cmd.OutOrStdout())
+		if err := cmd.Root().GenZshCompletion(cmd.OutOrStdout()); err != nil {
+			fmt.Fprintf(os.Stderr, "Error generating zsh completion: %v\n", err)
+			os.Exit(1)
+		}
 	case "fish":
-		cmd.Root().GenFishCompletion(cmd.OutOrStdout(), true)
+		if err := cmd.Root().GenFishCompletion(cmd.OutOrStdout(), true); err != nil {
+			fmt.Fprintf(os.Stderr, "Error generating fish completion: %v\n", err)
+			os.Exit(1)
+		}
 	case "powershell":
-		cmd.Root().GenPowerShellCompletionWithDesc(cmd.OutOrStdout())
+		if err := cmd.Root().GenPowerShellCompletionWithDesc(cmd.OutOrStdout()); err != nil {
+			fmt.Fprintf(os.Stderr, "Error generating powershell completion: %v\n", err)
+			os.Exit(1)
+		}
 	}
 }
