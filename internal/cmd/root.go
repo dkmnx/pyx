@@ -114,8 +114,12 @@ func runRoot(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	// Run pi with remaining arguments passed through
-	piCmd := exec.Command("pi", args...)
+	// Build pi arguments with models filter for the provider
+	piArgs := []string{"--models", fmt.Sprintf("%s/*", entry.Provider)}
+	piArgs = append(piArgs, args...)
+
+	// Run pi with arguments passed through
+	piCmd := exec.Command("pi", piArgs...)
 	piCmd.Stdin = os.Stdin
 	piCmd.Stdout = os.Stdout
 	piCmd.Stderr = os.Stderr
