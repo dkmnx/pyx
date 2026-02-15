@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"strings"
+
 	"github.com/dkmnx/ply/internal/database"
 	"github.com/dkmnx/ply/internal/fs"
 	"github.com/spf13/cobra"
@@ -45,8 +47,21 @@ func runConfigDelete(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	// Delete the entry
-	cmd.Printf("Deleting provider '%s' (ID: %s)...\n", entry.Label, entry.ID)
+	cmd.Printf("Provider '%s' (ID: %s)\n", entry.Label, entry.ID)
+	cmd.Printf("  Provider : %s\n", entry.Provider)
+	cmd.Print("\nAre you sure you want to delete this provider? (y/N): ")
+
+	confirmation, err := readUserLine()
+	if err != nil {
+		cmd.Printf("Error reading input: %v\n", err)
+		return
+	}
+
+	confirmation = strings.TrimSpace(strings.ToLower(confirmation))
+	if confirmation != "y" && confirmation != confirmYes {
+		cmd.Println("Delete cancelled.")
+		return
+	}
 
 	if err := db.DeleteEntry(entry.ID); err != nil {
 		cmd.Printf("Error deleting entry: %v\n", err)

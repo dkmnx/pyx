@@ -51,7 +51,7 @@ func runConfigEdit(cmd *cobra.Command, args []string) {
 	if entry.DefaultModel != "" {
 		cmd.Printf("  Default Model : %s\n", entry.DefaultModel)
 	}
-	cmd.Printf("  Created       : %s\n\n", entry.CreatedAt.Format("2006-01-02T15:04:05Z"))
+	cmd.Printf("  Created       : %s\n\n", entry.CreatedAt.Format(timeFormat))
 
 	newLabel := promptNewLabel(cmd, entry.Label)
 	if newLabel == "" {
@@ -169,7 +169,7 @@ func promptNewProvider(cmd *cobra.Command, currentProvider string) string {
 		return ""
 	}
 	input = strings.TrimSpace(strings.ToLower(input))
-	if input != "y" && input != "yes" {
+	if input != "y" && input != confirmYes {
 		return currentProvider
 	}
 
@@ -189,7 +189,7 @@ func promptUpdateAPIKey(cmd *cobra.Command) bool {
 		return false
 	}
 	input = strings.TrimSpace(strings.ToLower(input))
-	return input == "y" || input == "yes"
+	return input == "y" || input == confirmYes
 }
 
 func promptNewDefaultModel(cmd *cobra.Command, currentModel, provider string) string {

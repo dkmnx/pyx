@@ -63,7 +63,7 @@ func runConfigList(cmd *cobra.Command, args []string) {
 		if e.DefaultModel != "" {
 			cmd.Printf("    Model    : %s\n", e.DefaultModel)
 		}
-		cmd.Printf("    Created  : %s\n", e.CreatedAt.Format("2006-01-02T15:04:05Z"))
+		cmd.Printf("    Created  : %s\n", e.CreatedAt.Format(timeFormat))
 		cmd.Println()
 	}
 

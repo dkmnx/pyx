@@ -142,7 +142,7 @@ func runSetup(cmd *cobra.Command, args []string) {
 		Label:        entry.Label,
 		Provider:     entry.Provider,
 		DefaultModel: entry.DefaultModel,
-		CreatedAt:    entry.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		CreatedAt:    entry.CreatedAt.Format(timeFormat),
 	}
 
 	outputJSON, err := json.MarshalIndent(output, "", "  ")

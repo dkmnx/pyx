@@ -221,7 +221,7 @@ func TestSetupOutputFormat(t *testing.T) {
 		ID:        entry.ID,
 		Label:     entry.Label,
 		Provider:  entry.Provider,
-		CreatedAt: entry.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		CreatedAt: entry.CreatedAt.Format(timeFormat),
 	}
 
 	// Verify output JSON can be marshaled

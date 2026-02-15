@@ -77,7 +77,7 @@ func displayDefault(cmd *cobra.Command, db *database.Database) {
 	if entry.DefaultModel != "" {
 		cmd.Printf("  Model    : %s\n", entry.DefaultModel)
 	}
-	cmd.Printf("  Created  : %s\n", entry.CreatedAt.Format("2006-01-02T15:04:05Z"))
+	cmd.Printf("  Created  : %s\n", entry.CreatedAt.Format(timeFormat))
 }
 
 // setDefault saves the specified provider as the default.

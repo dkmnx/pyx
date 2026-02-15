@@ -58,15 +58,23 @@ func TestConfigDelete_ByLabel(t *testing.T) {
 	cmd.SetOut(f)
 	cmd.SetArgs([]string{"anthropic-prod"})
 
+	// Simulate user confirmation input
+	origStdin := os.Stdin
+	r, w, _ := os.Pipe()
+	w.WriteString("y\n")
+	w.Close()
+	os.Stdin = r
+	defer func() { os.Stdin = origStdin }()
+
 	runConfigDelete(cmd, []string{"anthropic-prod"})
 
 	// Read output
 	data, _ := os.ReadFile(outputFile)
 	output := string(data)
 
-	// Verify deletion message
-	if !strings.Contains(output, "Deleting provider 'anthropic-prod'") {
-		t.Errorf("Expected deletion message, got: %s", output)
+	// Verify confirmation prompt
+	if !strings.Contains(output, "Are you sure you want to delete this provider?") {
+		t.Errorf("Expected confirmation prompt, got: %s", output)
 	}
 
 	if !strings.Contains(output, "✓ Provider 'anthropic-prod' deleted") {
@@ -131,15 +139,23 @@ func TestConfigDelete_ByID(t *testing.T) {
 	cmd := &cobra.Command{}
 	cmd.SetOut(f)
 
+	// Simulate user confirmation input
+	origStdin := os.Stdin
+	r, w, _ := os.Pipe()
+	w.WriteString("y\n")
+	w.Close()
+	os.Stdin = r
+	defer func() { os.Stdin = origStdin }()
+
 	runConfigDelete(cmd, []string{entryID})
 
 	// Read output
 	data, _ := os.ReadFile(outputFile)
 	output := string(data)
 
-	// Verify deletion message
-	if !strings.Contains(output, "Deleting provider 'test-label'") {
-		t.Errorf("Expected deletion message, got: %s", output)
+	// Verify confirmation prompt
+	if !strings.Contains(output, "Are you sure you want to delete this provider?") {
+		t.Errorf("Expected confirmation prompt, got: %s", output)
 	}
 
 	if !strings.Contains(output, "✓ Provider 'test-label' deleted") {
@@ -284,6 +300,14 @@ func TestConfigDelete_SaveError(t *testing.T) {
 	// Create mock command and try to delete
 	cmd := &cobra.Command{}
 	cmd.SetOut(f)
+
+	// Simulate user confirmation input
+	origStdin := os.Stdin
+	r, w, _ := os.Pipe()
+	w.WriteString("y\n")
+	w.Close()
+	os.Stdin = r
+	defer func() { os.Stdin = origStdin }()
 
 	runConfigDelete(cmd, []string{"test-label"})
 
