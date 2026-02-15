@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"os"
 	"strings"
 	"testing"
@@ -25,13 +26,13 @@ func TestDefault_ViewCurrent(t *testing.T) {
 	_ = fs.SaveMasterKey(masterKey)
 
 	db := database.New(dataDir)
-	_ = db.Load()
+	_ = db.Load(context.Background())
 
 	// Add test entry
 	cipher, nonce, _ := crypto.Encrypt(masterKey, "test-key")
 	entry := database.NewEntry("test-label", "openai", cipher, nonce)
 	_ = db.AddEntry(entry)
-	_ = db.Save()
+	_ = db.Save(context.Background())
 
 	// Set as default
 	_ = fs.SaveDefaultProvider(entry.ID)
@@ -114,7 +115,7 @@ func TestDefault_SetByLabel(t *testing.T) {
 	_ = fs.SaveMasterKey(masterKey)
 
 	db := database.New(dataDir)
-	_ = db.Load()
+	_ = db.Load(context.Background())
 
 	// Add test entries
 	cipher, nonce, _ := crypto.Encrypt(masterKey, "test-key")
@@ -122,7 +123,7 @@ func TestDefault_SetByLabel(t *testing.T) {
 	_ = db.AddEntry(entry1)
 	entry2 := database.NewEntry("test-label-2", "anthropic", cipher, nonce)
 	_ = db.AddEntry(entry2)
-	_ = db.Save()
+	_ = db.Save(context.Background())
 
 	// Create output capture file
 	outputFile := tempDir + "/output.txt"
@@ -165,13 +166,13 @@ func TestDefault_SetByID(t *testing.T) {
 	_ = fs.SaveMasterKey(masterKey)
 
 	db := database.New(dataDir)
-	_ = db.Load()
+	_ = db.Load(context.Background())
 
 	// Add test entry
 	cipher, nonce, _ := crypto.Encrypt(masterKey, "test-key")
 	entry := database.NewEntry("test-label", "openai", cipher, nonce)
 	_ = db.AddEntry(entry)
-	_ = db.Save()
+	_ = db.Save(context.Background())
 
 	entryID := entry.ID
 
@@ -249,20 +250,20 @@ func TestDefault_DeletedProvider(t *testing.T) {
 	_ = fs.SaveMasterKey(masterKey)
 
 	db := database.New(dataDir)
-	_ = db.Load()
+	_ = db.Load(context.Background())
 
 	// Add test entry
 	cipher, nonce, _ := crypto.Encrypt(masterKey, "test-key")
 	entry := database.NewEntry("test-label", "openai", cipher, nonce)
 	_ = db.AddEntry(entry)
-	_ = db.Save()
+	_ = db.Save(context.Background())
 
 	// Set as default
 	_ = fs.SaveDefaultProvider(entry.ID)
 
 	// Delete the entry
 	_ = db.DeleteEntry(entry.ID)
-	_ = db.Save()
+	_ = db.Save(context.Background())
 
 	// Create output capture file
 	outputFile := tempDir + "/output.txt"

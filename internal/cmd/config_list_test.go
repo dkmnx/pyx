@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"os"
 	"strings"
 	"testing"
@@ -22,8 +23,8 @@ func TestConfigList_Empty(t *testing.T) {
 	// Create empty database
 	dataDir, _ := fs.EnsureDataDir()
 	db := database.New(dataDir)
-	_ = db.Load()
-	_ = db.Save()
+	_ = db.Load(context.Background())
+	_ = db.Save(context.Background())
 
 	// Create output capture file
 	outputFile := tempDir + "/output.txt"
@@ -92,7 +93,7 @@ func TestConfigList_WithEntries(t *testing.T) {
 	_ = fs.SaveMasterKey(masterKey)
 
 	db := database.New(dataDir)
-	_ = db.Load()
+	_ = db.Load(context.Background())
 
 	// Add test entries
 	testEntries := []struct {
@@ -111,7 +112,7 @@ func TestConfigList_WithEntries(t *testing.T) {
 		_ = db.AddEntry(entry)
 	}
 
-	if err := db.Save(); err != nil {
+	if err := db.Save(context.Background()); err != nil {
 		t.Fatalf("Failed to save database: %v", err)
 	}
 
@@ -195,12 +196,12 @@ func TestConfigList_Format(t *testing.T) {
 	_ = fs.SaveMasterKey(masterKey)
 
 	db := database.New(dataDir)
-	_ = db.Load()
+	_ = db.Load(context.Background())
 
 	cipher, nonce, _ := crypto.Encrypt(masterKey, "test-key")
 	entry := database.NewEntry("test-label", "test-provider", cipher, nonce)
 	_ = db.AddEntry(entry)
-	_ = db.Save()
+	_ = db.Save(context.Background())
 
 	// Create output capture file
 	outputFile := tempDir + "/output.txt"
@@ -278,7 +279,7 @@ func TestConfigList_MultipleEntriesFormat(t *testing.T) {
 	_ = fs.SaveMasterKey(masterKey)
 
 	db := database.New(dataDir)
-	_ = db.Load()
+	_ = db.Load(context.Background())
 
 	providers := []struct {
 		label    string
@@ -294,7 +295,7 @@ func TestConfigList_MultipleEntriesFormat(t *testing.T) {
 		entry := database.NewEntry(p.label, p.provider, cipher, nonce)
 		_ = db.AddEntry(entry)
 	}
-	_ = db.Save()
+	_ = db.Save(context.Background())
 
 	// Create output capture file
 	outputFile := tempDir + "/output.txt"

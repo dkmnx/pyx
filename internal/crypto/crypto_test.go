@@ -30,9 +30,10 @@ func TestEncryptDecrypt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Decrypt() error = %v", err)
 	}
+	defer decrypted.Zero()
 
-	if decrypted != plaintext {
-		t.Errorf("Decrypt() = %v, want %v", decrypted, plaintext)
+	if decrypted.String() != plaintext {
+		t.Errorf("Decrypt() = %v, want %v", decrypted.String(), plaintext)
 	}
 }
 
@@ -59,6 +60,26 @@ func TestDecryptInvalidKey(t *testing.T) {
 
 	if !errors.Is(err, ErrInvalidKey) {
 		t.Errorf("Decrypt() error = %v, want %v", err, ErrInvalidKey)
+	}
+}
+
+func TestSecureBytesZero(t *testing.T) {
+	key, _ := GenerateKey()
+	cipher, nonce, _ := Encrypt(key, "secret-data")
+
+	secureBytes, err := Decrypt(key, cipher, nonce)
+	if err != nil {
+		t.Fatalf("Decrypt() error = %v", err)
+	}
+
+	if len(secureBytes) == 0 {
+		t.Fatal("SecureBytes should not be empty")
+	}
+
+	secureBytes.Zero()
+
+	if secureBytes != nil {
+		t.Error("SecureBytes should be nil after Zero()")
 	}
 }
 

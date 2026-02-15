@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -89,7 +90,7 @@ func TestSetupCreatesDatabaseEntry(t *testing.T) {
 
 	// Initialize database
 	db := database.New(dataDir)
-	if err := db.Load(); err != nil {
+	if err := db.Load(context.Background()); err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
 
@@ -113,7 +114,7 @@ func TestSetupCreatesDatabaseEntry(t *testing.T) {
 	}
 
 	// Save database
-	if err := db.Save(); err != nil {
+	if err := db.Save(context.Background()); err != nil {
 		t.Fatalf("Save() error = %v", err)
 	}
 
@@ -173,9 +174,10 @@ func TestSetupCreatesDatabaseEntry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Decrypt() error = %v", err)
 	}
+	defer decryptedKey.Zero()
 
-	if decryptedKey != apiKey {
-		t.Errorf("Decrypted key = %v, want %v", decryptedKey, apiKey)
+	if decryptedKey.String() != apiKey {
+		t.Errorf("Decrypted key = %v, want %v", decryptedKey.String(), apiKey)
 	}
 }
 
@@ -200,7 +202,7 @@ func TestSetupOutputFormat(t *testing.T) {
 
 	// Initialize database
 	db := database.New(dataDir)
-	if err := db.Load(); err != nil {
+	if err := db.Load(context.Background()); err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
 

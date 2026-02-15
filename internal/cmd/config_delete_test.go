@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"os"
 	"strings"
 	"testing"
@@ -25,7 +26,7 @@ func TestConfigDelete_ByLabel(t *testing.T) {
 	_ = fs.SaveMasterKey(masterKey)
 
 	db := database.New(dataDir)
-	_ = db.Load()
+	_ = db.Load(context.Background())
 
 	// Add test entries
 	testEntries := []struct {
@@ -44,7 +45,7 @@ func TestConfigDelete_ByLabel(t *testing.T) {
 		_ = db.AddEntry(entry)
 	}
 
-	if err := db.Save(); err != nil {
+	if err := db.Save(context.Background()); err != nil {
 		t.Fatalf("Failed to save database: %v", err)
 	}
 
@@ -83,7 +84,7 @@ func TestConfigDelete_ByLabel(t *testing.T) {
 
 	// Reload database to verify deletion
 	db2 := database.New(dataDir)
-	_ = db2.Load()
+	_ = db2.Load(context.Background())
 
 	// Verify entry was deleted
 	_, err := db2.GetEntryByLabel("anthropic-prod")
@@ -117,14 +118,14 @@ func TestConfigDelete_ByID(t *testing.T) {
 	_ = fs.SaveMasterKey(masterKey)
 
 	db := database.New(dataDir)
-	_ = db.Load()
+	_ = db.Load(context.Background())
 
 	// Add test entry
 	cipher, nonce, _ := crypto.Encrypt(masterKey, "test-key")
 	entry := database.NewEntry("test-label", "openai", cipher, nonce)
 	_ = db.AddEntry(entry)
 
-	if err := db.Save(); err != nil {
+	if err := db.Save(context.Background()); err != nil {
 		t.Fatalf("Failed to save database: %v", err)
 	}
 
@@ -164,7 +165,7 @@ func TestConfigDelete_ByID(t *testing.T) {
 
 	// Reload database to verify deletion
 	db2 := database.New(dataDir)
-	_ = db2.Load()
+	_ = db2.Load(context.Background())
 
 	// Verify entry was deleted by ID
 	_, err := db2.GetEntry(entryID)
@@ -187,13 +188,13 @@ func TestConfigDelete_NotFound(t *testing.T) {
 	_ = fs.SaveMasterKey(masterKey)
 
 	db := database.New(dataDir)
-	_ = db.Load()
+	_ = db.Load(context.Background())
 
 	// Add test entry
 	cipher, nonce, _ := crypto.Encrypt(masterKey, "test-key")
 	entry := database.NewEntry("test-label", "openai", cipher, nonce)
 	_ = db.AddEntry(entry)
-	_ = db.Save()
+	_ = db.Save(context.Background())
 
 	// Create output capture file
 	outputFile := tempDir + "/output.txt"
@@ -240,8 +241,8 @@ func TestConfigDelete_EmptyDatabase(t *testing.T) {
 	_ = fs.SaveMasterKey(masterKey)
 
 	db := database.New(dataDir)
-	_ = db.Load()
-	_ = db.Save()
+	_ = db.Load(context.Background())
+	_ = db.Save(context.Background())
 
 	// Create output capture file
 	outputFile := tempDir + "/output.txt"
@@ -278,14 +279,14 @@ func TestConfigDelete_SaveError(t *testing.T) {
 	_ = fs.SaveMasterKey(masterKey)
 
 	db := database.New(dataDir)
-	_ = db.Load()
+	_ = db.Load(context.Background())
 
 	// Add test entry
 	cipher, nonce, _ := crypto.Encrypt(masterKey, "test-key")
 	entry := database.NewEntry("test-label", "openai", cipher, nonce)
 	_ = db.AddEntry(entry)
 
-	if err := db.Save(); err != nil {
+	if err := db.Save(context.Background()); err != nil {
 		t.Fatalf("Failed to save database: %v", err)
 	}
 

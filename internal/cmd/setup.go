@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 
 	"github.com/dkmnx/ply/internal/crypto"
@@ -73,7 +74,7 @@ func runSetup(cmd *cobra.Command, args []string) {
 
 	// Load database
 	db := database.New(dataDir)
-	if err := db.Load(); err != nil {
+	if err := db.Load(context.Background()); err != nil {
 		cmd.Printf("Error loading database: %v\n", err)
 		return
 	}
@@ -131,7 +132,7 @@ func runSetup(cmd *cobra.Command, args []string) {
 	}
 
 	// Save database
-	if err := db.Save(); err != nil {
+	if err := db.Save(context.Background()); err != nil {
 		cmd.Printf("Error saving database: %v\n", err)
 		return
 	}

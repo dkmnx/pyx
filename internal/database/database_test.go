@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -23,7 +24,7 @@ func TestLoadEmpty(t *testing.T) {
 	dataDir := t.TempDir()
 	db := New(dataDir)
 
-	if err := db.Load(); err != nil {
+	if err := db.Load(context.Background()); err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
 
@@ -42,7 +43,7 @@ func TestSaveLoad(t *testing.T) {
 		t.Fatalf("AddEntry() error = %v", err)
 	}
 
-	if err := db.Save(); err != nil {
+	if err := db.Save(context.Background()); err != nil {
 		t.Fatalf("Save() error = %v", err)
 	}
 
@@ -64,7 +65,7 @@ func TestSaveLoad(t *testing.T) {
 
 	// Load in new database instance
 	db2 := New(dataDir)
-	if err := db2.Load(); err != nil {
+	if err := db2.Load(context.Background()); err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
 

@@ -2,6 +2,7 @@
 package database
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,11 +15,9 @@ import (
 )
 
 var (
-	// ErrEntryNotFound is returned when an entry with the given ID is not found.
-	ErrEntryNotFound = errors.New("entry not found")
-
-	// ErrDuplicateLabel is returned when an entry with the same label already exists.
+	ErrEntryNotFound  = errors.New("entry not found")
 	ErrDuplicateLabel = errors.New("duplicate label")
+	ErrBackupFailed   = errors.New("failed to create backup")
 )
 
 // Entry represents a stored encrypted API key entry.
@@ -49,9 +48,15 @@ func New(dataDir string) *Database {
 
 // Load loads entries from the database file.
 // If the file doesn't exist, it initializes an empty database.
-func (db *Database) Load() error {
+func (db *Database) Load(ctx context.Context) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
 
 	data, err := os.ReadFile(db.filePath)
 	if err != nil {
@@ -69,26 +74,51 @@ func (db *Database) Load() error {
 	return nil
 }
 
-// Save writes entries to the database file.
-func (db *Database) Save() error {
+// Save writes entries to the database file with atomic write and backup.
+func (db *Database) Save(ctx context.Context) error {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
 
 	data, err := json.MarshalIndent(db.entries, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal database: %w", err)
 	}
 
-	// Ensure parent directory exists
 	if err := os.MkdirAll(filepath.Dir(db.filePath), 0700); err != nil {
 		return fmt.Errorf("failed to create data directory: %w", err)
 	}
 
-	if err := os.WriteFile(db.filePath, data, 0600); err != nil {
-		return fmt.Errorf("failed to write database file: %w", err)
+	backupPath := db.filePath + ".bak"
+	if _, err := os.Stat(db.filePath); err == nil {
+		if err := copyFile(db.filePath, backupPath); err != nil {
+			return fmt.Errorf("%w: %v", ErrBackupFailed, err)
+		}
+	}
+
+	tempPath := db.filePath + ".tmp"
+	if err := os.WriteFile(tempPath, data, 0600); err != nil {
+		return fmt.Errorf("failed to write temp database file: %w", err)
+	}
+
+	if err := os.Rename(tempPath, db.filePath); err != nil {
+		return fmt.Errorf("failed to rename database file: %w", err)
 	}
 
 	return nil
+}
+
+func copyFile(src, dst string) error {
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(dst, data, 0600)
 }
 
 // AddEntry adds a new entry to the database.

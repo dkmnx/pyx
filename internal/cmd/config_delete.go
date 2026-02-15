@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"strings"
 
 	"github.com/dkmnx/ply/internal/database"
@@ -34,7 +35,7 @@ func runConfigDelete(cmd *cobra.Command, args []string) {
 
 	// Load database
 	db := database.New(dataDir)
-	if err := db.Load(); err != nil {
+	if err := db.Load(context.Background()); err != nil {
 		cmd.Printf("Error loading database: %v\n", err)
 		return
 	}
@@ -68,7 +69,7 @@ func runConfigDelete(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	if err := db.Save(); err != nil {
+	if err := db.Save(context.Background()); err != nil {
 		cmd.Printf("Error saving database: %v\n", err)
 		return
 	}

@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"context"
+
 	"github.com/dkmnx/ply/internal/database"
 	"github.com/dkmnx/ply/internal/fs"
 	"github.com/spf13/cobra"
@@ -29,7 +31,7 @@ func runConfigList(cmd *cobra.Command, args []string) {
 
 	// Load database
 	db := database.New(dataDir)
-	if err := db.Load(); err != nil {
+	if err := db.Load(context.Background()); err != nil {
 		cmd.Printf("Error loading database: %v\n", err)
 		return
 	}

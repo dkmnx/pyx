@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -66,7 +67,7 @@ func runRoot(cmd *cobra.Command, args []string) {
 	}
 
 	db := database.New(dataDir)
-	if err := db.Load(); err != nil {
+	if err := db.Load(context.Background()); err != nil {
 		fmt.Fprintf(os.Stderr, "Error loading database: %v\n", err)
 		os.Exit(1)
 	}
@@ -90,6 +91,7 @@ func runRoot(cmd *cobra.Command, args []string) {
 		fmt.Fprintf(os.Stderr, "Error decrypting API key: %v\n", err)
 		os.Exit(1)
 	}
+	defer apiKey.Zero()
 
 	envVar, ok := providerEnvVar(entry.Provider)
 	if !ok {
@@ -97,7 +99,7 @@ func runRoot(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	if err := os.Setenv(envVar, apiKey); err != nil {
+	if err := os.Setenv(envVar, apiKey.String()); err != nil {
 		fmt.Fprintf(os.Stderr, "Error setting environment variable: %v\n", err)
 		os.Exit(1)
 	}

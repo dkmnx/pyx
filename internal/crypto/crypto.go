@@ -16,14 +16,29 @@ const (
 	nonceSize = 12 // 96 bits for GCM
 )
 
-// ErrInvalidKey is returned when the encryption key is invalid.
-var ErrInvalidKey = errors.New("invalid key size: must be 32 bytes")
+var (
+	ErrInvalidKey        = errors.New("invalid key size: must be 32 bytes")
+	ErrInvalidNonce      = errors.New("invalid nonce size: must be 12 bytes")
+	ErrInvalidCiphertext = errors.New("invalid ciphertext format")
+	ErrZeroed            = errors.New("secure bytes have been zeroed")
+)
 
-// ErrInvalidNonce is returned when the nonce is invalid.
-var ErrInvalidNonce = errors.New("invalid nonce size: must be 12 bytes")
+type SecureBytes []byte
 
-// ErrInvalidCiphertext is returned when the ciphertext is invalid.
-var ErrInvalidCiphertext = errors.New("invalid ciphertext format")
+func (s *SecureBytes) Zero() {
+	for i := range *s {
+		(*s)[i] = 0
+	}
+	*s = nil
+}
+
+func (s SecureBytes) String() string {
+	return string(s)
+}
+
+func (s SecureBytes) Bytes() []byte {
+	return []byte(s)
+}
 
 // Encrypt encrypts plaintext using AES-GCM with the provided key.
 // Returns base64-encoded ciphertext and nonce.
@@ -56,42 +71,43 @@ func Encrypt(key []byte, plaintext string) (string, string, error) {
 }
 
 // Decrypt decrypts ciphertext using AES-GCM with the provided key.
-// Expects base64-encoded ciphertext and nonce.
-func Decrypt(key []byte, cipherB64, nonceB64 string) (string, error) {
+// Expects base64-encoded ciphertext and nonce. Returns SecureBytes
+// that should be zeroed after use via defer.
+func Decrypt(key []byte, cipherB64, nonceB64 string) (SecureBytes, error) {
 	if len(key) != keySize {
-		return "", fmt.Errorf("%w: got %d bytes", ErrInvalidKey, len(key))
+		return nil, fmt.Errorf("%w: got %d bytes", ErrInvalidKey, len(key))
 	}
 
 	ciphertext, err := base64.StdEncoding.DecodeString(cipherB64)
 	if err != nil {
-		return "", fmt.Errorf("failed to decode ciphertext: %w", err)
+		return nil, fmt.Errorf("failed to decode ciphertext: %w", err)
 	}
 
 	nonce, err := base64.StdEncoding.DecodeString(nonceB64)
 	if err != nil {
-		return "", fmt.Errorf("failed to decode nonce: %w", err)
+		return nil, fmt.Errorf("failed to decode nonce: %w", err)
 	}
 
 	if len(nonce) != nonceSize {
-		return "", fmt.Errorf("%w: got %d bytes", ErrInvalidNonce, len(nonce))
+		return nil, fmt.Errorf("%w: got %d bytes", ErrInvalidNonce, len(nonce))
 	}
 
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return "", fmt.Errorf("failed to create cipher: %w", err)
+		return nil, fmt.Errorf("failed to create cipher: %w", err)
 	}
 
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return "", fmt.Errorf("failed to create GCM: %w", err)
+		return nil, fmt.Errorf("failed to create GCM: %w", err)
 	}
 
 	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
-		return "", fmt.Errorf("failed to decrypt: %w", err)
+		return nil, fmt.Errorf("failed to decrypt: %w", err)
 	}
 
-	return string(plaintext), nil
+	return SecureBytes(plaintext), nil
 }
 
 // GenerateKey generates a new random 32-byte encryption key.

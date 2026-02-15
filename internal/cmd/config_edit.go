@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -36,7 +37,7 @@ func runConfigEdit(cmd *cobra.Command, args []string) {
 	}
 
 	db := database.New(dataDir)
-	if loadErr := db.Load(); loadErr != nil {
+	if loadErr := db.Load(context.Background()); loadErr != nil {
 		cmd.Printf("Error loading database: %v\n", loadErr)
 		return
 	}
@@ -104,7 +105,7 @@ func runConfigEdit(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	if saveErr := db.Save(); saveErr != nil {
+	if saveErr := db.Save(context.Background()); saveErr != nil {
 		cmd.Printf("Error saving database: %v\n", saveErr)
 		return
 	}
@@ -138,7 +139,7 @@ func handleMetadataUpdate(cmd *cobra.Command, db *database.Database, entry *data
 			cmd.Printf("Error updating entry: %v\n", updateErr)
 			return
 		}
-		if saveErr := db.Save(); saveErr != nil {
+		if saveErr := db.Save(context.Background()); saveErr != nil {
 			cmd.Printf("Error saving database: %v\n", saveErr)
 			return
 		}
