@@ -23,12 +23,13 @@ var (
 
 // Entry represents a stored encrypted API key entry.
 type Entry struct {
-	ID        string    `json:"id"`
-	Label     string    `json:"label"`
-	Provider  string    `json:"provider"`
-	Cipher    string    `json:"cipher"`
-	Nonce     string    `json:"nonce"`
-	CreatedAt time.Time `json:"created_at"`
+	ID           string    `json:"id"`
+	Label        string    `json:"label"`
+	Provider     string    `json:"provider"`
+	DefaultModel string    `json:"default_model,omitempty"`
+	Cipher       string    `json:"cipher"`
+	Nonce        string    `json:"nonce"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 // Database manages the encrypted API key storage.
@@ -134,6 +135,16 @@ func (db *Database) GetEntryByLabel(label string) (Entry, error) {
 	return Entry{}, ErrEntryNotFound
 }
 
+// GetEntryByLabelOrID retrieves an entry by label or ID.
+// First tries to find by label, then falls back to ID lookup.
+func (db *Database) GetEntryByLabelOrID(target string) (Entry, error) {
+	entry, err := db.GetEntryByLabel(target)
+	if err == nil {
+		return entry, nil
+	}
+	return db.GetEntry(target)
+}
+
 // ListEntries returns all entries.
 func (db *Database) ListEntries() []Entry {
 	db.mu.RLock()
@@ -152,6 +163,29 @@ func (db *Database) DeleteEntry(id string) error {
 	for i, e := range db.entries {
 		if e.ID == id {
 			db.entries = append(db.entries[:i], db.entries[i+1:]...)
+			return nil
+		}
+	}
+
+	return ErrEntryNotFound
+}
+
+// UpdateEntry updates an existing entry in the database.
+// It updates the entry with the same ID as the provided entry.
+// Returns ErrEntryNotFound if no entry with the ID exists.
+// If the new label conflicts with another entry, returns ErrDuplicateLabel.
+func (db *Database) UpdateEntry(entry Entry) error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	for i, e := range db.entries {
+		if e.ID == entry.ID {
+			for j, other := range db.entries {
+				if i != j && other.Label == entry.Label {
+					return ErrDuplicateLabel
+				}
+			}
+			db.entries[i] = entry
 			return nil
 		}
 	}

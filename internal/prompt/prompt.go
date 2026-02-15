@@ -14,6 +14,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/dkmnx/ply/internal/models"
 	"golang.org/x/term"
 
 	"github.com/spf13/cobra"
@@ -21,22 +22,28 @@ import (
 
 // Providers is the list of supported providers (from pi coding agent).
 var Providers = []string{
+	"amazon-bedrock",
 	"anthropic",
 	"azure-openai-responses",
-	"openai",
-	"google",
-	"groq",
 	"cerebras",
-	"xai",
-	"openrouter",
-	"vercel-ai-gateway",
-	"zai",
-	"mistral",
+	"github-copilot",
+	"google",
+	"google-antigravity",
+	"google-gemini-cli",
+	"google-vertex",
+	"groq",
+	"huggingface",
+	"kimi-coding",
 	"minimax",
 	"minimax-cn",
-	"huggingface",
+	"mistral",
+	"openai",
+	"openai-codex",
 	"opencode",
-	"kimi-coding",
+	"openrouter",
+	"vercel-ai-gateway",
+	"xai",
+	"zai",
 }
 
 // PromptProvider prompts the user to select a provider from the supported list.
@@ -126,6 +133,59 @@ func PromptAPIKey(cmd *cobra.Command) (string, error) {
 	}
 
 	return input, nil
+}
+
+// PromptDefaultModel prompts the user for an optional default model.
+//
+// If the user presses Enter without input, returns an empty string which means
+// no specific model is set and the provider's model filter will be used instead.
+// Shows available models for the provider and allows selection by number or name.
+//
+// Returns the model name (or empty string) or an error if input fails.
+func PromptDefaultModel(cmd *cobra.Command, provider string) (string, error) {
+	availableModels := models.ForProvider(provider)
+
+	if len(availableModels) > 0 {
+		cmd.Printf("Available models for %s:\n", provider)
+		for i, m := range availableModels {
+			cmd.Printf("  %d. %s\n", i+1, m)
+		}
+		cmd.Println()
+	}
+
+	cmd.Printf("Enter default model for %s (number or name, press Enter to skip): ", provider)
+
+	for {
+		input, err := readLine()
+		if err != nil {
+			return "", fmt.Errorf("failed to read input: %w", err)
+		}
+
+		input = strings.TrimSpace(input)
+		if input == "" {
+			return "", nil
+		}
+
+		// Check if input is a number
+		var num int
+		if _, err := fmt.Sscanf(input, "%d", &num); err == nil {
+			if num >= 1 && num <= len(availableModels) {
+				return availableModels[num-1], nil
+			}
+			cmd.Printf("Invalid number. Please enter 1-%d or type a model name: ", len(availableModels))
+			continue
+		}
+
+		// Check if input matches a model name
+		for _, m := range availableModels {
+			if strings.EqualFold(input, m) {
+				return m, nil
+			}
+		}
+
+		// Allow custom model name if not in list
+		return input, nil
+	}
 }
 
 // readLine reads a line of input from stdin.

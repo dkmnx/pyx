@@ -19,6 +19,8 @@ type setupOutput struct {
 	Label string `json:"label"`
 	// Provider is the provider type name (e.g., "anthropic", "openai").
 	Provider string `json:"provider"`
+	// DefaultModel is the optional default model for this provider.
+	DefaultModel string `json:"default_model,omitempty"`
 	// CreatedAt is the ISO 8601 timestamp of entry creation.
 	CreatedAt string `json:"created_at"`
 }
@@ -104,6 +106,13 @@ func runSetup(cmd *cobra.Command, args []string) {
 		return
 	}
 
+	// Prompt for default model (optional)
+	defaultModel, err := prompt.PromptDefaultModel(cmd, provider)
+	if err != nil {
+		cmd.Printf("Error: %v\n", err)
+		return
+	}
+
 	// Encrypt API key
 	cipher, nonce, err := crypto.Encrypt(masterKey, apiKey)
 	if err != nil {
@@ -113,6 +122,7 @@ func runSetup(cmd *cobra.Command, args []string) {
 
 	// Create entry
 	entry := database.NewEntry(label, provider, cipher, nonce)
+	entry.DefaultModel = defaultModel
 
 	// Add to database
 	if err := db.AddEntry(entry); err != nil {
@@ -128,10 +138,11 @@ func runSetup(cmd *cobra.Command, args []string) {
 
 	// Output confirmation
 	output := setupOutput{
-		ID:        entry.ID,
-		Label:     entry.Label,
-		Provider:  entry.Provider,
-		CreatedAt: entry.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		ID:           entry.ID,
+		Label:        entry.Label,
+		Provider:     entry.Provider,
+		DefaultModel: entry.DefaultModel,
+		CreatedAt:    entry.CreatedAt.Format("2006-01-02T15:04:05Z"),
 	}
 
 	outputJSON, err := json.MarshalIndent(output, "", "  ")

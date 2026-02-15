@@ -37,47 +37,26 @@ func runConfigDelete(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	// Try to find entry by label first
-	entry, err := db.GetEntryByLabel(target)
-	if err == nil {
-		// Found by label
-		cmd.Printf("Deleting provider '%s' (ID: %s)...\n", entry.Label, entry.ID)
-
-		if err := db.DeleteEntry(entry.ID); err != nil {
-			cmd.Printf("Error deleting entry: %v\n", err)
-			return
-		}
-
-		if err := db.Save(); err != nil {
-			cmd.Printf("Error saving database: %v\n", err)
-			return
-		}
-
-		cmd.Printf("✓ Provider '%s' deleted\n", entry.Label)
+	// Find entry by label or ID
+	entry, err := db.GetEntryByLabelOrID(target)
+	if err != nil {
+		cmd.Printf("Error: provider '%s' not found\n", target)
+		cmd.Println("Use 'ply config list' to see all configured providers.")
 		return
 	}
 
-	// If not found by label, try by ID
-	entry, err = db.GetEntry(target)
-	if err == nil {
-		// Found by ID
-		cmd.Printf("Deleting provider '%s' (ID: %s)...\n", entry.Label, entry.ID)
+	// Delete the entry
+	cmd.Printf("Deleting provider '%s' (ID: %s)...\n", entry.Label, entry.ID)
 
-		if err := db.DeleteEntry(entry.ID); err != nil {
-			cmd.Printf("Error deleting entry: %v\n", err)
-			return
-		}
-
-		if err := db.Save(); err != nil {
-			cmd.Printf("Error saving database: %v\n", err)
-			return
-		}
-
-		cmd.Printf("✓ Provider '%s' deleted\n", entry.Label)
+	if err := db.DeleteEntry(entry.ID); err != nil {
+		cmd.Printf("Error deleting entry: %v\n", err)
 		return
 	}
 
-	// Not found by either label or ID
-	cmd.Printf("Error: provider '%s' not found\n", target)
-	cmd.Println("Use 'ply config list' to see all configured providers.")
+	if err := db.Save(); err != nil {
+		cmd.Printf("Error saving database: %v\n", err)
+		return
+	}
+
+	cmd.Printf("✓ Provider '%s' deleted\n", entry.Label)
 }

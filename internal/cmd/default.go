@@ -74,6 +74,9 @@ func displayDefault(cmd *cobra.Command, db *database.Database) {
 	cmd.Printf("  Label    : %s\n", entry.Label)
 	cmd.Printf("  ID       : %s\n", entry.ID)
 	cmd.Printf("  Provider : %s\n", entry.Provider)
+	if entry.DefaultModel != "" {
+		cmd.Printf("  Model    : %s\n", entry.DefaultModel)
+	}
 	cmd.Printf("  Created  : %s\n", entry.CreatedAt.Format("2006-01-02T15:04:05Z"))
 }
 
@@ -83,33 +86,19 @@ func displayDefault(cmd *cobra.Command, db *database.Database) {
 // searches for a matching entry in the database and saves its ID as the
 // default provider. Displays success message or error if not found.
 func setDefault(cmd *cobra.Command, db *database.Database, target string) {
-	// Try to find entry by label first
-	entry, err := db.GetEntryByLabel(target)
-	if err == nil {
-		// Found by label
-		if err := fs.SaveDefaultProvider(entry.ID); err != nil {
-			cmd.Printf("Error saving default provider: %v\n", err)
-			return
-		}
-
-		cmd.Printf("✓ Default provider set to '%s' (ID: %s)\n", entry.Label, entry.ID)
+	// Find entry by label or ID
+	entry, err := db.GetEntryByLabelOrID(target)
+	if err != nil {
+		cmd.Printf("Error: provider '%s' not found\n", target)
+		cmd.Println("Use 'ply config list' to see all configured providers.")
 		return
 	}
 
-	// If not found by label, try by ID
-	entry, err = db.GetEntry(target)
-	if err == nil {
-		// Found by ID
-		if err := fs.SaveDefaultProvider(entry.ID); err != nil {
-			cmd.Printf("Error saving default provider: %v\n", err)
-			return
-		}
-
-		cmd.Printf("✓ Default provider set to '%s' (ID: %s)\n", entry.Label, entry.ID)
+	// Save as default
+	if err := fs.SaveDefaultProvider(entry.ID); err != nil {
+		cmd.Printf("Error saving default provider: %v\n", err)
 		return
 	}
 
-	// Not found by either label or ID
-	cmd.Printf("Error: provider '%s' not found\n", target)
-	cmd.Println("Use 'ply config list' to see all configured providers.")
+	cmd.Printf("✓ Default provider set to '%s' (ID: %s)\n", entry.Label, entry.ID)
 }

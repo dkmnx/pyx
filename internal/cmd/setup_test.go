@@ -297,22 +297,28 @@ func TestSetupReusesExistingMasterKey(t *testing.T) {
 
 func TestProviderList(t *testing.T) {
 	expectedProviders := []string{
+		"amazon-bedrock",
 		"anthropic",
 		"azure-openai-responses",
-		"openai",
-		"google",
-		"groq",
 		"cerebras",
-		"xai",
-		"openrouter",
-		"vercel-ai-gateway",
-		"zai",
-		"mistral",
+		"github-copilot",
+		"google",
+		"google-antigravity",
+		"google-gemini-cli",
+		"google-vertex",
+		"groq",
+		"huggingface",
+		"kimi-coding",
 		"minimax",
 		"minimax-cn",
-		"huggingface",
+		"mistral",
+		"openai",
+		"openai-codex",
 		"opencode",
-		"kimi-coding",
+		"openrouter",
+		"vercel-ai-gateway",
+		"xai",
+		"zai",
 	}
 
 	// Note: Providers is defined in prompt package

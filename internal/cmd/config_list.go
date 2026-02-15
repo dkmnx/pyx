@@ -35,8 +35,7 @@ func runConfigList(cmd *cobra.Command, args []string) {
 	}
 
 	// Load default provider ID
-	var defaultID string
-	defaultID, _ = fs.LoadDefaultProvider()
+	defaultID, _ := fs.LoadDefaultProvider() //nolint:errcheck // Optional: default may not be set
 
 	// Get all entries
 	entries := db.ListEntries()
@@ -61,6 +60,9 @@ func runConfigList(cmd *cobra.Command, args []string) {
 		cmd.Printf("  ❯ %s\n", label)
 		cmd.Printf("    ID       : %s\n", e.ID)
 		cmd.Printf("    Provider : %s\n", e.Provider)
+		if e.DefaultModel != "" {
+			cmd.Printf("    Model    : %s\n", e.DefaultModel)
+		}
 		cmd.Printf("    Created  : %s\n", e.CreatedAt.Format("2006-01-02T15:04:05Z"))
 		cmd.Println()
 	}
