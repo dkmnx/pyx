@@ -13,7 +13,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-//nolint:unused // Used in init() via config.go
 var configEditCmd = &cobra.Command{
 	Use:   "edit [provider name or id]",
 	Short: "Edit a provider configuration",
@@ -23,6 +22,7 @@ var configEditCmd = &cobra.Command{
 }
 
 func init() {
+	configCmd.AddCommand(configEditCmd)
 }
 
 func runConfigEdit(cmd *cobra.Command, args []string) {

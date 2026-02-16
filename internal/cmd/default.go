@@ -15,7 +15,6 @@ var defaultCmd = &cobra.Command{
 	Run:   runDefault,
 }
 
-//nolint:unused // Used in init() via config.go
 func init() {
 	rootCmd.AddCommand(defaultCmd)
 }

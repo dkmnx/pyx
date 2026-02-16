@@ -8,12 +8,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
-//nolint:unused // Used in init() via config.go
 var configListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all configured providers",
 	Long:  `List displays all providers configured in ply configuration.`,
 	Run:   runConfigList,
+}
+
+func init() {
+	configCmd.AddCommand(configListCmd)
 }
 
 // runConfigList displays all configured providers in the ply configuration.

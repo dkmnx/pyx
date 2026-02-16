@@ -10,13 +10,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-//nolint:unused // Used in init() via config.go
 var configDeleteCmd = &cobra.Command{
 	Use:   "delete [label|id]",
 	Short: "Delete a provider configuration",
 	Long:  `Delete removes a provider configuration by label or ID.`,
 	Args:  cobra.ExactArgs(1),
 	Run:   runConfigDelete,
+}
+
+func init() {
+	configCmd.AddCommand(configDeleteCmd)
 }
 
 // runConfigDelete removes a provider configuration from the database.
