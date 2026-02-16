@@ -1,7 +1,9 @@
 // Package models provides model lists for each supported provider.
 package models
 
-var Models = map[string][]string{
+type Models map[string][]string
+
+var EmbeddedModels = map[string][]string{
 	"amazon-bedrock": {
 		"amazon.nova-2-lite-v1:0",
 		"amazon.nova-lite-v1:0",
@@ -393,8 +395,12 @@ var Models = map[string][]string{
 }
 
 func ForProvider(provider string) []string {
-	if models, ok := Models[provider]; ok {
+	if models, ok := EmbeddedModels[provider]; ok {
 		return models
 	}
 	return nil
+}
+
+func GetAll() Models {
+	return EmbeddedModels
 }
