@@ -61,7 +61,7 @@ func PromptProvider(cmd *cobra.Command) (string, error) {
 
 	for {
 		cmd.Print("Enter provider number or name: ")
-		input, err := readLine()
+		input, err := ReadLine()
 		if err != nil {
 			return "", fmt.Errorf("failed to read input: %w", err)
 		}
@@ -101,7 +101,7 @@ func PromptLabel(cmd *cobra.Command, provider string) (string, error) {
 	defaultLabel := fmt.Sprintf("%s-%s", provider, suffix)
 
 	cmd.Printf("Enter label (default: %s): ", defaultLabel)
-	input, err := readLine()
+	input, err := ReadLine()
 	if err != nil {
 		return "", fmt.Errorf("failed to read input: %w", err)
 	}
@@ -156,7 +156,7 @@ func PromptDefaultModel(cmd *cobra.Command, provider string) (string, error) {
 	cmd.Printf("Enter default model for %s (number or name, press Enter to skip): ", provider)
 
 	for {
-		input, err := readLine()
+		input, err := ReadLine()
 		if err != nil {
 			return "", fmt.Errorf("failed to read input: %w", err)
 		}
@@ -188,8 +188,8 @@ func PromptDefaultModel(cmd *cobra.Command, provider string) (string, error) {
 	}
 }
 
-// readLine reads a line of input from stdin.
-func readLine() (string, error) {
+// ReadLine reads a line of input from stdin.
+func ReadLine() (string, error) {
 	reader := bufio.NewReader(os.Stdin)
 	line, err := reader.ReadString('\n')
 	if err != nil {

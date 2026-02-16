@@ -1,10 +1,8 @@
 package cmd
 
 import (
-	"bufio"
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/dkmnx/ply/internal/crypto"
@@ -149,7 +147,7 @@ func handleMetadataUpdate(cmd *cobra.Command, db *database.Database, entry *data
 
 func promptNewLabel(cmd *cobra.Command, currentLabel string) string {
 	cmd.Printf("Enter new label (current: %s, press Enter to keep): ", currentLabel)
-	input, err := readUserLine()
+	input, err := prompt.ReadLine()
 	if err != nil {
 		cmd.Printf("Error reading input: %v\n", err)
 		return ""
@@ -164,7 +162,7 @@ func promptNewLabel(cmd *cobra.Command, currentLabel string) string {
 func promptNewProvider(cmd *cobra.Command, currentProvider string) string {
 	cmd.Printf("Current provider: %s\n", currentProvider)
 	cmd.Print("Do you want to change the provider? (y/N): ")
-	input, err := readUserLine()
+	input, err := prompt.ReadLine()
 	if err != nil {
 		cmd.Printf("Error reading input: %v\n", err)
 		return ""
@@ -184,7 +182,7 @@ func promptNewProvider(cmd *cobra.Command, currentProvider string) string {
 
 func promptUpdateAPIKey(cmd *cobra.Command) bool {
 	cmd.Print("Do you want to update the API key? (y/N): ")
-	input, err := readUserLine()
+	input, err := prompt.ReadLine()
 	if err != nil {
 		cmd.Printf("Error reading input: %v\n", err)
 		return false
@@ -212,7 +210,7 @@ func promptNewDefaultModel(cmd *cobra.Command, currentModel, provider string) st
 	cmd.Printf("Enter new default model for %s (current: %s, number or name, press Enter to keep): ", provider, currentDisplay)
 
 	for {
-		input, err := readUserLine()
+		input, err := prompt.ReadLine()
 		if err != nil {
 			cmd.Printf("Error reading input: %v\n", err)
 			return currentModel
@@ -242,13 +240,4 @@ func promptNewDefaultModel(cmd *cobra.Command, currentModel, provider string) st
 		// Allow custom model name if not in list
 		return input
 	}
-}
-
-func readUserLine() (string, error) {
-	reader := bufio.NewReader(os.Stdin)
-	line, err := reader.ReadString('\n')
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSuffix(line, "\n"), nil
 }

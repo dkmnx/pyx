@@ -6,6 +6,7 @@ import (
 
 	"github.com/dkmnx/ply/internal/database"
 	"github.com/dkmnx/ply/internal/fs"
+	"github.com/dkmnx/ply/internal/prompt"
 	"github.com/spf13/cobra"
 )
 
@@ -52,7 +53,7 @@ func runConfigDelete(cmd *cobra.Command, args []string) {
 	cmd.Printf("  Provider : %s\n", entry.Provider)
 	cmd.Print("\nAre you sure you want to delete this provider? (y/N): ")
 
-	confirmation, err := readUserLine()
+	confirmation, err := prompt.ReadLine()
 	if err != nil {
 		cmd.Printf("Error reading input: %v\n", err)
 		return
