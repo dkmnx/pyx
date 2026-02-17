@@ -1,9 +1,21 @@
 package providers
 
+import (
+	"fmt"
+	"regexp"
+	"strings"
+)
+
 type Provider struct {
 	Name   string
 	EnvVar string
 }
+
+var (
+	// validProviderNamePattern matches valid provider names.
+	// Allows alphanumeric, hyphens, and underscores, 1-50 characters.
+	validProviderNamePattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,50}$`)
+)
 
 var All = []Provider{
 	{Name: "amazon-bedrock", EnvVar: "AWS_BEARER_TOKEN_BEDROCK"},
@@ -51,4 +63,42 @@ func EnvVar(name string) (string, bool) {
 func IsValid(name string) bool {
 	_, ok := EnvVar(name)
 	return ok
+}
+
+// Validate checks if a provider name is valid and safe.
+// It performs validation beyond just checking against the known provider list.
+func Validate(name string) error {
+	// Check for empty string
+	if name == "" {
+		return fmt.Errorf("provider name cannot be empty")
+	}
+
+	// Check for path traversal attempts
+	if strings.Contains(name, "..") {
+		return fmt.Errorf("provider name cannot contain '..' (path traversal attempt)")
+	}
+
+	// Check for path separators
+	if strings.ContainsAny(name, "/\\") {
+		return fmt.Errorf("provider name cannot contain path separators")
+	}
+
+	// Check for control characters
+	for _, r := range name {
+		if r < 32 || r == 127 {
+			return fmt.Errorf("provider name cannot contain control characters")
+		}
+	}
+
+	// Check for valid format (alphanumeric, hyphens, underscores)
+	if !validProviderNamePattern.MatchString(name) {
+		return fmt.Errorf("provider name must be 1-50 characters and contain only letters, numbers, hyphens, and underscores")
+	}
+
+	// Check against list of known providers
+	if !IsValid(name) {
+		return fmt.Errorf("unknown provider '%s', run 'ply setup' to see available providers", name)
+	}
+
+	return nil
 }
