@@ -11,9 +11,9 @@ import (
 )
 
 var configDeleteCmd = &cobra.Command{
-	Use:   "delete [label|id]",
+	Use:   "delete [provider]",
 	Short: "Delete a provider configuration",
-	Long:  `Delete removes a provider configuration by label or ID.`,
+	Long:  `Delete removes a provider configuration by provider name.`,
 	Args:  cobra.ExactArgs(1),
 	Run:   runConfigDelete,
 }
@@ -44,16 +44,15 @@ func runConfigDelete(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	// Find entry by label or ID
-	entry, err := db.GetEntryByLabelOrID(target)
+	// Find entry by provider
+	entry, err := db.GetEntry(target)
 	if err != nil {
 		cmd.Printf("Error: provider '%s' not found\n", target)
 		cmd.Println("Use 'ply config list' to see all configured providers.")
 		return
 	}
 
-	cmd.Printf("Provider '%s' (ID: %s)\n", entry.Label, entry.ID)
-	cmd.Printf("  Provider : %s\n", entry.Provider)
+	cmd.Printf("Provider '%s'\n", entry.Provider)
 	cmd.Print("\nAre you sure you want to delete this provider? (y/N): ")
 
 	confirmation, err := prompt.ReadLine()
@@ -68,7 +67,7 @@ func runConfigDelete(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	if err := db.DeleteEntry(entry.ID); err != nil {
+	if err := db.DeleteEntry(entry.Provider); err != nil {
 		cmd.Printf("Error deleting entry: %v\n", err)
 		return
 	}
@@ -78,5 +77,5 @@ func runConfigDelete(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	cmd.Printf("✓ Provider '%s' deleted\n", entry.Label)
+	cmd.Printf("✓ Provider '%s' deleted\n", entry.Provider)
 }

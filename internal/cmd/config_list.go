@@ -22,8 +22,7 @@ func init() {
 // runConfigList displays all configured providers in the ply configuration.
 //
 // Reads the database, retrieves all provider entries, and displays them
-// in a formatted list. The default provider is marked with "(default)".
-// Shows total count of configured providers at the end.
+// in a formatted list. Shows total count of configured providers at the end.
 func runConfigList(cmd *cobra.Command, args []string) {
 	// Get data directory
 	dataDir, err := fs.DataDir()
@@ -39,9 +38,6 @@ func runConfigList(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	// Load default provider ID
-	defaultID, _ := fs.LoadDefaultProvider() //nolint:errcheck // Optional: default may not be set
-
 	// Get all entries
 	entries := db.ListEntries()
 
@@ -56,18 +52,7 @@ func runConfigList(cmd *cobra.Command, args []string) {
 
 	// Output each entry
 	for _, e := range entries {
-		// Show (default) marker if this is the default
-		label := e.Label
-		if e.ID == defaultID {
-			label = e.Label + " (default)"
-		}
-
-		cmd.Printf("  ❯ %s\n", label)
-		cmd.Printf("    ID       : %s\n", e.ID)
-		cmd.Printf("    Provider : %s\n", e.Provider)
-		if e.DefaultModel != "" {
-			cmd.Printf("    Model    : %s\n", e.DefaultModel)
-		}
+		cmd.Printf("  ❯ %s\n", e.Provider)
 		cmd.Printf("    Created  : %s\n", e.CreatedAt.Format(timeFormat))
 		cmd.Println()
 	}
