@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/dkmnx/ply/internal/models"
 	"golang.org/x/term"
@@ -225,8 +226,7 @@ func readPassword() (string, error) {
 func randomSuffix(byteLen int) string {
 	bytes := make([]byte, byteLen)
 	if _, err := rand.Read(bytes); err != nil {
-		// Fallback to a simple timestamp-based suffix
-		return fmt.Sprintf("%08x", uint64(byteLen))
+		return fmt.Sprintf("%08x", time.Now().UnixNano())
 	}
 	return hex.EncodeToString(bytes)
 }
