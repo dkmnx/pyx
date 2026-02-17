@@ -20,10 +20,7 @@ ply setup
 # List providers
 ply config list
 
-# Set default provider
-ply default openai
-
-# Run pi with provider credentials
+# Run pi with all configured providers
 ply
 ```
 
@@ -33,10 +30,10 @@ ply
 |---------|-------------|
 | `ply setup` | Initialize configuration and add a provider |
 | `ply config list` | List all configured providers |
-| `ply config edit <name\|id>` | Edit a provider configuration |
-| `ply config delete <name\|id>` | Delete a provider |
-| `ply default [name\|id]` | Set or view the default provider |
-| `ply [provider\|id]` | Run pi with the specified or default provider |
+| `ply config edit <provider>` | Edit a provider's API key |
+| `ply config delete <provider>` | Delete a provider |
+| `ply [provider]` | Run pi with a specific provider |
+| `ply` | Run pi with all configured providers |
 | `ply completion [bash\|zsh\|fish\|powershell]` | Generate shell completion |
 | `ply version` | Print version information |
 
@@ -44,6 +41,7 @@ ply
 
 - **Secure Storage**: AES-256-GCM encryption for all API keys
 - **Multiple Providers**: Support for Anthropic, OpenAI, Google, Groq, and more
+- **Multi-Provider**: Run pi with all configured providers simultaneously
 - **Model Filtering**: Automatically filters models by provider
 - **Shell Completion**: Full bash, zsh, fish, and PowerShell support
 

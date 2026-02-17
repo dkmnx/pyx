@@ -15,8 +15,9 @@ ply setup
 Prompts for:
 
 - Provider selection (number or name)
-- Label (auto-generated with random suffix)
 - API key (hidden input)
+
+If the provider already exists, you'll be asked to confirm override.
 
 ### config list
 
@@ -28,17 +29,15 @@ ply config list
 
 Output includes:
 
-- Label (marked with "(default)" if applicable)
-- Unique ID
-- Provider type
+- Provider name
 - Creation timestamp
 
 ### config edit
 
-Edit an existing provider configuration.
+Edit a provider's API key.
 
 ```bash
-ply config edit <label|id>
+ply config edit <provider>
 ```
 
 ### config delete
@@ -46,29 +45,14 @@ ply config edit <label|id>
 Delete a provider configuration.
 
 ```bash
-ply config delete <label|id>
-```
-
-### default
-
-View or set the default provider.
-
-```bash
-# View current default
-ply default
-
-# Set default by label
-ply default openai
-
-# Set default by ID
-ply default 123e4567-e89b-12d3-a456-426614174000
+ply config delete <provider>
 ```
 
 ## Running pi
 
-### Default Provider
+### All Configured Providers
 
-Run pi with the configured default provider:
+Run pi with all configured providers:
 
 ```bash
 ply
@@ -76,19 +60,20 @@ ply
 
 This will:
 
-1. Retrieve the default provider from storage
-2. Decrypt the API key using the master key
-3. Set the appropriate environment variable
-4. Execute `pi --models "<provider>/*"`
+1. Load all configured providers from storage
+2. Decrypt each API key using the master key
+3. Set the appropriate environment variables
+4. Execute `pi --models "provider1/*,provider2/*,..."`
+
+If providers share the same environment variable (e.g., `openai` and `openai-codex` both use `OPENAI_API_KEY`), they must have the same API key or an error will occur.
 
 ### Specific Provider
 
-Run pi with a specific provider without changing the default:
+Run pi with a specific provider:
 
 ```bash
 ply anthropic
 ply groq
-ply 123e4567-e89b-12d3-a456-426614174000
 ```
 
 ### Passing Arguments to pi
@@ -174,37 +159,34 @@ ply setup
 # List providers
 ply config list
 
-# Set default
-ply default anthropic
-
-# Run with default
+# Run with all configured providers
 ply
 
-# Switch to another provider temporarily
-ply groq -- --help
+# Run with specific provider
+ply anthropic
 
-# Set as new default
-ply default groq
+# Delete a provider
+ply config delete openai
 ```
 
-### Multiple Provider Management
+### Multiple Provider Setup
 
 ```bash
-# List all providers
-ply config list
-
 # Configure OpenAI
 ply setup
 > Select: openai
-> Label: openai-work
 > API key: sk-...
 
 # Configure Anthropic
 ply setup
 > Select: anthropic
-> Label: anthropic-personal
 > API key: sk-ant-...
 
-# Use specific provider
-ply anthropic-personal
+# Configure Groq
+ply setup
+> Select: groq
+> API key: gsk_...
+
+# Run with all providers
+ply
 ```
