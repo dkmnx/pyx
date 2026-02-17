@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 var (
@@ -15,15 +14,11 @@ var (
 
 	// ErrDataDirNotFound is returned when the data directory doesn't exist.
 	ErrDataDirNotFound = errors.New("data directory not found")
-
-	// ErrDefaultNotFound is returned when default provider is not set.
-	ErrDefaultNotFound = errors.New("default provider not found")
 )
 
 const (
-	appName     = "ply"
-	masterKey   = "master.key"
-	defaultFile = "default.txt"
+	appName   = "ply"
+	masterKey = "master.key"
 )
 
 // DataDir returns the path to the ply data directory.
@@ -131,66 +126,4 @@ func DataDirExists() (bool, error) {
 	}
 
 	return true, nil
-}
-
-// DefaultProviderPath returns the path to the default provider file.
-func DefaultProviderPath() (string, error) {
-	dataDir, err := DataDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(dataDir, defaultFile), nil
-}
-
-// LoadDefaultProvider loads the default provider ID from file.
-func LoadDefaultProvider() (string, error) {
-	path, err := DefaultProviderPath()
-	if err != nil {
-		return "", err
-	}
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return "", ErrDefaultNotFound
-		}
-		return "", fmt.Errorf("failed to read default provider: %w", err)
-	}
-
-	// Trim whitespace and newlines
-	id := strings.TrimSpace(string(data))
-
-	if id == "" {
-		return "", ErrDefaultNotFound
-	}
-
-	return id, nil
-}
-
-// SaveDefaultProvider saves the default provider ID to file.
-func SaveDefaultProvider(id string) error {
-	path, err := DefaultProviderPath()
-	if err != nil {
-		return err
-	}
-
-	if err := os.WriteFile(path, []byte(id), 0600); err != nil {
-		return fmt.Errorf("failed to write default provider: %w", err)
-	}
-
-	return nil
-}
-
-// ClearDefaultProvider removes the default provider file.
-func ClearDefaultProvider() error {
-	path, err := DefaultProviderPath()
-	if err != nil {
-		return err
-	}
-
-	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to clear default provider: %w", err)
-	}
-
-	return nil
 }
