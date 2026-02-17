@@ -95,6 +95,8 @@ func (m *Manager) Load(password []byte) ([]byte, error) {
 // Delete removes the master key from storage.
 func (m *Manager) Delete() error {
 	// Try to delete from keyring
+	// Ignore errors from keyring deletion as it may not be available
+	//nolint:errcheck
 	keyring.Delete(keyringService, keyringUser)
 
 	// Try to delete from file

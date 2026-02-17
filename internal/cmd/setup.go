@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -24,6 +25,99 @@ func init() {
 	rootCmd.AddCommand(setupCmd)
 }
 
+// getMasterKey retrieves or creates the master key.
+// If the key exists, it loads it (prompting for password if needed).
+// If the key doesn't exist, it creates and saves a new one.
+func getMasterKey(cmd *cobra.Command, keyMgr *keys.Manager) ([]byte, error) {
+	keyExists, err := keyMgr.Exists()
+	if err != nil {
+		return nil, err
+	}
+
+	if keyExists {
+		return loadExistingMasterKey(cmd, keyMgr)
+	}
+	return createMasterKey(cmd, keyMgr)
+}
+
+// loadExistingMasterKey loads the existing master key.
+func loadExistingMasterKey(cmd *cobra.Command, keyMgr *keys.Manager) ([]byte, error) {
+	cmd.Printf("✓ Using existing master key\n")
+
+	requiresPassword, err := keyMgr.RequiresPassword()
+	if err != nil {
+		return nil, fmt.Errorf("error checking password requirement: %w", err)
+	}
+
+	var password []byte
+	if requiresPassword {
+		pwStr, err := prompt.PromptPassword(cmd, "Enter password to unlock your API keys")
+		if err != nil {
+			return nil, fmt.Errorf("error: %w", err)
+		}
+		password = []byte(pwStr)
+	}
+
+	masterKey, err := keyMgr.Load(password)
+	if err != nil {
+		if err == keys.ErrInvalidPassword {
+			cmd.Println("Password incorrect.")
+		}
+		return nil, fmt.Errorf("error loading master key: %w", err)
+	}
+
+	return masterKey, nil
+}
+
+// createMasterKey creates and saves a new master key.
+func createMasterKey(cmd *cobra.Command, keyMgr *keys.Manager) ([]byte, error) {
+	cmd.Println("Initializing ply for the first time...")
+
+	masterKey, err := keys.GenerateKey()
+	if err != nil {
+		return nil, fmt.Errorf("error generating master key: %w", err)
+	}
+
+	// Try to save to keyring first
+	if err := keyMgr.Save(masterKey); err != nil {
+		// Keyring unavailable, need password
+		cmd.Println("OS keyring unavailable. A password will be used to encrypt your master key.")
+		cmd.Println("You will need to enter this password each time you run ply.")
+
+		pwStr, err := prompt.PromptNewPassword(cmd)
+		if err != nil {
+			return nil, fmt.Errorf("error: %w", err)
+		}
+
+		// Set password for encryption
+		if err := keyMgr.SetPassword([]byte(pwStr)); err != nil {
+			return nil, fmt.Errorf("error saving password: %w", err)
+		}
+
+		// Save master key with password encryption
+		if err := keyMgr.Save(masterKey); err != nil {
+			return nil, fmt.Errorf("error saving master key: %w", err)
+		}
+	}
+
+	cmd.Printf("✓ Master key initialized\n")
+	return masterKey, nil
+}
+
+// confirmProviderOverride prompts the user to confirm overriding an existing provider.
+func confirmProviderOverride(cmd *cobra.Command, provider string) (bool, error) {
+	cmd.Printf("Provider '%s' already configured. Override? (y/N): ", provider)
+	confirm, err := prompt.ReadLine()
+	if err != nil {
+		return false, fmt.Errorf("error reading input: %w", err)
+	}
+	confirm = strings.TrimSpace(strings.ToLower(confirm))
+	if confirm != "y" && confirm != confirmYes {
+		return false, nil
+	}
+	return true, nil
+}
+
 // runSetup initializes ply configuration and adds a new provider.
 //
 // The setup process creates the data directory if needed, initializes or
@@ -40,78 +134,11 @@ func runSetup(cmd *cobra.Command, args []string) {
 	// Initialize key manager
 	keyMgr := keys.New(dataDir)
 
-	// Check if master key exists
-	keyExists, err := keyMgr.Exists()
+	// Get master key (load existing or create new)
+	masterKey, err := getMasterKey(cmd, keyMgr)
 	if err != nil {
-		cmd.Printf("Error checking for master key: %v\n", err)
+		cmd.Printf("%v\n", err)
 		return
-	}
-
-	var masterKey []byte
-	if keyExists {
-		// Load existing master key
-		cmd.Printf("✓ Using existing master key\n")
-		requiresPassword, err := keyMgr.RequiresPassword()
-		if err != nil {
-			cmd.Printf("Error checking password requirement: %v\n", err)
-			return
-		}
-
-		var password []byte
-		if requiresPassword {
-			pwStr, err := prompt.PromptPassword(cmd, "Enter password to unlock your API keys")
-			if err != nil {
-				cmd.Printf("Error: %v\n", err)
-				return
-			}
-			password = []byte(pwStr)
-		}
-
-		masterKey, err = keyMgr.Load(password)
-		if err != nil {
-			cmd.Printf("Error loading master key: %v\n", err)
-			if err == keys.ErrInvalidPassword {
-				cmd.Println("Password incorrect.")
-			}
-			return
-		}
-	} else {
-		// Initialize new master key
-		cmd.Println("Initializing ply for the first time...")
-
-		// Generate new master key
-		masterKey, err = keys.GenerateKey()
-		if err != nil {
-			cmd.Printf("Error generating master key: %v\n", err)
-			return
-		}
-
-		// Try to save to keyring first
-		if err := keyMgr.Save(masterKey); err != nil {
-			// Keyring unavailable, need password
-			cmd.Println("OS keyring unavailable. A password will be used to encrypt your master key.")
-			cmd.Println("You will need to enter this password each time you run ply.")
-
-			pwStr, err := prompt.PromptNewPassword(cmd)
-			if err != nil {
-				cmd.Printf("Error: %v\n", err)
-				return
-			}
-
-			// Set password for encryption
-			if err := keyMgr.SetPassword([]byte(pwStr)); err != nil {
-				cmd.Printf("Error saving password: %v\n", err)
-				return
-			}
-
-			// Save master key with password encryption
-			if err := keyMgr.Save(masterKey); err != nil {
-				cmd.Printf("Error saving master key: %v\n", err)
-				return
-			}
-		}
-
-		cmd.Printf("✓ Master key initialized\n")
 	}
 
 	// Load database
@@ -130,14 +157,12 @@ func runSetup(cmd *cobra.Command, args []string) {
 
 	// Check for existing provider
 	if _, err := db.GetEntry(provider); err == nil {
-		cmd.Printf("Provider '%s' already configured. Override? (y/N): ", provider)
-		confirm, readErr := prompt.ReadLine()
-		if readErr != nil {
-			cmd.Printf("Error reading input: %v\n", readErr)
+		confirmed, err := confirmProviderOverride(cmd, provider)
+		if err != nil {
+			cmd.Printf("%v\n", err)
 			return
 		}
-		confirm = strings.TrimSpace(strings.ToLower(confirm))
-		if confirm != "y" && confirm != confirmYes {
+		if !confirmed {
 			cmd.Println("Setup cancelled.")
 			return
 		}
