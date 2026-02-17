@@ -9,6 +9,7 @@ import (
 	"github.com/dkmnx/ply/internal/crypto"
 	"github.com/dkmnx/ply/internal/database"
 	"github.com/dkmnx/ply/internal/fs"
+	"github.com/dkmnx/ply/internal/providers"
 	"github.com/spf13/cobra"
 )
 
@@ -16,32 +17,6 @@ const (
 	timeFormat = "2006-01-02T15:04:05Z"
 	confirmYes = "yes"
 )
-
-var providerEnvVars = map[string]string{
-	"amazon-bedrock":         "AWS_BEARER_TOKEN_BEDROCK",
-	"anthropic":              "ANTHROPIC_API_KEY",
-	"azure-openai-responses": "AZURE_OPENAI_API_KEY",
-	"cerebras":               "CEREBRAS_API_KEY",
-	"github-copilot":         "GITHUB_TOKEN",
-	"google":                 "GEMINI_API_KEY",
-	"google-antigravity":     "GEMINI_API_KEY",
-	"google-gemini-cli":      "GEMINI_API_KEY",
-	"google-vertex":          "GOOGLE_APPLICATION_CREDENTIALS",
-	"groq":                   "GROQ_API_KEY",
-	"huggingface":            "HF_TOKEN",
-	"kimi-coding":            "KIMI_API_KEY",
-	"minimax":                "MINIMAX_API_KEY",
-	"minimax-cn":             "MINIMAX_CN_API_KEY",
-	"mistral":                "MISTRAL_API_KEY",
-	"openai":                 "OPENAI_API_KEY",
-	"openai-codex":           "OPENAI_API_KEY",
-	"opencode":               "OPENCODE_API_KEY",
-	"opencode-zen":           "OPENCODE_API_KEY",
-	"openrouter":             "OPENROUTER_API_KEY",
-	"vercel-ai-gateway":      "AI_GATEWAY_API_KEY",
-	"xai":                    "XAI_API_KEY",
-	"zai":                    "ZAI_API_KEY",
-}
 
 var rootCmd = &cobra.Command{
 	Use:   "ply [provider|id] [args...]",
@@ -193,6 +168,5 @@ func executePi(entry database.Entry, piArgs []string, skipModelsFilter bool) {
 }
 
 func providerEnvVar(provider string) (string, bool) {
-	envVar, ok := providerEnvVars[provider]
-	return envVar, ok
+	return providers.EnvVar(provider)
 }

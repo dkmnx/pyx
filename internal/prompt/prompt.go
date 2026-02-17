@@ -22,54 +22,21 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Providers is the list of supported providers (from pi coding agent).
-var Providers = []string{
-	"amazon-bedrock",
-	"anthropic",
-	"azure-openai-responses",
-	"cerebras",
-	"github-copilot",
-	"google",
-	"google-antigravity",
-	"google-gemini-cli",
-	"google-vertex",
-	"groq",
-	"huggingface",
-	"kimi-coding",
-	"minimax",
-	"minimax-cn",
-	"mistral",
-	"openai",
-	"openai-codex",
-	"opencode",
-	"openrouter",
-	"vercel-ai-gateway",
-	"xai",
-	"zai",
-}
-
-// PromptProvider prompts the user to select a provider from the supported list.
-//
-// The function displays all available providers with numbered options and
-// accepts either a number (1-based index) or a provider name as input.
-// Input is case-insensitive for provider names.
-//
-// Uses cached models if available, falls back to hardcoded list.
 func PromptProvider(cmd *cobra.Command) (string, error) {
+	if err := models.FetchAndCache(); err != nil {
+		return "", fmt.Errorf("failed to fetch models: %w", err)
+	}
+
 	allModels := models.GetAll()
-	providers := make([]string, 0, len(allModels))
+	providerList := make([]string, 0, len(allModels))
 	for p := range allModels {
-		providers = append(providers, p)
+		providerList = append(providerList, p)
 	}
 
-	if len(providers) == 0 {
-		providers = Providers
-	}
-
-	sort.Strings(providers)
+	sort.Strings(providerList)
 
 	cmd.Printf("Select a provider:\n")
-	for i, p := range providers {
+	for i, p := range providerList {
 		cmd.Printf("  %d. %s\n", i+1, p)
 	}
 
@@ -85,21 +52,21 @@ func PromptProvider(cmd *cobra.Command) (string, error) {
 		// Check if input is a number
 		var num int
 		if _, err := fmt.Sscanf(input, "%d", &num); err == nil {
-			if num >= 1 && num <= len(providers) {
-				return providers[num-1], nil
+			if num >= 1 && num <= len(providerList) {
+				return providerList[num-1], nil
 			}
-			cmd.Printf("Invalid number. Please enter 1-%d\n", len(providers))
+			cmd.Printf("Invalid number. Please enter 1-%d\n", len(providerList))
 			continue
 		}
 
 		// Check if input matches a provider name
-		for _, p := range providers {
+		for _, p := range providerList {
 			if strings.EqualFold(input, p) {
 				return p, nil
 			}
 		}
 
-		cmd.Printf("Invalid provider. Please choose from: %s\n", strings.Join(providers, ", "))
+		cmd.Printf("Invalid provider. Please choose from: %s\n", strings.Join(providerList, ", "))
 	}
 }
 
@@ -157,6 +124,10 @@ func PromptAPIKey(cmd *cobra.Command) (string, error) {
 //
 // Returns the model name (or empty string) or an error if input fails.
 func PromptDefaultModel(cmd *cobra.Command, provider string) (string, error) {
+	if err := models.FetchAndCache(); err != nil {
+		return "", fmt.Errorf("failed to fetch models: %w", err)
+	}
+
 	availableModels := models.ForProvider(provider)
 
 	if len(availableModels) > 0 {

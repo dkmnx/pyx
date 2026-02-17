@@ -4,32 +4,9 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-)
 
-var knownProviders = map[string]bool{
-	"amazon-bedrock":         true,
-	"anthropic":              true,
-	"azure-openai-responses": true,
-	"cerebras":               true,
-	"github-copilot":         true,
-	"google":                 true,
-	"google-antigravity":     true,
-	"google-gemini-cli":      true,
-	"google-vertex":          true,
-	"groq":                   true,
-	"huggingface":            true,
-	"kimi-coding":            true,
-	"minimax":                true,
-	"minimax-cn":             true,
-	"mistral":                true,
-	"openai":                 true,
-	"openai-codex":           true,
-	"opencode":               true,
-	"openrouter":             true,
-	"vercel-ai-gateway":      true,
-	"xai":                    true,
-	"zai":                    true,
-}
+	"github.com/dkmnx/ply/internal/providers"
+)
 
 func ParseModels(content string) (Models, error) {
 	result := make(Models)
@@ -51,7 +28,7 @@ func ParseModels(content string) (Models, error) {
 		sectionMatch := providerSectionPattern.FindStringSubmatch(trimmed)
 		if sectionMatch != nil {
 			key := sectionMatch[1]
-			if knownProviders[key] {
+			if providers.IsValid(key) {
 				currentProvider = ""
 			}
 			continue

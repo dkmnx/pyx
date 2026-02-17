@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"testing"
+
+	"github.com/dkmnx/ply/internal/providers"
 )
 
 func TestProviderEnvVar(t *testing.T) {
@@ -165,12 +167,12 @@ func TestProviderEnvVar(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			envVar, found := providerEnvVar(tt.provider)
+			envVar, found := providers.EnvVar(tt.provider)
 			if found != tt.expectedFound {
-				t.Errorf("providerEnvVar(%q) found = %v, expected %v", tt.provider, found, tt.expectedFound)
+				t.Errorf("EnvVar(%q) found = %v, expected %v", tt.provider, found, tt.expectedFound)
 			}
 			if envVar != tt.expectedEnv {
-				t.Errorf("providerEnvVar(%q) envVar = %q, expected %q", tt.provider, envVar, tt.expectedEnv)
+				t.Errorf("EnvVar(%q) envVar = %q, expected %q", tt.provider, envVar, tt.expectedEnv)
 			}
 		})
 	}
