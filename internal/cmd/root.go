@@ -157,14 +157,16 @@ func resolveEntries(db *database.Database, providerArg string) ([]database.Entry
 
 func executePi(entries []database.Entry, piArgs []string, skipModelsFilter bool, providerEnv []string) {
 	var finalPiArgs []string
-	if !skipModelsFilter {
+	if skipModelsFilter {
+		finalPiArgs = piArgs
+	} else {
 		providersList := make([]string, 0, len(entries))
 		for _, entry := range entries {
 			providersList = append(providersList, fmt.Sprintf("%s/*", entry.Provider))
 		}
 		finalPiArgs = []string{"--models", strings.Join(providersList, ",")}
+		finalPiArgs = append(finalPiArgs, piArgs...)
 	}
-	finalPiArgs = append(finalPiArgs, piArgs...)
 
 	piCmd := exec.Command("pi", finalPiArgs...)
 	piCmd.Stdin = os.Stdin
