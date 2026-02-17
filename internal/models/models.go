@@ -395,6 +395,13 @@ var EmbeddedModels = map[string][]string{
 }
 
 func ForProvider(provider string) []string {
+	all, err := GetModels()
+	if err == nil {
+		if models, ok := all[provider]; ok {
+			return models
+		}
+	}
+
 	if models, ok := EmbeddedModels[provider]; ok {
 		return models
 	}
@@ -402,5 +409,9 @@ func ForProvider(provider string) []string {
 }
 
 func GetAll() Models {
+	all, err := GetModels()
+	if err == nil {
+		return all
+	}
 	return EmbeddedModels
 }
