@@ -88,6 +88,59 @@ func PromptAPIKey(cmd *cobra.Command) (string, error) {
 	return input, nil
 }
 
+// PromptPassword prompts the user for a password with hidden terminal input.
+//
+// The password is read without echoing to the terminal for security.
+// Empty input is rejected and prompts are repeated until valid input is received.
+//
+// Returns the password string or an error if input fails.
+func PromptPassword(cmd *cobra.Command, prompt string) (string, error) {
+	cmd.Printf("%s: ", prompt)
+	input, err := readPassword()
+	if err != nil {
+		return "", fmt.Errorf("failed to read password: %w", err)
+	}
+
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return "", fmt.Errorf("password cannot be empty")
+	}
+
+	return input, nil
+}
+
+// PromptNewPassword prompts the user for a new password and confirmation.
+//
+// The password is read without echoing to the terminal for security.
+// Empty input is rejected and passwords must match.
+//
+// Returns the password string or an error if input fails or passwords don't match.
+func PromptNewPassword(cmd *cobra.Command) (string, error) {
+	cmd.Println("Choose a password to encrypt your master key.")
+	cmd.Println("This password will be required each time you use ply.")
+	cmd.Println()
+
+	for {
+		password, err := PromptPassword(cmd, "Enter password")
+		if err != nil {
+			return "", err
+		}
+
+		cmd.Print("Confirm password: ")
+		confirm, err := readPassword()
+		if err != nil {
+			return "", fmt.Errorf("failed to read password confirmation: %w", err)
+		}
+		fmt.Println()
+
+		if password == confirm {
+			return password, nil
+		}
+
+		cmd.Println("Passwords do not match. Please try again.")
+	}
+}
+
 // ReadLine reads a line of input from stdin.
 func ReadLine() (string, error) {
 	reader := bufio.NewReader(os.Stdin)
@@ -106,4 +159,9 @@ func readPassword() (string, error) {
 	}
 	fmt.Println() // Print newline after password input
 	return string(bytePassword), nil
+}
+
+// ReadPassword reads a password from stdin without echoing (public version).
+func ReadPassword() (string, error) {
+	return readPassword()
 }
