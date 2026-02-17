@@ -14,6 +14,7 @@ import (
 const (
 	modelsCacheFile = "models.json"
 	versionFile     = "models-version.json"
+	CacheTTL        = 24 * time.Hour
 )
 
 var ErrNoCache = errors.New("no models cache found")
@@ -22,6 +23,10 @@ type Cache struct {
 	Version   string    `json:"version"`
 	UpdatedAt time.Time `json:"updated_at"`
 	Models    Models    `json:"models"`
+}
+
+func (c *Cache) IsStale() bool {
+	return time.Since(c.UpdatedAt) > CacheTTL
 }
 
 type VersionInfo struct {

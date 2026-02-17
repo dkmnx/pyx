@@ -113,12 +113,15 @@ func FetchAndCache() error {
 
 func GetModels() (Models, error) {
 	cache, err := LoadCache()
-	if err == nil {
+	if err == nil && !cache.IsStale() {
 		return cache.Models, nil
 	}
 
 	models, _, err := FetchLatest()
 	if err != nil {
+		if cache != nil {
+			return cache.Models, nil
+		}
 		return nil, fmt.Errorf("failed to fetch models: %w", err)
 	}
 
