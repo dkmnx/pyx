@@ -41,14 +41,12 @@ func init() {
 func runRoot(cmd *cobra.Command, args []string) {
 	dataDir, err := fs.DataDir()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error getting data directory: %v\n", err)
-		os.Exit(1)
+		fatal(err)
 	}
 
 	db := database.New(dataDir)
 	if err := db.Load(context.Background()); err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading database: %v\n", err)
-		os.Exit(1)
+		fatal(err)
 	}
 
 	providerArg, piArgs, skipModelsFilter := parseArgs(args)
@@ -64,8 +62,7 @@ func runRoot(cmd *cobra.Command, args []string) {
 	// Check if master key exists
 	keyExists, err := keyMgr.Exists()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error checking for master key: %v\n", err)
-		os.Exit(1)
+		fatal(err)
 	}
 
 	if !keyExists {
@@ -77,8 +74,7 @@ func runRoot(cmd *cobra.Command, args []string) {
 	// Check if password is required
 	requiresPassword, err := keyMgr.RequiresPassword()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error checking password requirement: %v\n", err)
-		os.Exit(1)
+		fatal(err)
 	}
 
 	var password []byte
@@ -86,8 +82,7 @@ func runRoot(cmd *cobra.Command, args []string) {
 		fmt.Print("Enter password to unlock your API keys: ")
 		pwStr, err := prompt.ReadPassword()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error reading password: %v\n", err)
-			os.Exit(1)
+			fatal(err)
 		}
 		fmt.Println()
 		password = []byte(pwStr)
@@ -181,8 +176,7 @@ func executePi(entries []database.Entry, piArgs []string, skipModelsFilter bool,
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			os.Exit(exitErr.ExitCode())
 		}
-		fmt.Fprintf(os.Stderr, "Error running pi: %v\n", err)
-		os.Exit(1)
+		fatalf("Error running pi: %v", err)
 	}
 }
 
