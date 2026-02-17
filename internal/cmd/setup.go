@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"context"
+	"strings"
+	"time"
 
 	"github.com/dkmnx/ply/internal/crypto"
 	"github.com/dkmnx/ply/internal/database"
@@ -9,21 +11,6 @@ import (
 	"github.com/dkmnx/ply/internal/prompt"
 	"github.com/spf13/cobra"
 )
-
-// setupOutput represents the structured JSON output returned after
-// successful provider configuration.
-type setupOutput struct {
-	// ID is the unique identifier for the provider entry.
-	ID string `json:"id"`
-	// Label is the user-friendly name for the provider.
-	Label string `json:"label"`
-	// Provider is the provider type name (e.g., "anthropic", "openai").
-	Provider string `json:"provider"`
-	// DefaultModel is the optional default model for this provider.
-	DefaultModel string `json:"default_model,omitempty"`
-	// CreatedAt is the ISO 8601 timestamp of entry creation.
-	CreatedAt string `json:"created_at"`
-}
 
 var setupCmd = &cobra.Command{
 	Use:   "setup",
@@ -39,9 +26,8 @@ func init() {
 // runSetup initializes ply configuration and adds a new provider.
 //
 // The setup process creates the data directory if needed, initializes or
-// loads the master encryption key, prompts the user for provider selection,
-// label, and API key, then encrypts and stores the credentials securely.
-// Outputs the configured provider details in JSON format.
+// loads the master encryption key, prompts the user for provider selection
+// and API key, then encrypts and stores the credentials securely.
 func runSetup(cmd *cobra.Command, args []string) {
 	// Create data directory
 	dataDir, err := fs.EnsureDataDir()
@@ -85,29 +71,23 @@ func runSetup(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	// Prompt for label
-	label, err := prompt.PromptLabel(cmd, provider)
-	if err != nil {
-		cmd.Printf("Error: %v\n", err)
-		return
-	}
-
-	// Check for duplicate label
-	_, err = db.GetEntryByLabel(label)
-	if err == nil {
-		cmd.Printf("Error: label '%s' already exists\n", label)
-		return
+	// Check for existing provider
+	if _, err := db.GetEntry(provider); err == nil {
+		cmd.Printf("Provider '%s' already configured. Override? (y/N): ", provider)
+		confirm, readErr := prompt.ReadLine()
+		if readErr != nil {
+			cmd.Printf("Error reading input: %v\n", readErr)
+			return
+		}
+		confirm = strings.TrimSpace(strings.ToLower(confirm))
+		if confirm != "y" && confirm != confirmYes {
+			cmd.Println("Setup cancelled.")
+			return
+		}
 	}
 
 	// Prompt for API key
 	apiKey, err := prompt.PromptAPIKey(cmd)
-	if err != nil {
-		cmd.Printf("Error: %v\n", err)
-		return
-	}
-
-	// Prompt for default model (optional)
-	defaultModel, err := prompt.PromptDefaultModel(cmd, provider)
 	if err != nil {
 		cmd.Printf("Error: %v\n", err)
 		return
@@ -120,14 +100,23 @@ func runSetup(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	// Create entry
-	entry := database.NewEntry(label, provider, cipher, nonce)
-	entry.DefaultModel = defaultModel
-
-	// Add to database
-	if err := db.AddEntry(entry); err != nil {
-		cmd.Printf("Error adding entry: %v\n", err)
-		return
+	// Create or update entry
+	var entry database.Entry
+	if existing, err := db.GetEntry(provider); err == nil {
+		existing.Cipher = cipher
+		existing.Nonce = nonce
+		existing.UpdatedAt = time.Now().UTC()
+		entry = existing
+		if updateErr := db.UpdateEntry(entry); updateErr != nil {
+			cmd.Printf("Error updating entry: %v\n", updateErr)
+			return
+		}
+	} else {
+		entry = database.NewEntry(provider, cipher, nonce)
+		if addErr := db.AddEntry(entry); addErr != nil {
+			cmd.Printf("Error adding entry: %v\n", addErr)
+			return
+		}
 	}
 
 	// Save database
@@ -137,12 +126,7 @@ func runSetup(cmd *cobra.Command, args []string) {
 	}
 
 	// Output confirmation
-	cmd.Printf("  ❯ %s\n", entry.Label)
-	cmd.Printf("    ID       : %s\n", entry.ID)
-	cmd.Printf("    Provider : %s\n", entry.Provider)
-	if entry.DefaultModel != "" {
-		cmd.Printf("    Model    : %s\n", entry.DefaultModel)
-	}
+	cmd.Printf("  ❯ %s\n", entry.Provider)
 	cmd.Printf("    Created  : %s\n", entry.CreatedAt.Format(timeFormat))
 	cmd.Println()
 	cmd.Printf("✓ API key stored securely\n")
