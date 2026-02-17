@@ -21,18 +21,25 @@ var (
 )
 
 const (
-	dataDir     = ".local/share/ply"
+	appName     = "ply"
 	masterKey   = "master.key"
 	defaultFile = "default.txt"
 )
 
 // DataDir returns the path to the ply data directory.
+// Follows XDG Base Directory spec: uses $XDG_DATA_HOME/ply if set,
+// otherwise defaults to ~/.local/share/ply.
 func DataDir() (string, error) {
+	xdgDataHome := os.Getenv("XDG_DATA_HOME")
+	if xdgDataHome != "" {
+		return filepath.Join(xdgDataHome, appName), nil
+	}
+
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to get home directory: %w", err)
 	}
-	return filepath.Join(home, dataDir), nil
+	return filepath.Join(home, ".local", "share", appName), nil
 }
 
 // MasterKeyPath returns the path to the master key file.

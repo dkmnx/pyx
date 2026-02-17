@@ -11,6 +11,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"syscall"
 
@@ -52,10 +53,22 @@ var Providers = []string{
 // accepts either a number (1-based index) or a provider name as input.
 // Input is case-insensitive for provider names.
 //
-// Returns the selected provider name or an error if input fails.
+// Uses cached models if available, falls back to hardcoded list.
 func PromptProvider(cmd *cobra.Command) (string, error) {
+	allModels := models.GetAll()
+	providers := make([]string, 0, len(allModels))
+	for p := range allModels {
+		providers = append(providers, p)
+	}
+
+	if len(providers) == 0 {
+		providers = Providers
+	}
+
+	sort.Strings(providers)
+
 	cmd.Printf("Select a provider:\n")
-	for i, p := range Providers {
+	for i, p := range providers {
 		cmd.Printf("  %d. %s\n", i+1, p)
 	}
 
@@ -71,21 +84,21 @@ func PromptProvider(cmd *cobra.Command) (string, error) {
 		// Check if input is a number
 		var num int
 		if _, err := fmt.Sscanf(input, "%d", &num); err == nil {
-			if num >= 1 && num <= len(Providers) {
-				return Providers[num-1], nil
+			if num >= 1 && num <= len(providers) {
+				return providers[num-1], nil
 			}
-			cmd.Printf("Invalid number. Please enter 1-%d\n", len(Providers))
+			cmd.Printf("Invalid number. Please enter 1-%d\n", len(providers))
 			continue
 		}
 
 		// Check if input matches a provider name
-		for _, p := range Providers {
+		for _, p := range providers {
 			if strings.EqualFold(input, p) {
 				return p, nil
 			}
 		}
 
-		cmd.Printf("Invalid provider. Please choose from: %s\n", strings.Join(Providers, ", "))
+		cmd.Printf("Invalid provider. Please choose from: %s\n", strings.Join(providers, ", "))
 	}
 }
 
