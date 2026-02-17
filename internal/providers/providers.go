@@ -43,6 +43,7 @@ var All = []Provider{
 	{Name: "zai", EnvVar: "ZAI_API_KEY"},
 }
 
+// Names returns a list of all supported provider names.
 func Names() []string {
 	names := make([]string, len(All))
 	for i, p := range All {
@@ -51,6 +52,9 @@ func Names() []string {
 	return names
 }
 
+// EnvVar returns the environment variable name required for the given provider.
+// Returns the env var name and true if the provider is found.
+// Returns empty string and false if the provider is not recognized.
 func EnvVar(name string) (string, bool) {
 	for _, p := range All {
 		if p.Name == name {
@@ -60,6 +64,9 @@ func EnvVar(name string) (string, bool) {
 	return "", false
 }
 
+// IsValid returns true if the given provider name is recognized.
+// This does not validate the format of the name, only checks against
+// the list of supported providers.
 func IsValid(name string) bool {
 	_, ok := EnvVar(name)
 	return ok
