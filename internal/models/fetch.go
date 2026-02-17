@@ -1,6 +1,7 @@
 package models
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -21,8 +22,8 @@ type ReleaseResponse struct {
 	TagName string `json:"tag_name"`
 }
 
-func FetchLatestReleaseTag() (string, error) {
-	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/repos/%s/%s/releases/latest", githubAPIURL, owner, repo), nil)
+func FetchLatestReleaseTag(ctx context.Context) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/repos/%s/%s/releases/latest", githubAPIURL, owner, repo), nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
@@ -49,10 +50,10 @@ func FetchLatestReleaseTag() (string, error) {
 	return release.TagName, nil
 }
 
-func FetchModelsFile(tag string) (string, error) {
+func FetchModelsFile(ctx context.Context, tag string) (string, error) {
 	url := fmt.Sprintf("%s/%s/%s/%s/%s", githubRawURL, owner, repo, tag, modelsFilePath)
 
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
@@ -79,13 +80,13 @@ func FetchModelsFile(tag string) (string, error) {
 	return string(data), nil
 }
 
-func FetchLatest() (Models, string, error) {
-	tag, err := FetchLatestReleaseTag()
+func FetchLatest(ctx context.Context) (Models, string, error) {
+	tag, err := FetchLatestReleaseTag(ctx)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to get latest release: %w", err)
 	}
 
-	content, err := FetchModelsFile(tag)
+	content, err := FetchModelsFile(ctx, tag)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to fetch models: %w", err)
 	}
@@ -98,8 +99,8 @@ func FetchLatest() (Models, string, error) {
 	return models, tag, nil
 }
 
-func FetchAndCache() error {
-	models, tag, err := FetchLatest()
+func FetchAndCache(ctx context.Context) error {
+	models, tag, err := FetchLatest(ctx)
 	if err != nil {
 		return err
 	}
@@ -111,13 +112,13 @@ func FetchAndCache() error {
 	return nil
 }
 
-func GetModels() (Models, error) {
+func GetModels(ctx context.Context) (Models, error) {
 	cache, err := LoadCache()
 	if err == nil && !cache.IsStale() {
 		return cache.Models, nil
 	}
 
-	models, _, err := FetchLatest()
+	models, _, err := FetchLatest(ctx)
 	if err != nil {
 		if cache != nil {
 			return cache.Models, nil

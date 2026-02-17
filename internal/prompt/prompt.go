@@ -7,6 +7,7 @@ package prompt
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"sort"
@@ -20,7 +21,7 @@ import (
 )
 
 func PromptProvider(cmd *cobra.Command) (string, error) {
-	if err := models.FetchAndCache(); err != nil {
+	if err := models.FetchAndCache(context.Background()); err != nil {
 		return "", fmt.Errorf("failed to fetch models: %w", err)
 	}
 

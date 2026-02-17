@@ -1,10 +1,12 @@
 // Package models provides model lists for each supported provider.
 package models
 
+import "context"
+
 type Models map[string][]string
 
-func ForProvider(provider string) []string {
-	all, err := GetModels()
+func ForProvider(ctx context.Context, provider string) []string {
+	all, err := GetModels(ctx)
 	if err != nil {
 		return nil
 	}
@@ -12,7 +14,7 @@ func ForProvider(provider string) []string {
 }
 
 func GetAll() Models {
-	all, err := GetModels()
+	all, err := GetModels(context.Background())
 	if err != nil {
 		return nil
 	}

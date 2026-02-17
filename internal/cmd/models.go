@@ -1,10 +1,12 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
+	"time"
 
 	"github.com/dkmnx/ply/internal/models"
 	"github.com/spf13/cobra"
@@ -37,7 +39,10 @@ func init() {
 }
 
 func runModels(cmd *cobra.Command, args []string) {
-	modelsData, err := models.GetModels()
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	modelsData, err := models.GetModels(ctx)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error loading models: %v\n", err)
 		os.Exit(1)
@@ -52,9 +57,12 @@ func runModels(cmd *cobra.Command, args []string) {
 }
 
 func runModelsUpdate(cmd *cobra.Command, args []string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+
 	fmt.Println("Fetching latest models from pi-mono repository...")
 
-	if err := models.FetchAndCache(); err != nil {
+	if err := models.FetchAndCache(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "Error updating models: %v\n", err)
 		os.Exit(1)
 	}
