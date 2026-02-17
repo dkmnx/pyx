@@ -121,5 +121,5 @@ func GetModels() (Models, error) {
 		fmt.Fprintf(os.Stderr, "Warning: failed to load cache: %v, using embedded models\n", err)
 	}
 
-	return EmbeddedModels, nil
+	return EmbeddedModels()
 }
