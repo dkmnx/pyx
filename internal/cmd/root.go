@@ -171,7 +171,7 @@ func executePi(entry database.Entry, piArgs []string, skipModelsFilter bool) {
 	var finalPiArgs []string
 	if !skipModelsFilter {
 		if entry.DefaultModel != "" {
-			finalPiArgs = []string{"--model", fmt.Sprintf("%s/%s", entry.Provider, entry.DefaultModel)}
+			finalPiArgs = []string{"--provider", entry.Provider, "--model", entry.DefaultModel}
 		} else {
 			finalPiArgs = []string{"--models", fmt.Sprintf("%s/*", entry.Provider)}
 		}
