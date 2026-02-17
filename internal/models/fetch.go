@@ -118,8 +118,18 @@ func GetModels() (Models, error) {
 	}
 
 	if !os.IsNotExist(err) {
-		fmt.Fprintf(os.Stderr, "Warning: failed to load cache: %v, using embedded models\n", err)
+		fmt.Fprintf(os.Stderr, "Warning: failed to load cache: %v\n", err)
 	}
 
-	return EmbeddedModels()
+	fmt.Fprintf(os.Stderr, "Fetching models from GitHub...\n")
+	models, _, err := FetchLatest()
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch models: %w", err)
+	}
+
+	if err := SaveCache(models, ""); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to cache models: %v\n", err)
+	}
+
+	return models, nil
 }
