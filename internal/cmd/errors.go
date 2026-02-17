@@ -18,31 +18,3 @@ func fatalf(format string, args ...interface{}) {
 	fmt.Fprintf(os.Stderr, format+"\n", args...)
 	os.Exit(1)
 }
-
-// warn prints a warning to stderr without exiting.
-//
-//nolint:unused
-func warn(err error) {
-	fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
-}
-
-// warnf formats a warning message and prints to stderr without exiting.
-//
-//nolint:unused
-func warnf(format string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, format+"\n", args...)
-}
-
-// info prints an informational message to stdout.
-//
-//nolint:unused
-func info(message string) {
-	fmt.Println(message)
-}
-
-// infof formats and prints an informational message to stdout.
-//
-//nolint:unused
-func infof(format string, args ...interface{}) {
-	fmt.Printf(format+"\n", args...)
-}

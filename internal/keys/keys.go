@@ -95,9 +95,10 @@ func (m *Manager) Load(password []byte) ([]byte, error) {
 // Delete removes the master key from storage.
 func (m *Manager) Delete() error {
 	// Try to delete from keyring
-	// Ignore errors from keyring deletion as it may not be available
-	//nolint:errcheck
-	keyring.Delete(keyringService, keyringUser)
+	if err := keyring.Delete(keyringService, keyringUser); err != nil {
+		// Keyring deletion failed - this is not critical, continue with file deletion
+		fmt.Fprintf(os.Stderr, "Warning: could not delete key from OS keyring: %v\n", err)
+	}
 
 	// Try to delete from file
 	filePath := m.keyFilePath()
