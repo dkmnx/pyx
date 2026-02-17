@@ -18,9 +18,9 @@ import (
 )
 
 const (
-	timeFormat  = "2006-01-02T15:04:05Z"
-	confirmYes  = "yes"
-	confirmY    = "y"
+	timeFormat = "2006-01-02T15:04:05Z"
+	confirmYes = "yes"
+	confirmY   = "y"
 )
 
 var rootCmd = &cobra.Command{
