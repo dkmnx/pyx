@@ -17,10 +17,11 @@ const (
 )
 
 var (
-	ErrInvalidKey        = errors.New("invalid key size: must be 32 bytes")
-	ErrInvalidNonce      = errors.New("invalid nonce size: must be 12 bytes")
-	ErrInvalidCiphertext = errors.New("invalid ciphertext format")
-	ErrZeroed            = errors.New("secure bytes have been zeroed")
+	ErrInvalidKey         = errors.New("invalid key size: must be 32 bytes")
+	ErrInvalidNonce       = errors.New("invalid nonce size: must be 12 bytes")
+	ErrInvalidCiphertext  = errors.New("invalid ciphertext format")
+	ErrZeroed             = errors.New("secure bytes have been zeroed")
+	ErrSecureStringZeroed = errors.New("secure string has been zeroed")
 )
 
 type SecureBytes []byte
@@ -38,6 +39,76 @@ func (s SecureBytes) String() string {
 
 func (s SecureBytes) Bytes() []byte {
 	return []byte(s)
+}
+
+// SecureString wraps a SecureBytes to prevent accidental string conversions
+// and ensure sensitive data can be securely zeroed. It does not implement
+// fmt.Stringer to prevent accidental logging.
+type SecureString struct {
+	bytes SecureBytes
+}
+
+// NewSecureString creates a SecureString from a regular string.
+// The caller is responsible for zeroing the original string if needed.
+func NewSecureString(s string) *SecureString {
+	return &SecureString{
+		bytes: SecureBytes(s),
+	}
+}
+
+// NewSecureStringFromBytes creates a SecureString from SecureBytes
+// without creating an intermediate string. Takes ownership of the
+// SecureBytes and will zero it when Zero() is called.
+func NewSecureStringFromBytes(sb SecureBytes) *SecureString {
+	return &SecureString{
+		bytes: sb,
+	}
+}
+
+// Bytes returns the underlying bytes. The caller should ensure
+// they do not keep references to the returned slice beyond the
+// SecureString's lifetime.
+func (ss *SecureString) Bytes() []byte {
+	if ss == nil {
+		return nil
+	}
+	return []byte(ss.bytes)
+}
+
+// Zero securely erases the contents of the SecureString.
+// After calling Zero, the SecureString should not be used.
+func (ss *SecureString) Zero() {
+	if ss == nil {
+		return
+	}
+	ss.bytes.Zero()
+}
+
+// IsZeroed returns true if the SecureString has been zeroed.
+func (ss *SecureString) IsZeroed() bool {
+	if ss == nil || len(ss.bytes) == 0 {
+		return true
+	}
+	return false
+}
+
+// Equal securely compares two SecureString values in constant time.
+func (ss *SecureString) Equal(other *SecureString) bool {
+	if ss == nil && other == nil {
+		return true
+	}
+	if ss == nil || other == nil {
+		return false
+	}
+	if len(ss.bytes) != len(other.bytes) {
+		return false
+	}
+	for i := range ss.bytes {
+		if ss.bytes[i] != other.bytes[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // Encrypt encrypts plaintext using AES-GCM with the provided key.
