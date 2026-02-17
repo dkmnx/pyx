@@ -29,7 +29,7 @@ func ParseModels(content string) (Models, error) {
 		if sectionMatch != nil {
 			key := sectionMatch[1]
 			if providers.IsValid(key) {
-				currentProvider = ""
+				currentProvider = key
 			}
 			continue
 		}
