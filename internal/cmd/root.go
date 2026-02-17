@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sort"
+	"strings"
 
 	"github.com/dkmnx/ply/internal/crypto"
 	"github.com/dkmnx/ply/internal/database"
@@ -19,7 +21,7 @@ const (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "ply [provider|id] [args...]",
+	Use:   "ply [provider] [args...]",
 	Short: "A CLI tool for managing AI providers",
 	Long:  `Ply is a command-line tool for managing and configuring AI provider configurations for pi coding agent.`,
 	Run:   runRoot,
@@ -49,7 +51,7 @@ func runRoot(cmd *cobra.Command, args []string) {
 
 	providerArg, piArgs, skipModelsFilter := parseArgs(args)
 
-	entry, err := resolveEntry(db, providerArg)
+	entries, err := resolveEntries(db, providerArg)
 	if err != nil {
 		os.Exit(1)
 	}
@@ -61,25 +63,12 @@ func runRoot(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	apiKey, err := crypto.Decrypt(masterKey, entry.Cipher, entry.Nonce)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error decrypting API key: %v\n", err)
-		os.Exit(1)
-	}
-	defer apiKey.Zero()
-
-	envVar, ok := providerEnvVar(entry.Provider)
-	if !ok {
-		fmt.Fprintf(os.Stderr, "Error: unsupported provider '%s'\n", entry.Provider)
+	if err := setProviderEnvVars(masterKey, entries); err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
-	if err := os.Setenv(envVar, apiKey.String()); err != nil {
-		fmt.Fprintf(os.Stderr, "Error setting environment variable: %v\n", err)
-		os.Exit(1)
-	}
-
-	executePi(entry, piArgs, skipModelsFilter)
+	executePi(entries, piArgs, skipModelsFilter)
 }
 
 func parseArgs(args []string) (providerArg string, piArgs []string, skipModelsFilter bool) {
@@ -105,51 +94,39 @@ func parseArgs(args []string) (providerArg string, piArgs []string, skipModelsFi
 	return
 }
 
-func resolveEntry(db *database.Database, providerArg string) (database.Entry, error) {
+func resolveEntries(db *database.Database, providerArg string) ([]database.Entry, error) {
 	if providerArg != "" {
-		entry, err := db.GetEntryByLabel(providerArg)
+		entry, err := db.GetEntry(providerArg)
 		if err != nil {
-			entry, err = db.GetEntry(providerArg)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error: provider '%s' not found\n", providerArg)
-				fmt.Fprintf(os.Stderr, "Use 'ply config list' to see all configured providers.\n")
-				return database.Entry{}, err
-			}
-		}
-		return entry, nil
-	}
-
-	defaultID, err := fs.LoadDefaultProvider()
-	if err != nil {
-		if err == fs.ErrDefaultNotFound {
-			fmt.Fprintf(os.Stderr, "No default provider set.\n")
-			fmt.Fprintf(os.Stderr, "Run 'ply default [label|id]' to set a default provider.\n")
-			fmt.Fprintf(os.Stderr, "Or use 'ply [label|id]' to specify a provider.\n")
+			fmt.Fprintf(os.Stderr, "Error: provider '%s' not found\n", providerArg)
 			fmt.Fprintf(os.Stderr, "Use 'ply config list' to see all configured providers.\n")
-		} else {
-			fmt.Fprintf(os.Stderr, "Error loading default provider: %v\n", err)
+			return nil, err
 		}
-		return database.Entry{}, err
+		return []database.Entry{entry}, nil
 	}
 
-	entry, err := db.GetEntry(defaultID)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: default provider entry not found (ID: %s)\n", defaultID)
-		fmt.Fprintf(os.Stderr, "The default provider may have been deleted.\n")
-		fmt.Fprintf(os.Stderr, "Use 'ply default [label|id]' to set a new default provider.\n")
-		return database.Entry{}, err
+	entries := db.ListEntries()
+	if len(entries) == 0 {
+		fmt.Fprintln(os.Stderr, "No providers configured.")
+		fmt.Fprintln(os.Stderr, "Run 'ply setup' to add a provider.")
+		return nil, fmt.Errorf("no providers configured")
 	}
-	return entry, nil
+
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Provider < entries[j].Provider
+	})
+
+	return entries, nil
 }
 
-func executePi(entry database.Entry, piArgs []string, skipModelsFilter bool) {
+func executePi(entries []database.Entry, piArgs []string, skipModelsFilter bool) {
 	var finalPiArgs []string
 	if !skipModelsFilter {
-		if entry.DefaultModel != "" {
-			finalPiArgs = []string{"--provider", entry.Provider, "--model", entry.DefaultModel}
-		} else {
-			finalPiArgs = []string{"--models", fmt.Sprintf("%s/*", entry.Provider)}
+		providersList := make([]string, 0, len(entries))
+		for _, entry := range entries {
+			providersList = append(providersList, fmt.Sprintf("%s/*", entry.Provider))
 		}
+		finalPiArgs = []string{"--models", strings.Join(providersList, ",")}
 	}
 	finalPiArgs = append(finalPiArgs, piArgs...)
 
@@ -169,4 +146,37 @@ func executePi(entry database.Entry, piArgs []string, skipModelsFilter bool) {
 
 func providerEnvVar(provider string) (string, bool) {
 	return providers.EnvVar(provider)
+}
+
+func setProviderEnvVars(masterKey []byte, entries []database.Entry) error {
+	envValues := make(map[string]string)
+	for _, entry := range entries {
+		apiKey, err := crypto.Decrypt(masterKey, entry.Cipher, entry.Nonce)
+		if err != nil {
+			return fmt.Errorf("Error decrypting API key for provider '%s': %w", entry.Provider, err)
+		}
+		decrypted := apiKey.String()
+		apiKey.Zero()
+
+		envVar, ok := providerEnvVar(entry.Provider)
+		if !ok {
+			return fmt.Errorf("Error: unsupported provider '%s'", entry.Provider)
+		}
+
+		if existing, ok := envValues[envVar]; ok {
+			if existing != decrypted {
+				return fmt.Errorf("Conflicting API keys: provider '%s' has a different key for %s", entry.Provider, envVar)
+			}
+			continue
+		}
+		envValues[envVar] = decrypted
+	}
+
+	for envVar, value := range envValues {
+		if err := os.Setenv(envVar, value); err != nil {
+			return fmt.Errorf("Error setting environment variable %s: %w", envVar, err)
+		}
+	}
+
+	return nil
 }
