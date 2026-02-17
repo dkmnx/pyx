@@ -1,4 +1,4 @@
-.PHONY: build build-prod test lint fmt clean vet install help
+.PHONY: build build-prod test lint fmt clean vet install help deps
 
 # Variables
 APP_NAME=ply
@@ -76,6 +76,16 @@ mod-tidy:
 	@echo "Running go mod tidy..."
 	@go mod tidy
 
+# Install required dependencies (modules and tools)
+deps:
+	@echo "Installing dependencies..."
+	@go mod download
+	@echo "Installing development tools..."
+	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	@go install github.com/securego/gosec/v2/cmd/gosec@latest
+	@go install golang.org/x/vuln/cmd/govulncheck@latest
+	@echo "Dependencies installed successfully!"
+
 # Check for outdated dependencies
 deps-outdated:
 	@echo "Checking for outdated dependencies..."
@@ -110,6 +120,7 @@ help:
 	@echo "  run          - Run the application (set ARGS variable)"
 	@echo "  check        - Run all checks (fmt, vet, lint, test)"
 	@echo "  mod-tidy     - Run go mod tidy"
+	@echo "  deps         - Install dependencies (modules and tools)"
 	@echo "  deps-outdated - Check for outdated dependencies"
 	@echo "  security     - Run security checks (gosec, govulncheck)"
 	@echo "  docs         - Generate documentation (godoc)"
