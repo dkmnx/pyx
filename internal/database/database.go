@@ -8,27 +8,24 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 var (
-	ErrEntryNotFound  = errors.New("entry not found")
-	ErrDuplicateLabel = errors.New("duplicate label")
-	ErrBackupFailed   = errors.New("failed to create backup")
+	ErrEntryNotFound     = errors.New("entry not found")
+	ErrDuplicateProvider = errors.New("duplicate provider")
+	ErrBackupFailed      = errors.New("failed to create backup")
 )
 
 // Entry represents a stored encrypted API key entry.
 type Entry struct {
-	ID           string    `json:"id"`
-	Label        string    `json:"label"`
-	Provider     string    `json:"provider"`
-	DefaultModel string    `json:"default_model,omitempty"`
-	Cipher       string    `json:"cipher"`
-	Nonce        string    `json:"nonce"`
-	CreatedAt    time.Time `json:"created_at"`
+	Provider  string    `json:"provider"`
+	Cipher    string    `json:"cipher"`
+	Nonce     string    `json:"nonce"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at,omitempty"`
 }
 
 // Database manages the encrypted API key storage.
@@ -69,6 +66,12 @@ func (db *Database) Load(ctx context.Context) error {
 
 	if err := json.Unmarshal(data, &db.entries); err != nil {
 		return fmt.Errorf("failed to unmarshal database: %w", err)
+	}
+
+	if warnings := normalizeEntries(db.filePath, &db.entries); len(warnings) > 0 {
+		for _, warning := range warnings {
+			fmt.Fprintln(os.Stderr, warning)
+		}
 	}
 
 	return nil
@@ -126,10 +129,10 @@ func (db *Database) AddEntry(entry Entry) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	// Check for duplicate label
+	// Check for duplicate provider
 	for _, e := range db.entries {
-		if e.Label == entry.Label {
-			return ErrDuplicateLabel
+		if e.Provider == entry.Provider {
+			return ErrDuplicateProvider
 		}
 	}
 
@@ -137,42 +140,18 @@ func (db *Database) AddEntry(entry Entry) error {
 	return nil
 }
 
-// GetEntry retrieves an entry by ID.
+// GetEntry retrieves an entry by provider.
 func (db *Database) GetEntry(id string) (Entry, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
 	for _, e := range db.entries {
-		if e.ID == id {
+		if e.Provider == id {
 			return e, nil
 		}
 	}
 
 	return Entry{}, ErrEntryNotFound
-}
-
-// GetEntryByLabel retrieves an entry by label.
-func (db *Database) GetEntryByLabel(label string) (Entry, error) {
-	db.mu.RLock()
-	defer db.mu.RUnlock()
-
-	for _, e := range db.entries {
-		if e.Label == label {
-			return e, nil
-		}
-	}
-
-	return Entry{}, ErrEntryNotFound
-}
-
-// GetEntryByLabelOrID retrieves an entry by label or ID.
-// First tries to find by label, then falls back to ID lookup.
-func (db *Database) GetEntryByLabelOrID(target string) (Entry, error) {
-	entry, err := db.GetEntryByLabel(target)
-	if err == nil {
-		return entry, nil
-	}
-	return db.GetEntry(target)
 }
 
 // ListEntries returns all entries.
@@ -185,13 +164,13 @@ func (db *Database) ListEntries() []Entry {
 	return result
 }
 
-// DeleteEntry removes an entry by ID.
+// DeleteEntry removes an entry by provider.
 func (db *Database) DeleteEntry(id string) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
 	for i, e := range db.entries {
-		if e.ID == id {
+		if e.Provider == id {
 			db.entries = append(db.entries[:i], db.entries[i+1:]...)
 			return nil
 		}
@@ -201,20 +180,14 @@ func (db *Database) DeleteEntry(id string) error {
 }
 
 // UpdateEntry updates an existing entry in the database.
-// It updates the entry with the same ID as the provided entry.
-// Returns ErrEntryNotFound if no entry with the ID exists.
-// If the new label conflicts with another entry, returns ErrDuplicateLabel.
+// It updates the entry with the same provider as the provided entry.
+// Returns ErrEntryNotFound if no entry with the provider exists.
 func (db *Database) UpdateEntry(entry Entry) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
 	for i, e := range db.entries {
-		if e.ID == entry.ID {
-			for j, other := range db.entries {
-				if i != j && other.Label == entry.Label {
-					return ErrDuplicateLabel
-				}
-			}
+		if e.Provider == entry.Provider {
 			db.entries[i] = entry
 			return nil
 		}
@@ -223,14 +196,96 @@ func (db *Database) UpdateEntry(entry Entry) error {
 	return ErrEntryNotFound
 }
 
-// NewEntry creates a new Entry with a generated ID and timestamp.
-func NewEntry(label, provider, cipher, nonce string) Entry {
+func newerEntry(a, b Entry) bool {
+	aTime := a.UpdatedAt
+	if aTime.IsZero() {
+		aTime = a.CreatedAt
+	}
+	bTime := b.UpdatedAt
+	if bTime.IsZero() {
+		bTime = b.CreatedAt
+	}
+	return aTime.After(bTime)
+}
+
+func normalizeEntries(filePath string, entries *[]Entry) []string {
+	if entries == nil || len(*entries) == 0 {
+		return nil
+	}
+
+	byProvider := make(map[string]Entry)
+	counts := make(map[string]int)
+	dropped := make(map[string][]Entry)
+
+	for _, entry := range *entries {
+		if entry.Provider == "" {
+			continue
+		}
+		if existing, ok := byProvider[entry.Provider]; ok {
+			counts[entry.Provider]++
+			if newerEntry(entry, existing) {
+				dropped[entry.Provider] = append(dropped[entry.Provider], byProvider[entry.Provider])
+				byProvider[entry.Provider] = entry
+			} else {
+				dropped[entry.Provider] = append(dropped[entry.Provider], entry)
+			}
+			continue
+		}
+		byProvider[entry.Provider] = entry
+		counts[entry.Provider] = 1
+	}
+
+	hasDropped := false
+	for _, v := range counts {
+		if v > 1 {
+			hasDropped = true
+			break
+		}
+	}
+
+	if hasDropped && len(*entries) > 0 {
+		backupData := make([]Entry, 0)
+		for _, entries := range dropped {
+			backupData = append(backupData, entries...)
+		}
+		if len(backupData) > 0 {
+			backupPath := filepath.Join(filepath.Dir(filePath), "database.json.dropped.bak")
+			if backupJSON, err := json.MarshalIndent(backupData, "", "  "); err == nil {
+				if err := os.WriteFile(backupPath, backupJSON, 0600); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to write backup file: %v\n", err)
+				}
+			}
+		}
+	}
+
+	providers := make([]string, 0, len(byProvider))
+	for provider := range byProvider {
+		providers = append(providers, provider)
+	}
+	sort.Strings(providers)
+
+	normalized := make([]Entry, 0, len(byProvider))
+	warnings := make([]string, 0)
+	for _, provider := range providers {
+		entry := byProvider[provider]
+		normalized = append(normalized, entry)
+		if counts[provider] > 1 {
+			warnings = append(warnings, fmt.Sprintf("Warning: multiple entries for provider '%s' found; keeping newest and dropping %d old entries. Dropped entries backed up to database.json.dropped.bak", provider, counts[provider]-1))
+		}
+	}
+
+	*entries = normalized
+	return warnings
+}
+
+// NewEntry creates a new Entry with generated timestamps.
+func NewEntry(provider, cipher, nonce string) Entry {
+	now := time.Now().UTC()
 	return Entry{
-		ID:        uuid.New().String(),
-		Label:     label,
 		Provider:  provider,
 		Cipher:    cipher,
 		Nonce:     nonce,
-		CreatedAt: time.Now().UTC(),
+		CreatedAt: now,
+		UpdatedAt: now,
 	}
 }

@@ -11,12 +11,9 @@ func TestNewDatabase(t *testing.T) {
 	dataDir := t.TempDir()
 	db := New(dataDir)
 
-	if db == nil {
-		t.Fatal("New() returned nil")
-	}
-
-	if db.filePath != filepath.Join(dataDir, "database.json") {
-		t.Errorf("New() filePath = %v, want %v", db.filePath, filepath.Join(dataDir, "database.json"))
+	filePath := db.filePath
+	if filePath != filepath.Join(dataDir, "database.json") {
+		t.Errorf("New() filePath = %v, want %v", filePath, filepath.Join(dataDir, "database.json"))
 	}
 }
 
@@ -38,7 +35,7 @@ func TestSaveLoad(t *testing.T) {
 	dataDir := t.TempDir()
 	db := New(dataDir)
 
-	entry := NewEntry("test-label", "openai", "cipher", "nonce")
+	entry := NewEntry("openai", "cipher", "nonce")
 	if err := db.AddEntry(entry); err != nil {
 		t.Fatalf("AddEntry() error = %v", err)
 	}
@@ -74,8 +71,8 @@ func TestSaveLoad(t *testing.T) {
 		t.Fatalf("Load() entries count = %d, want 1", len(entries))
 	}
 
-	if entries[0].Label != "test-label" {
-		t.Errorf("Load() entry label = %v, want test-label", entries[0].Label)
+	if entries[0].Provider != "openai" {
+		t.Errorf("Load() entry provider = %v, want openai", entries[0].Provider)
 	}
 }
 
@@ -83,7 +80,7 @@ func TestAddEntry(t *testing.T) {
 	dataDir := t.TempDir()
 	db := New(dataDir)
 
-	entry1 := NewEntry("label1", "openai", "cipher1", "nonce1")
+	entry1 := NewEntry("openai", "cipher1", "nonce1")
 	if err := db.AddEntry(entry1); err != nil {
 		t.Fatalf("AddEntry() error = %v", err)
 	}
@@ -93,7 +90,7 @@ func TestAddEntry(t *testing.T) {
 		t.Errorf("AddEntry() entries count = %d, want 1", len(entries))
 	}
 
-	entry2 := NewEntry("label2", "anthropic", "cipher2", "nonce2")
+	entry2 := NewEntry("anthropic", "cipher2", "nonce2")
 	if err := db.AddEntry(entry2); err != nil {
 		t.Fatalf("AddEntry() error = %v", err)
 	}
@@ -104,19 +101,19 @@ func TestAddEntry(t *testing.T) {
 	}
 }
 
-func TestAddEntryDuplicateLabel(t *testing.T) {
+func TestAddEntryDuplicateProvider(t *testing.T) {
 	dataDir := t.TempDir()
 	db := New(dataDir)
 
-	entry1 := NewEntry("label1", "openai", "cipher1", "nonce1")
+	entry1 := NewEntry("openai", "cipher1", "nonce1")
 	if err := db.AddEntry(entry1); err != nil {
 		t.Fatalf("AddEntry() error = %v", err)
 	}
 
-	entry2 := NewEntry("label1", "anthropic", "cipher2", "nonce2")
+	entry2 := NewEntry("openai", "cipher2", "nonce2")
 	err := db.AddEntry(entry2)
-	if err != ErrDuplicateLabel {
-		t.Errorf("AddEntry() error = %v, want %v", err, ErrDuplicateLabel)
+	if err != ErrDuplicateProvider {
+		t.Errorf("AddEntry() error = %v, want %v", err, ErrDuplicateProvider)
 	}
 }
 
@@ -124,47 +121,23 @@ func TestGetEntry(t *testing.T) {
 	dataDir := t.TempDir()
 	db := New(dataDir)
 
-	entry := NewEntry("test-label", "openai", "cipher", "nonce")
+	entry := NewEntry("openai", "cipher", "nonce")
 	if err := db.AddEntry(entry); err != nil {
 		t.Fatalf("AddEntry() error = %v", err)
 	}
 
-	retrieved, err := db.GetEntry(entry.ID)
+	retrieved, err := db.GetEntry("openai")
 	if err != nil {
 		t.Fatalf("GetEntry() error = %v", err)
 	}
 
-	if retrieved.Label != "test-label" {
-		t.Errorf("GetEntry() label = %v, want test-label", retrieved.Label)
+	if retrieved.Provider != "openai" {
+		t.Errorf("GetEntry() provider = %v, want openai", retrieved.Provider)
 	}
 
-	_, err = db.GetEntry("non-existent-id")
+	_, err = db.GetEntry("non-existent")
 	if err != ErrEntryNotFound {
 		t.Errorf("GetEntry() error = %v, want %v", err, ErrEntryNotFound)
-	}
-}
-
-func TestGetEntryByLabel(t *testing.T) {
-	dataDir := t.TempDir()
-	db := New(dataDir)
-
-	entry := NewEntry("test-label", "openai", "cipher", "nonce")
-	if err := db.AddEntry(entry); err != nil {
-		t.Fatalf("AddEntry() error = %v", err)
-	}
-
-	retrieved, err := db.GetEntryByLabel("test-label")
-	if err != nil {
-		t.Fatalf("GetEntryByLabel() error = %v", err)
-	}
-
-	if retrieved.ID != entry.ID {
-		t.Errorf("GetEntryByLabel() ID = %v, want %v", retrieved.ID, entry.ID)
-	}
-
-	_, err = db.GetEntryByLabel("non-existent-label")
-	if err != ErrEntryNotFound {
-		t.Errorf("GetEntryByLabel() error = %v, want %v", err, ErrEntryNotFound)
 	}
 }
 
@@ -172,12 +145,12 @@ func TestDeleteEntry(t *testing.T) {
 	dataDir := t.TempDir()
 	db := New(dataDir)
 
-	entry := NewEntry("test-label", "openai", "cipher", "nonce")
+	entry := NewEntry("openai", "cipher", "nonce")
 	if err := db.AddEntry(entry); err != nil {
 		t.Fatalf("AddEntry() error = %v", err)
 	}
 
-	if err := db.DeleteEntry(entry.ID); err != nil {
+	if err := db.DeleteEntry(entry.Provider); err != nil {
 		t.Fatalf("DeleteEntry() error = %v", err)
 	}
 
@@ -186,22 +159,14 @@ func TestDeleteEntry(t *testing.T) {
 		t.Errorf("DeleteEntry() entries count = %d, want 0", len(entries))
 	}
 
-	err := db.DeleteEntry("non-existent-id")
+	err := db.DeleteEntry("non-existent")
 	if err != ErrEntryNotFound {
 		t.Errorf("DeleteEntry() error = %v, want %v", err, ErrEntryNotFound)
 	}
 }
 
 func TestNewEntry(t *testing.T) {
-	entry := NewEntry("label", "provider", "cipher", "nonce")
-
-	if entry.ID == "" {
-		t.Error("NewEntry() ID is empty")
-	}
-
-	if entry.Label != "label" {
-		t.Errorf("NewEntry() Label = %v, want label", entry.Label)
-	}
+	entry := NewEntry("provider", "cipher", "nonce")
 
 	if entry.Provider != "provider" {
 		t.Errorf("NewEntry() Provider = %v, want provider", entry.Provider)
