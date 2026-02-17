@@ -79,8 +79,8 @@ func (db *Database) Load(ctx context.Context) error {
 
 // Save writes entries to the database file with atomic write and backup.
 func (db *Database) Save(ctx context.Context) error {
-	db.mu.RLock()
-	defer db.mu.RUnlock()
+	db.mu.Lock()
+	defer db.mu.Unlock()
 
 	select {
 	case <-ctx.Done():
