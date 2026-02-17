@@ -59,14 +59,14 @@ func runModelsUpdate(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	version, err := models.LoadVersion()
+	version, err := models.LoadCacheVersion()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: could not load version info: %v\n", err)
 		fmt.Println("Models updated successfully!")
 		return
 	}
 
-	fmt.Printf("Models updated to version %s!\n", version.Tag)
+	fmt.Printf("Models updated to version %s!\n", version)
 }
 
 func outputTable(modelsData models.Models) {

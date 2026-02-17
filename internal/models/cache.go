@@ -13,7 +13,6 @@ import (
 
 const (
 	modelsCacheFile = "models.json"
-	versionFile     = "models-version.json"
 	CacheTTL        = 24 * time.Hour
 )
 
@@ -29,11 +28,6 @@ func (c *Cache) IsStale() bool {
 	return time.Since(c.UpdatedAt) > CacheTTL
 }
 
-type VersionInfo struct {
-	Tag       string    `json:"tag"`
-	UpdatedAt time.Time `json:"updated_at"`
-}
-
 func cachePath() (string, error) {
 	dataDir, err := fs.DataDir()
 	if err != nil {
@@ -42,12 +36,12 @@ func cachePath() (string, error) {
 	return filepath.Join(dataDir, modelsCacheFile), nil
 }
 
-func versionPath() (string, error) {
-	dataDir, err := fs.DataDir()
+func LoadCacheVersion() (string, error) {
+	cache, err := LoadCache()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dataDir, versionFile), nil
+	return cache.Version, nil
 }
 
 func LoadCache() (*Cache, error) {
@@ -78,9 +72,10 @@ func SaveCache(models Models, version string) error {
 		return err
 	}
 
+	now := time.Now().UTC()
 	cache := Cache{
 		Version:   version,
-		UpdatedAt: time.Now().UTC(),
+		UpdatedAt: now,
 		Models:    models,
 	}
 
@@ -94,43 +89,7 @@ func SaveCache(models Models, version string) error {
 		return fmt.Errorf("failed to write models cache: %w", err)
 	}
 
-	versionInfo := VersionInfo{
-		Tag:       version,
-		UpdatedAt: time.Now().UTC(),
-	}
-	versionData, err := json.MarshalIndent(versionInfo, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal version info: %w", err)
-	}
-
-	versionPath := filepath.Join(dataDir, versionFile)
-	if err := os.WriteFile(versionPath, versionData, 0600); err != nil {
-		return fmt.Errorf("failed to write version info: %w", err)
-	}
-
 	return nil
-}
-
-func LoadVersion() (*VersionInfo, error) {
-	path, err := versionPath()
-	if err != nil {
-		return nil, err
-	}
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, ErrNoCache
-		}
-		return nil, fmt.Errorf("failed to read version info: %w", err)
-	}
-
-	var version VersionInfo
-	if err := json.Unmarshal(data, &version); err != nil {
-		return nil, fmt.Errorf("failed to parse version info: %w", err)
-	}
-
-	return &version, nil
 }
 
 func CacheExists() bool {
@@ -149,14 +108,6 @@ func ClearCache() error {
 	}
 	if err := os.Remove(cachePath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to remove cache: %w", err)
-	}
-
-	versionPath, err := versionPath()
-	if err != nil {
-		return err
-	}
-	if err := os.Remove(versionPath); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to remove version file: %w", err)
 	}
 
 	return nil
