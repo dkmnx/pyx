@@ -63,12 +63,13 @@ func runRoot(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	if err := setProviderEnvVars(masterKey, entries); err != nil {
+	providerEnv, err := buildProviderEnv(masterKey, entries)
+	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
-	executePi(entries, piArgs, skipModelsFilter)
+	executePi(entries, piArgs, skipModelsFilter, providerEnv)
 }
 
 func parseArgs(args []string) (providerArg string, piArgs []string, skipModelsFilter bool) {
@@ -119,7 +120,7 @@ func resolveEntries(db *database.Database, providerArg string) ([]database.Entry
 	return entries, nil
 }
 
-func executePi(entries []database.Entry, piArgs []string, skipModelsFilter bool) {
+func executePi(entries []database.Entry, piArgs []string, skipModelsFilter bool, providerEnv []string) {
 	var finalPiArgs []string
 	if !skipModelsFilter {
 		providersList := make([]string, 0, len(entries))
@@ -134,6 +135,7 @@ func executePi(entries []database.Entry, piArgs []string, skipModelsFilter bool)
 	piCmd.Stdin = os.Stdin
 	piCmd.Stdout = os.Stdout
 	piCmd.Stderr = os.Stderr
+	piCmd.Env = providerEnv
 
 	if err := piCmd.Run(); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
@@ -148,35 +150,40 @@ func providerEnvVar(provider string) (string, bool) {
 	return providers.EnvVar(provider)
 }
 
-func setProviderEnvVars(masterKey []byte, entries []database.Entry) error {
-	envValues := make(map[string]string)
+func buildProviderEnv(masterKey []byte, entries []database.Entry) ([]string, error) {
+	envValues := make(map[string]*crypto.SecureString)
 	for _, entry := range entries {
 		apiKey, err := crypto.Decrypt(masterKey, entry.Cipher, entry.Nonce)
 		if err != nil {
-			return fmt.Errorf("Error decrypting API key for provider '%s': %w", entry.Provider, err)
+			return nil, fmt.Errorf("Error decrypting API key for provider '%s': %w", entry.Provider, err)
 		}
-		decrypted := apiKey.String()
-		apiKey.Zero()
+		// Create SecureString directly from SecureBytes without intermediate string
+		decrypted := crypto.NewSecureStringFromBytes(apiKey)
 
 		envVar, ok := providerEnvVar(entry.Provider)
 		if !ok {
-			return fmt.Errorf("Error: unsupported provider '%s'", entry.Provider)
+			decrypted.Zero()
+			return nil, fmt.Errorf("Error: unsupported provider '%s'", entry.Provider)
 		}
 
 		if existing, ok := envValues[envVar]; ok {
-			if existing != decrypted {
-				return fmt.Errorf("Conflicting API keys: provider '%s' has a different key for %s", entry.Provider, envVar)
+			if !existing.Equal(decrypted) {
+				decrypted.Zero()
+				return nil, fmt.Errorf("Conflicting API keys: provider '%s' has a different key for %s", entry.Provider, envVar)
 			}
+			decrypted.Zero()
 			continue
 		}
 		envValues[envVar] = decrypted
 	}
 
+	// Build environment slice: start with current process env, then add/override with provider env
+	env := os.Environ()
 	for envVar, value := range envValues {
-		if err := os.Setenv(envVar, value); err != nil {
-			return fmt.Errorf("Error setting environment variable %s: %w", envVar, err)
-		}
+		env = append(env, envVar+"="+string(value.Bytes()))
+		// Zero the SecureString after use
+		value.Zero()
 	}
 
-	return nil
+	return env, nil
 }
