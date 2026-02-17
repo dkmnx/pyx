@@ -117,11 +117,6 @@ func GetModels() (Models, error) {
 		return cache.Models, nil
 	}
 
-	if !os.IsNotExist(err) {
-		fmt.Fprintf(os.Stderr, "Warning: failed to load cache: %v\n", err)
-	}
-
-	fmt.Fprintf(os.Stderr, "Fetching models from GitHub...\n")
 	models, _, err := FetchLatest()
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch models: %w", err)
