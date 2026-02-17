@@ -62,7 +62,7 @@ func runConfigDelete(cmd *cobra.Command, args []string) {
 	}
 
 	confirmation = strings.TrimSpace(strings.ToLower(confirmation))
-	if confirmation != "y" && confirmation != confirmYes {
+	if confirmation != confirmY && confirmation != confirmYes {
 		cmd.Println("Delete cancelled.")
 		return
 	}

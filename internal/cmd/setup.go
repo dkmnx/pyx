@@ -112,7 +112,7 @@ func confirmProviderOverride(cmd *cobra.Command, provider string) (bool, error) 
 		return false, fmt.Errorf("error reading input: %w", err)
 	}
 	confirm = strings.TrimSpace(strings.ToLower(confirm))
-	if confirm != "y" && confirm != confirmYes {
+	if confirm != confirmY && confirm != confirmYes {
 		return false, nil
 	}
 	return true, nil
