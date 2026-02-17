@@ -96,7 +96,6 @@ func TestSetupCreatesDatabaseEntry(t *testing.T) {
 
 	// Simulate setup flow
 	provider := "openai"
-	label := "openai-test123"
 	apiKey := "sk-test-api-key-12345"
 
 	// Encrypt API key
@@ -106,7 +105,7 @@ func TestSetupCreatesDatabaseEntry(t *testing.T) {
 	}
 
 	// Create entry
-	entry := database.NewEntry(label, provider, cipher, nonce)
+	entry := database.NewEntry(provider, cipher, nonce)
 
 	// Add to database
 	if err := db.AddEntry(entry); err != nil {
@@ -149,10 +148,6 @@ func TestSetupCreatesDatabaseEntry(t *testing.T) {
 		t.Fatalf("Database has %d entries, want 1", len(entries))
 	}
 
-	if entries[0].Label != label {
-		t.Errorf("Entry label = %v, want %v", entries[0].Label, label)
-	}
-
 	if entries[0].Provider != provider {
 		t.Errorf("Entry provider = %v, want %v", entries[0].Provider, provider)
 	}
@@ -178,88 +173,6 @@ func TestSetupCreatesDatabaseEntry(t *testing.T) {
 
 	if decryptedKey.String() != apiKey {
 		t.Errorf("Decrypted key = %v, want %v", decryptedKey.String(), apiKey)
-	}
-}
-
-func TestSetupOutputFormat(t *testing.T) {
-	dataDir := t.TempDir()
-
-	// Set up environment for test
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", dataDir)
-	defer os.Setenv("HOME", origHome)
-
-	// Initialize master key
-	masterKey, err := crypto.GenerateKey()
-	if err != nil {
-		t.Fatalf("GenerateKey() error = %v", err)
-	}
-
-	_, _ = fs.EnsureDataDir()
-	if err := fs.SaveMasterKey(masterKey); err != nil {
-		t.Fatalf("SaveMasterKey() error = %v", err)
-	}
-
-	// Initialize database
-	db := database.New(dataDir)
-	if err := db.Load(context.Background()); err != nil {
-		t.Fatalf("Load() error = %v", err)
-	}
-
-	// Create entry
-	provider := "anthropic"
-	label := "anthropic-abc123"
-	apiKey := "sk-ant-test-key"
-
-	cipher, nonce, _ := crypto.Encrypt(masterKey, apiKey)
-	entry := database.NewEntry(label, provider, cipher, nonce)
-
-	if err := db.AddEntry(entry); err != nil {
-		t.Fatalf("AddEntry() error = %v", err)
-	}
-
-	// Create output
-	output := setupOutput{
-		ID:        entry.ID,
-		Label:     entry.Label,
-		Provider:  entry.Provider,
-		CreatedAt: entry.CreatedAt.Format(timeFormat),
-	}
-
-	// Verify output JSON can be marshaled
-	outputJSON, err := json.MarshalIndent(output, "", "  ")
-	if err != nil {
-		t.Fatalf("MarshalIndent() error = %v", err)
-	}
-
-	// Verify output structure
-	var result map[string]interface{}
-	if err := json.Unmarshal(outputJSON, &result); err != nil {
-		t.Fatalf("Unmarshal() error = %v", err)
-	}
-
-	if _, ok := result["id"]; !ok {
-		t.Error("Output missing 'id' field")
-	}
-
-	if _, ok := result["label"]; !ok {
-		t.Error("Output missing 'label' field")
-	}
-
-	if _, ok := result["provider"]; !ok {
-		t.Error("Output missing 'provider' field")
-	}
-
-	if _, ok := result["created_at"]; !ok {
-		t.Error("Output missing 'created_at' field")
-	}
-
-	if _, ok := result["cipher"]; ok {
-		t.Error("Output should not contain 'cipher' field")
-	}
-
-	if _, ok := result["nonce"]; ok {
-		t.Error("Output should not contain 'nonce' field")
 	}
 }
 
