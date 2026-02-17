@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 
 	"github.com/dkmnx/ply/internal/crypto"
 	"github.com/dkmnx/ply/internal/database"
@@ -138,20 +137,13 @@ func runSetup(cmd *cobra.Command, args []string) {
 	}
 
 	// Output confirmation
-	output := setupOutput{
-		ID:           entry.ID,
-		Label:        entry.Label,
-		Provider:     entry.Provider,
-		DefaultModel: entry.DefaultModel,
-		CreatedAt:    entry.CreatedAt.Format(timeFormat),
+	cmd.Printf("  ❯ %s\n", entry.Label)
+	cmd.Printf("    ID       : %s\n", entry.ID)
+	cmd.Printf("    Provider : %s\n", entry.Provider)
+	if entry.DefaultModel != "" {
+		cmd.Printf("    Model    : %s\n", entry.DefaultModel)
 	}
-
-	outputJSON, err := json.MarshalIndent(output, "", "  ")
-	if err != nil {
-		cmd.Printf("✓ API key stored securely\n")
-		return
-	}
-
-	cmd.Printf("%s\n", outputJSON)
+	cmd.Printf("    Created  : %s\n", entry.CreatedAt.Format(timeFormat))
+	cmd.Println()
 	cmd.Printf("✓ API key stored securely\n")
 }
