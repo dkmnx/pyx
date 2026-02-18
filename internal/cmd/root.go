@@ -108,7 +108,7 @@ func runRoot(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	executePi(entries, piArgs, skipModelsFilter, providerEnv)
+	executePi(entries, piArgs, skipModelsFilter, providerEnv, sessionFlag)
 }
 
 func parseArgs(args []string) (providerArg string, piArgs []string, skipModelsFilter bool) {
@@ -159,7 +159,7 @@ func resolveEntries(db *database.Database, providerArg string) ([]database.Entry
 	return entries, nil
 }
 
-func executePi(entries []database.Entry, piArgs []string, skipModelsFilter bool, providerEnv []string) {
+func executePi(entries []database.Entry, piArgs []string, skipModelsFilter bool, providerEnv []string, sessionFlag string) {
 	var finalPiArgs []string
 	if skipModelsFilter {
 		finalPiArgs = piArgs
@@ -170,6 +170,11 @@ func executePi(entries []database.Entry, piArgs []string, skipModelsFilter bool,
 		}
 		finalPiArgs = []string{"--models", strings.Join(providersList, ",")}
 		finalPiArgs = append(finalPiArgs, piArgs...)
+	}
+
+	// Add session flag if provided
+	if sessionFlag != "" {
+		finalPiArgs = append(finalPiArgs, "--session", sessionFlag)
 	}
 
 	piCmd := exec.Command("pi", finalPiArgs...)
