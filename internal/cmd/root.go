@@ -14,6 +14,7 @@ import (
 	"github.com/dkmnx/ply/internal/keys"
 	"github.com/dkmnx/ply/internal/prompt"
 	"github.com/dkmnx/ply/internal/providers"
+	"github.com/dkmnx/ply/internal/session"
 	"github.com/spf13/cobra"
 )
 
@@ -189,6 +190,33 @@ func executePi(entries []database.Entry, piArgs []string, skipModelsFilter bool,
 		}
 		fatalf("Error running pi: %v", err)
 	}
+
+	// Display hint after pi exits (only if no session flag was provided)
+	if sessionFlag == "" {
+		displaySessionHint()
+	}
+}
+
+// displaySessionHint shows a hint about how to resume the session
+func displaySessionHint() {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return
+	}
+
+	sessionDir, err := session.SessionDirForCwd(cwd)
+	if err != nil {
+		return
+	}
+
+	sessionInfo, err := session.FindMostRecentSession(sessionDir)
+	if err != nil || sessionInfo == nil {
+		return
+	}
+
+	fmt.Fprintf(os.Stderr, "\n")
+	fmt.Fprintf(os.Stderr, "To continue this session, run: ply -s %s\n", sessionInfo.UUID)
+	fmt.Fprintf(os.Stderr, "\n")
 }
 
 func providerEnvVar(provider string) (string, bool) {
