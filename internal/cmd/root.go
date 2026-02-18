@@ -204,7 +204,7 @@ func displaySessionHint() {
 		return
 	}
 
-	sessionDir, err := session.SessionDirForCwd(cwd)
+	sessionDir, err := session.DirForCwd(cwd)
 	if err != nil {
 		return
 	}

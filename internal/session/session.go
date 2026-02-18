@@ -9,8 +9,8 @@ import (
 	"time"
 )
 
-// SessionInfo holds information about a pi session
-type SessionInfo struct {
+// Info holds information about a pi session
+type Info struct {
 	Path      string
 	UUID      string
 	Timestamp time.Time
@@ -44,8 +44,8 @@ func DecodeCwd(encoded string) string {
 	return string(filepath.Separator) + decoded
 }
 
-// SessionDirForCwd returns the session directory for a given working directory
-func SessionDirForCwd(cwd string) (string, error) {
+// DirForCwd returns the session directory for a given working directory
+func DirForCwd(cwd string) (string, error) {
 	sessionsDir, err := PiSessionsDir()
 	if err != nil {
 		return "", err
@@ -60,29 +60,29 @@ var sessionFilePattern = regexp.MustCompile(`^(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{
 func parseSessionTimestamp(ts string) (time.Time, error) {
 	// ts format: 2026-02-18T04-01-19-316Z
 	// We need to convert to standard format: 2006-01-02T15:04:05.000Z
-	
+
 	// Match pattern: YYYY-MM-DDTHH-MM-SS-MMMZ
 	re := regexp.MustCompile(`^(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z$`)
 	matches := re.FindStringSubmatch(ts)
 	if matches == nil {
 		return time.Time{}, nil
 	}
-	
+
 	// Build standard format string
 	standard := matches[1] + "-" + matches[2] + "-" + matches[3] + "T" +
 		matches[4] + ":" + matches[5] + ":" + matches[6] + "." + matches[7] + "Z"
-	
+
 	return time.Parse(time.RFC3339, standard)
 }
 
 // FindMostRecentSession finds the most recent session file in a session directory
-func FindMostRecentSession(sessionDir string) (*SessionInfo, error) {
+func FindMostRecentSession(sessionDir string) (*Info, error) {
 	entries, err := os.ReadDir(sessionDir)
 	if err != nil {
 		return nil, err
 	}
 
-	var sessions []SessionInfo
+	var sessions []Info
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
@@ -101,7 +101,7 @@ func FindMostRecentSession(sessionDir string) (*SessionInfo, error) {
 			continue
 		}
 
-		sessions = append(sessions, SessionInfo{
+		sessions = append(sessions, Info{
 			Path:      filepath.Join(sessionDir, entry.Name()),
 			UUID:      matches[2],
 			Timestamp: timestamp,
