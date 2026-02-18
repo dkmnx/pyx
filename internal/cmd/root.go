@@ -191,10 +191,8 @@ func executePi(entries []database.Entry, piArgs []string, skipModelsFilter bool,
 		fatalf("Error running pi: %v", err)
 	}
 
-	// Display hint after pi exits (only if no session flag was provided)
-	if sessionFlag == "" {
-		displaySessionHint()
-	}
+	// Display hint after pi exits
+	displaySessionHint()
 }
 
 // displaySessionHint shows a hint about how to resume the session
