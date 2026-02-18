@@ -31,12 +31,15 @@ var rootCmd = &cobra.Command{
 	Args:  cobra.ArbitraryArgs,
 }
 
+var sessionFlag string
+
 func Execute() error {
 	return rootCmd.Execute()
 }
 
 func init() {
 	rootCmd.CompletionOptions.DisableDefaultCmd = false
+	rootCmd.Flags().StringVarP(&sessionFlag, "session", "s", "", "Session UUID to pass to pi")
 }
 
 func runRoot(cmd *cobra.Command, args []string) {
