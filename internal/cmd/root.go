@@ -49,18 +49,16 @@ func runRoot(cmd *cobra.Command, args []string) {
 		fatal(err)
 	}
 
-	// Initialize key manager
+	// Initialize key manager and database
 	keyMgr := keys.New(dataDir)
+	db := database.New(dataDir)
 
 	// Attempt to migrate from legacy master key file if it exists
-	migrated, err := keyMgr.MigrateFromLegacy()
+	_, err = keyMgr.MigrateFromLegacy(db)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error migrating master key: %v\n", err)
 		fmt.Fprintln(os.Stderr, "Run 'ply init' to initialize ply.")
 		os.Exit(1)
-	}
-	if migrated {
-		fmt.Fprintln(os.Stderr, "Migrated master key to secure storage.")
 	}
 
 	// Check if master key exists
@@ -75,7 +73,10 @@ func runRoot(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	db := database.New(dataDir)
+	// Load database
+	if err := db.Load(context.Background()); err != nil {
+		fatal(err)
+	}
 	if err := db.Load(context.Background()); err != nil {
 		fatal(err)
 	}

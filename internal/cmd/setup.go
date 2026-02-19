@@ -131,18 +131,16 @@ func runSetup(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	// Initialize key manager
+	// Initialize key manager and database
 	keyMgr := keys.New(dataDir)
+	db := database.New(dataDir)
 
 	// Attempt to migrate from legacy master key file if it exists
-	migrated, err := keyMgr.MigrateFromLegacy()
+	_, err = keyMgr.MigrateFromLegacy(db)
 	if err != nil {
 		cmd.Printf("Error migrating master key: %v\n", err)
 		cmd.Println("Run 'ply init' to initialize ply.")
 		return
-	}
-	if migrated {
-		cmd.Println("Migrated master key to secure storage.")
 	}
 
 	// Get master key (load existing or create new)
@@ -153,7 +151,10 @@ func runSetup(cmd *cobra.Command, args []string) {
 	}
 
 	// Load database
-	db := database.New(dataDir)
+	if err := db.Load(context.Background()); err != nil {
+		cmd.Printf("Error loading database: %v\n", err)
+		return
+	}
 	if err := db.Load(context.Background()); err != nil {
 		cmd.Printf("Error loading database: %v\n", err)
 		return

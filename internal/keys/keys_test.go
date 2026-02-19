@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/dkmnx/ply/internal/database"
 	"github.com/google/uuid"
 	"github.com/zalando/go-keyring"
 )
@@ -329,7 +330,8 @@ func TestManagerMigrateFromLegacy(t *testing.T) {
 			}
 
 			// Run migration
-			migrated, err := m.MigrateFromLegacy()
+			db := database.New(dir)
+			migrated, err := m.MigrateFromLegacy(db)
 
 			if tt.shouldFailSave {
 				if err == nil {
@@ -394,7 +396,7 @@ func TestManagerMigrateFromLegacyWhenKeyExists(t *testing.T) {
 		t.Fatalf("Save() error = %v", err)
 	}
 
-	// Create legacy key file
+	// Create legacy key file and an empty database (no data to migrate)
 	legacyKey := make([]byte, keySize)
 	for i := range legacyKey {
 		legacyKey[i] = byte(i + 1)
@@ -404,17 +406,18 @@ func TestManagerMigrateFromLegacyWhenKeyExists(t *testing.T) {
 		t.Fatalf("failed to write legacy key: %v", err)
 	}
 
-	// Run migration - should not migrate since new key exists
-	migrated, err := m.MigrateFromLegacy()
+	// Run migration - should migrate and remove legacy file
+	db := database.New(dir)
+	migrated, err := m.MigrateFromLegacy(db)
 	if err != nil {
 		t.Fatalf("MigrateFromLegacy() unexpected error = %v", err)
 	}
 
-	if migrated {
-		t.Error("MigrateFromLegacy() should not migrate when new key already exists")
+	if !migrated {
+		t.Error("MigrateFromLegacy() should migrate when legacy key exists")
 	}
 
-	// Verify the existing key was not replaced
+	// Verify the existing key was not replaced (newer keyring key is kept)
 	loadedKey, err := m.Load(nil)
 	if err != nil {
 		t.Fatalf("failed to load key: %v", err)
@@ -424,8 +427,8 @@ func TestManagerMigrateFromLegacyWhenKeyExists(t *testing.T) {
 		t.Error("existing key was incorrectly replaced with legacy key")
 	}
 
-	// Verify legacy key file still exists
-	if _, err := os.Stat(legacyPath); os.IsNotExist(err) {
-		t.Error("legacy master.key file was removed when it shouldn't be")
+	// Verify legacy key file was removed
+	if _, err := os.Stat(legacyPath); err == nil {
+		t.Error("legacy master.key file was not removed after migration")
 	}
 }

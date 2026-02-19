@@ -1,6 +1,7 @@
 package keys
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -10,7 +11,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
+	"github.com/dkmnx/ply/internal/crypto"
+	"github.com/dkmnx/ply/internal/database"
 	"github.com/zalando/go-keyring"
 	"golang.org/x/crypto/argon2"
 )
@@ -67,17 +71,16 @@ func New(dataDir string) *Manager {
 }
 
 // MigrateFromLegacy attempts to migrate a legacy plaintext master key to secure storage.
-// It checks for the old master.key file and if found, migrates it to the new secure format.
+// It checks for the old master.key file and if found:
+// 1. Decrypts existing database entries with the legacy key
+// 2. Re-encrypts them with the new key (existing or newly generated)
+// 3. Saves the updated database
+// 4. Removes the legacy key file
 // Returns true if migration was attempted (regardless of success), false if no legacy key was found.
-func (m *Manager) MigrateFromLegacy() (bool, error) {
-	// Check if new key already exists
-	if exists, err := m.Exists(); exists || err != nil {
-		return false, err
-	}
-
+func (m *Manager) MigrateFromLegacy(db *database.Database) (bool, error) {
 	// Check for legacy master key file
 	legacyKeyPath := filepath.Join(m.dataDir, "master.key")
-	data, err := os.ReadFile(legacyKeyPath)
+	legacyKey, err := os.ReadFile(legacyKeyPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			// No legacy key found, nothing to migrate
@@ -87,22 +90,198 @@ func (m *Manager) MigrateFromLegacy() (bool, error) {
 	}
 
 	// Validate legacy key format (should be 32 bytes for AES-256)
-	if len(data) != keySize {
-		return false, fmt.Errorf("invalid legacy master key size: expected %d bytes, got %d", keySize, len(data))
+	if len(legacyKey) != keySize {
+		return false, fmt.Errorf("invalid legacy master key size: expected %d bytes, got %d", keySize, len(legacyKey))
 	}
 
-	// Save to new secure format
-	if err := m.Save(data); err != nil {
-		return false, fmt.Errorf("failed to migrate master key to secure storage: %w", err)
+	// Determine the new key to use
+	newKey, useLegacyAsNew, err := m.getMigrationKey(legacyKey)
+	if err != nil {
+		return false, fmt.Errorf("failed to determine migration key: %w", err)
 	}
 
-	// Successfully migrated, now remove legacy file
+	// Load database
+	if err := db.Load(context.Background()); err != nil {
+		return false, fmt.Errorf("failed to load database for migration: %w", err)
+	}
+
+	// Check if there are any entries to migrate
+	entries := db.ListEntries()
+	if len(entries) == 0 {
+		return m.migrateKeyOnly(legacyKey, newKey, useLegacyAsNew, legacyKeyPath)
+	}
+
+	return m.migrateDatabaseEntries(legacyKey, newKey, useLegacyAsNew, legacyKeyPath, db, entries)
+}
+
+// migrateKeyOnly migrates the legacy key without any database entries.
+func (m *Manager) migrateKeyOnly(legacyKey, newKey []byte, useLegacyAsNew bool, legacyKeyPath string) (bool, error) {
+	fmt.Fprintln(os.Stderr, "Migrating master key to secure storage...")
+	if useLegacyAsNew {
+		if err := m.Save(newKey); err != nil {
+			return false, fmt.Errorf("failed to save master key to secure storage: %w", err)
+		}
+	}
 	if err := os.Remove(legacyKeyPath); err != nil {
-		// Log warning but don't fail - the key is now in secure storage
+		fmt.Fprintf(os.Stderr, "Warning: could not remove legacy master key file: %v\n", err)
+	}
+	return true, nil
+}
+
+// migrateDatabaseEntries migrates database entries from legacy key to new key.
+func (m *Manager) migrateDatabaseEntries(legacyKey, newKey []byte, useLegacyAsNew bool, legacyKeyPath string, db *database.Database, entries []database.Entry) (bool, error) {
+	fmt.Fprintf(os.Stderr, "Migrating %d provider(s) to new key encryption...\n", len(entries))
+	successCount, failedCount := m.migrateEntries(legacyKey, newKey, db, entries)
+
+	// Save the updated database
+	if successCount > 0 || failedCount > 0 {
+		if err := db.Save(context.Background()); err != nil {
+			return false, fmt.Errorf("failed to save database after migration: %w", err)
+		}
+	}
+
+	// Save the new key if we're using the legacy key
+	if useLegacyAsNew {
+		if err := m.Save(newKey); err != nil {
+			return false, fmt.Errorf("failed to save master key to secure storage: %w", err)
+		}
+	}
+
+	// Remove legacy key file
+	if err := os.Remove(legacyKeyPath); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: could not remove legacy master key file: %v\n", err)
 	}
 
+	// Report results
+	m.reportMigrationResults(successCount, failedCount)
 	return true, nil
+}
+
+// migrateEntries decrypts and re-encrypts each database entry.
+func (m *Manager) migrateEntries(legacyKey, newKey []byte, db *database.Database, entries []database.Entry) (int, int) {
+	successCount := 0
+	failedCount := 0
+
+	for i := range entries {
+		entry := &entries[i]
+		if m.migrateSingleEntry(legacyKey, newKey, db, entry) {
+			successCount++
+		} else {
+			failedCount++
+		}
+	}
+
+	return successCount, failedCount
+}
+
+// migrateSingleEntry attempts to decrypt and re-encrypt a single entry.
+// Returns true on success, false on failure.
+func (m *Manager) migrateSingleEntry(legacyKey, newKey []byte, db *database.Database, entry *database.Entry) bool {
+	// Try to decrypt with legacy key
+	apiKey, err := crypto.Decrypt(legacyKey, entry.Cipher, entry.Nonce)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to decrypt %s with legacy key: %v\n", entry.Provider, err)
+		// Zero any decrypted data that might have leaked
+		if apiKey != nil {
+			apiKey.Zero()
+		}
+		return false
+	}
+
+	// Re-encrypt with new key
+	newCipher, newNonce, err := crypto.Encrypt(newKey, apiKey.String())
+	// Zero the decrypted API key immediately
+	apiKey.Zero()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to re-encrypt %s with new key: %v\n", entry.Provider, err)
+		return false
+	}
+
+	// Update entry
+	entry.Cipher = newCipher
+	entry.Nonce = newNonce
+	entry.UpdatedAt = time.Now().UTC()
+	if err := db.UpdateEntry(*entry); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to update %s in database: %v\n", entry.Provider, err)
+		return false
+	}
+
+	return true
+}
+
+// reportMigrationResults prints the migration summary.
+func (m *Manager) reportMigrationResults(successCount, failedCount int) {
+	if failedCount > 0 {
+		fmt.Fprintf(os.Stderr, "Migration completed with warnings: %d succeeded, %d failed\n", successCount, failedCount)
+		fmt.Fprintln(os.Stderr, "Failed providers will need to be re-added using 'ply setup'")
+	} else {
+		fmt.Fprintf(os.Stderr, "Migration completed successfully: %d provider(s) migrated\n", successCount)
+	}
+}
+
+// getMigrationKey determines which key to use for migration.
+// Returns (key, useLegacyAsNew, error).
+func (m *Manager) getMigrationKey(legacyKey []byte) ([]byte, bool, error) {
+	// Check if keyring key exists
+	keyringExists, err := m.keyringKeyExists()
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to check keyring: %w", err)
+	}
+
+	if !keyringExists {
+		// No keyring key, use legacy as the new key
+		return legacyKey, true, nil
+	}
+
+	// Keyring key exists, load it
+	keyringKey, err := m.loadFromKeyring()
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to load keyring key: %w", err)
+	}
+
+	// Check if legacy and keyring keys are the same
+	if Equal(legacyKey, keyringKey) {
+		// Same key, no migration needed, use keyring key
+		return keyringKey, false, nil
+	}
+
+	// Different keys - check which one can decrypt the database
+	db := database.New(m.dataDir)
+	if err := db.Load(context.Background()); err != nil {
+		// Can't load database, prefer legacy (it's the source of truth)
+		fmt.Fprintf(os.Stderr, "Warning: cannot load database, using legacy key for migration\n")
+		return legacyKey, true, nil
+	}
+
+	entries := db.ListEntries()
+	if len(entries) == 0 {
+		// No entries, use keyring key (newer)
+		return keyringKey, false, nil
+	}
+
+	// Try to decrypt first entry with keyring key
+	firstEntry := entries[0]
+	_, err = crypto.Decrypt(keyringKey, firstEntry.Cipher, firstEntry.Nonce)
+	if err == nil {
+		// Keyring key works, use it
+		return keyringKey, false, nil
+	}
+
+	// Keyring key doesn't work, legacy key is the correct one
+	fmt.Fprintf(os.Stderr, "Warning: existing keyring key cannot decrypt database, using legacy key\n")
+	return legacyKey, true, nil
+}
+
+// keyringKeyExists checks if a key exists in the OS keyring.
+func (m *Manager) keyringKeyExists() (bool, error) {
+	_, err := keyring.Get(keyringService, keyringUser)
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, keyring.ErrNotFound) {
+		return false, nil
+	}
+	return false, err
 }
 
 // Save saves the master key securely.

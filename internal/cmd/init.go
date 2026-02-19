@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/dkmnx/ply/internal/database"
 	"github.com/dkmnx/ply/internal/fs"
 	"github.com/dkmnx/ply/internal/keys"
 	"github.com/spf13/cobra"
@@ -30,17 +31,15 @@ func runInit(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	// Initialize key manager
+	// Initialize key manager and database
 	keyMgr := keys.New(dataDir)
+	db := database.New(dataDir)
 
 	// Attempt to migrate from legacy master key file if it exists
-	migrated, err := keyMgr.MigrateFromLegacy()
+	_, err = keyMgr.MigrateFromLegacy(db)
 	if err != nil {
 		cmd.Printf("Error migrating master key: %v\n", err)
 		return
-	}
-	if migrated {
-		cmd.Println("Migrated master key to secure storage.")
 	}
 
 	// Check if master key already exists
