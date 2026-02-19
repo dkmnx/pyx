@@ -58,19 +58,9 @@ clean:
 
 # Install locally
 install:
-	@echo "Checking for existing $(APP_NAME) installation..."
-	@if command -v ply > /dev/null 2>&1; then \
-		echo "$(APP_NAME) is already installed at: $$(command -v ply)"; \
-		echo ""; \
-		echo "To reinstall, use: go uninstall $(APP_NAME)"; \
-		echo "Then run: make install"; \
-	else \
-		echo "Installing $(APP_NAME)..."; \
-		go install $(CMD_DIR); \
-		echo "Installed to $$(go env GOPATH)/bin/$(APP_NAME)"; \
-		echo ""; \
-		echo "$(APP_NAME) is now available on your PATH"; \
-	fi
+	@echo "Installing $(APP_NAME)..."
+	@go install $(CMD_DIR)
+	@echo "Installed to $$(go env GOPATH)/bin/$(APP_NAME)"
 
 # Run the application
 run:
