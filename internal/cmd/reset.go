@@ -12,11 +12,11 @@ import (
 var resetCmd = &cobra.Command{
 	Use:   "reset",
 	Short: "Reset ply configuration",
-	Long:  `Reset removes all encrypted data and keys from ply.
+	Long: `Reset removes all encrypted data and keys from ply.
 
 This is useful when the encryption key is lost or corrupted.
 You will need to re-add your providers after running this command.`,
-	Run:   runReset,
+	Run: runReset,
 }
 
 func init() {
@@ -35,7 +35,10 @@ func runReset(cmd *cobra.Command, args []string) {
 	// Prompt for confirmation
 	fmt.Print("Are you sure you want to reset? Type 'yes' to confirm: ")
 	var confirm string
-	fmt.Scanln(&confirm)
+	if _, err := fmt.Scanln(&confirm); err != nil {
+		cmd.Printf("Error reading input: %v\n", err)
+		return
+	}
 
 	if confirm != "yes" {
 		fmt.Println("Reset cancelled.")

@@ -72,10 +72,11 @@ func New(dataDir string) *Manager {
 
 // MigrateFromLegacy attempts to migrate a legacy plaintext master key to secure storage.
 // It checks for the old master.key file and if found:
-// 1. Decrypts existing database entries with the legacy key
-// 2. Re-encrypts them with the new key (existing or newly generated)
-// 3. Saves the updated database
-// 4. Removes the legacy key file
+// 1. Verifies the legacy key was actually used to encrypt database data
+// 2. Decrypts existing database entries with the legacy key
+// 3. Re-encrypts them with the new key (existing or newly generated)
+// 4. Saves the updated database
+// 5. Removes the legacy key file
 // Returns true if migration was attempted (regardless of success), false if no legacy key was found.
 func (m *Manager) MigrateFromLegacy(db *database.Database) (bool, error) {
 	// Check for legacy master key file
@@ -100,13 +101,27 @@ func (m *Manager) MigrateFromLegacy(db *database.Database) (bool, error) {
 		return false, fmt.Errorf("failed to determine migration key: %w", err)
 	}
 
-	// Load database
+	// Load database first to verify the legacy key is actually used to encrypt data
 	if err := db.Load(context.Background()); err != nil {
 		return false, fmt.Errorf("failed to load database for migration: %w", err)
 	}
 
 	// Check if there are any entries to migrate
 	entries := db.ListEntries()
+
+	// Only migrate if the legacy key was actually used to encrypt data
+	if !m.shouldMigrate(legacyKey, entries) {
+		// Legacy key exists but wasn't used to encrypt database data
+		// This could be from a build artifact or accidental creation
+		// Remove it to prevent future confusion
+		if err := os.Remove(legacyKeyPath); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not remove unused legacy master key file: %v\n", err)
+		} else {
+			fmt.Fprintln(os.Stderr, "Warning: found unused legacy master.key file (not used to encrypt database), removed")
+		}
+		return false, nil
+	}
+
 	if len(entries) == 0 {
 		return m.migrateKeyOnly(legacyKey, newKey, useLegacyAsNew, legacyKeyPath)
 	}
@@ -270,6 +285,22 @@ func (m *Manager) getMigrationKey(legacyKey []byte) ([]byte, bool, error) {
 	// Keyring key doesn't work, legacy key is the correct one
 	fmt.Fprintf(os.Stderr, "Warning: existing keyring key cannot decrypt database, using legacy key\n")
 	return legacyKey, true, nil
+}
+
+// shouldMigrate determines if the legacy key should be migrated.
+// It verifies the key was actually used to encrypt database data.
+func (m *Manager) shouldMigrate(legacyKey []byte, entries []database.Entry) bool {
+	// If there are no entries, no way to verify - assume should migrate
+	if len(entries) == 0 {
+		return true
+	}
+
+	// Try to decrypt first entry with legacy key
+	firstEntry := entries[0]
+	_, err := crypto.Decrypt(legacyKey, firstEntry.Cipher, firstEntry.Nonce)
+
+	// If decryption succeeds, the legacy key was used to encrypt data
+	return err == nil
 }
 
 // keyringKeyExists checks if a key exists in the OS keyring.
