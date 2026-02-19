@@ -47,6 +47,9 @@ ply
 | `ply config edit <provider>` | Edit a provider's API key |
 | `ply config delete <provider>` | Delete a provider |
 | `ply models` | List supported AI models |
+| `ply pi` | Manage pi installation |
+| `ply pi install` | Install pi coding agent |
+| `ply reset` | Reset ply configuration |
 | `ply [provider]` | Run pi with a specific provider |
 | `ply` | Run pi with all configured providers |
 | `ply completion [bash\|zsh\|fish\|powershell]` | Generate shell completion |

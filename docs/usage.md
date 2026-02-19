@@ -4,6 +4,21 @@ Complete reference for all ply commands and options.
 
 ## Commands
 
+### init
+
+Initialize the master encryption key.
+
+```bash
+ply init
+```
+
+This command:
+- Creates the data directory if it doesn't exist
+- Migrates from legacy master.key file if present
+- Creates a new 32-byte encryption key
+- Stores the key securely in OS keyring (or encrypted with password if keyring unavailable)
+- Automatically installs pi if not found
+
 ### setup
 
 Initialize ply configuration and add a new provider.
@@ -17,7 +32,27 @@ Prompts for:
 - Provider selection (number or name)
 - API key (hidden input)
 
-If the provider already exists, you'll be asked to confirm override.
+If a provider already exists, you'll be asked to confirm override.
+
+### reset
+
+Reset all ply configuration, keys, and encrypted data.
+
+```bash
+ply reset
+```
+
+This command removes:
+- All encrypted API keys (database.json and backup)
+- Master key from OS keyring
+- Legacy master.key file (if exists)
+- Password file (if exists)
+
+**Warning:** This action cannot be undone and requires explicit "yes" confirmation.
+
+After reset, you must:
+1. Run `ply init` to create a new master key
+2. Run `ply setup` to re-add your providers
 
 ### config list
 
@@ -48,145 +83,65 @@ Delete a provider configuration.
 ply config delete <provider>
 ```
 
-## Running pi
+### pi
 
-### All Configured Providers
-
-Run pi with all configured providers:
+Manage pi installation and status.
 
 ```bash
-ply
+ply pi
 ```
 
-This will:
+Shows pi installation commands and status.
 
-1. Load all configured providers from storage
-2. Decrypt each API key using the master key
-3. Set the appropriate environment variables
-4. Execute `pi --models "provider1/*,provider2/*,..."`
+### pi install
 
-If providers share the same environment variable (e.g., `openai` and `openai-codex` both use `OPENAI_API_KEY`), they must have the same API key or an error will occur.
-
-### Specific Provider
-
-Run pi with a specific provider:
+Install pi coding agent if not already installed.
 
 ```bash
-ply anthropic
-ply groq
+ply pi install
 ```
 
-### Passing Arguments to pi
+This command:
+- Checks which package manager is available (npm, pnpm, yarn, or bun)
+- Installs `@mariozechner/pi-coding-agent` globally
+- Shows installation success and version
+- Skips if pi is already installed
 
-Use `--` to pass arguments directly to pi:
+Note: If pi is already installed, you'll see the location and can reinstall using:
+```bash
+go uninstall ply && ply pi install
+```
+
+### models
+
+List supported AI models for all providers.
 
 ```bash
-# Get pi help
-ply -- --help
-
-# Use specific model
-ply anthropic -- --model claude-sonnet-4
-
-# Disable model filtering
-ply -- --model gpt-4o
+ply models
 ```
 
-## Shell Completion
+This command fetches the latest model list from the pi-mono repository:
+- amazon-bedrock
+- anthropic
+- azure-openai-responses
+- cerebras
+- github-copilot
+- google
+- google-antigravity
+- google-gemini-cli
+- google-vertex
+- groq
+- huggingface
+- kimi-coding
+- minimax
+- minimax-cn
+- mistral
+- openai
+- openai-codex
+- opencode
+- openrouter
+- vercel-ai-gateway
+- xai
+- zai
 
-Generate and install shell completion scripts.
-
-### Bash
-
-```bash
-# One-time source
-source <(ply completion bash)
-
-# Persistent installation
-ply completion bash > /etc/bash_completion.d/ply  # Linux
-ply completion bash > /usr/local/etc/bash_completion.d/ply  # macOS
-```
-
-### Zsh
-
-```bash
-# Ensure completions are enabled
-echo "autoload -U compinit; compinit" >> ~/.zshrc
-
-# Install completion
-ply completion zsh > "${fpath[1]}/_ply"
-```
-
-### Fish
-
-```bash
-# One-time source
-ply completion fish | source
-
-# Persistent installation
-ply completion fish > ~/.config/fish/completions/ply.fish
-```
-
-### PowerShell
-
-```powershell
-# One-time source
-ply completion powershell | Out-String | Invoke-Expression
-
-# Persistent installation
-ply completion powershell > ply.ps1
-Add-Content -Path $PROFILE -Value '. .\ply.ps1'
-```
-
-## Version
-
-Print version information:
-
-```bash
-ply version
-```
-
-## Examples
-
-### Complete Workflow
-
-```bash
-# Initial setup
-ply setup
-
-# Add another provider
-ply setup
-
-# List providers
-ply config list
-
-# Run with all configured providers
-ply
-
-# Run with specific provider
-ply anthropic
-
-# Delete a provider
-ply config delete openai
-```
-
-### Multiple Provider Setup
-
-```bash
-# Configure OpenAI
-ply setup
-> Select: openai
-> API key: sk-...
-
-# Configure Anthropic
-ply setup
-> Select: anthropic
-> API key: sk-ant-...
-
-# Configure Groq
-ply setup
-> Select: groq
-> API key: gsk_...
-
-# Run with all providers
-ply
-```
+Models are cached locally for 24 hours.
