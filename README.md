@@ -7,7 +7,7 @@
 ██    ██
 ```
 
-[![Go Version](https://img.shields.io/github/go-mod/go-version/dkmnx/ply)](https://github.com/dkmnx/ply)
+[![Go Version](https://img.shields.io/badge/Go-1.24-00ADD8?style=flat&logo=go)](https://go.dev/dl/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A CLI tool for managing AI provider configurations for the pi coding agent.
