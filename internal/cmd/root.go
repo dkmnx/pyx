@@ -212,9 +212,12 @@ func displaySessionHint() {
 		return
 	}
 
-	fmt.Fprintf(os.Stderr, "To continue this session, run:\n")
-	fmt.Fprintf(os.Stderr, "  ply -s %s\n", sessionInfo.UUID)
-	fmt.Fprintf(os.Stderr, "\n")
+	fmt.Fprintf(os.Stderr, `  ██████  ██
+  ██  ██  ██  To continue this session, run:
+  ████  ██    ply -s %s
+  ██    ██
+
+`, sessionInfo.UUID)
 }
 
 func providerEnvVar(provider string) (string, bool) {
