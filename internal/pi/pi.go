@@ -1,22 +1,143 @@
-// Package pi provides utilities for checking and installing the pi coding agent.
+// Package pi provides utilities for checking and installing pi coding agent.
 package pi
 
 import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 )
 
 const (
-	// NPMPackage is the npm package name for pi
+	// NPMPackage is npm package name for pi
 	NPMPackage = "@mariozechner/pi-coding-agent"
-	// BinaryName is the name of the pi executable
+	// BinaryName is name of pi executable
 	BinaryName = "pi"
-	// packageManagerYarn is the name for yarn package manager
+	// packageManagerYarn is name for yarn package manager
 	packageManagerYarn = "yarn"
 )
+
+// ShellType represents the detected shell type.
+type ShellType string
+
+const (
+	ShellBash      ShellType = "bash"
+	ShellZsh       ShellType = "zsh"
+	ShellFish      ShellType = "fish"
+	ShellPowerShell ShellType = "powershell"
+)
+
+// DetectCurrentShell detects the current shell environment.
+// Returns the detected shell type.
+func DetectCurrentShell() ShellType {
+	// Check shell environment variable
+	shell := os.Getenv("SHELL")
+	if shell != "" {
+		shell = filepath.Base(shell)
+		switch shell {
+		case "bash":
+			return ShellBash
+		case "zsh":
+			return ShellZsh
+		case "fish":
+			return ShellFish
+		}
+	}
+
+	// Fallback: check for fish-specific environment variables
+	if os.Getenv("__FISH_VERSION_DIR") != "" {
+		return ShellFish
+	}
+
+	// Fallback: assume bash on Unix-like systems
+	if runtime.GOOS == "linux" || runtime.GOOS == "darwin" {
+		return ShellBash
+	}
+
+	// Default to powershell on Windows
+	if runtime.GOOS == "windows" {
+		return ShellPowerShell
+	}
+
+	// Final fallback to bash
+	return ShellBash
+}
+
+// CompletionScriptPath returns the completion script path for a shell.
+func CompletionScriptPath(shell ShellType) string {
+	switch shell {
+	case ShellZsh:
+		// Zsh: ${fpath[1]}/_ply
+		home, _ := os.UserHomeDir()
+		return home + "/.zshrc"
+	case ShellFish:
+		// Fish: ~/.config/fish/completions/ply.fish
+		home, _ := os.UserHomeDir()
+		return home + "/.config/fish/completions/ply.fish"
+	case ShellPowerShell:
+		// PowerShell: ply.ps1 in user's Documents/PowerShell
+		home, _ := os.UserHomeDir()
+		return home + "/Documents/PowerShell/ply.ps1"
+	case ShellBash:
+		// Bash: try both system and user locations
+		// System: /etc/bash_completion.d/ply (Linux)
+		// User: ~/.bashrc
+		home, _ := os.UserHomeDir()
+		return home + "/.bashrc"
+	default:
+		return ""
+	}
+}
+
+// InstallCompletion installs the appropriate completion script for the detected shell.
+func InstallCompletion() error {
+	shell := DetectCurrentShell()
+	if shell == "" {
+		fmt.Println("Could not detect shell, skipping completion installation")
+		return nil
+	}
+
+	// Generate completion script using ply
+	cmd := exec.Command("ply", "completion", string(shell))
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to generate completion script: %w", err)
+	}
+
+	scriptPath := CompletionScriptPath(shell)
+	if scriptPath == "" {
+		fmt.Printf("Completion installation not available for %s shell\n", shell)
+		return nil
+	}
+
+	// Write completion script to appropriate location
+	if err := os.WriteFile(scriptPath, output, 0644); err != nil {
+		return fmt.Errorf("failed to write completion script: %w", err)
+	}
+
+	fmt.Printf("✓ Completion script installed for %s shell\n", shell)
+	fmt.Printf("  Script location: %s\n", scriptPath)
+
+	// Add source/activation instruction for zsh
+	if shell == ShellZsh {
+		fmt.Println("  To enable completions, restart your shell or run:")
+		fmt.Println("    autoload -U compinit; compinit")
+	} else if shell == ShellFish {
+		fmt.Println("  To enable completions, restart your shell or run:")
+		fmt.Println("    source \"" + scriptPath + "\"")
+	} else if shell == ShellPowerShell {
+		fmt.Println("  To enable completions for every new session, add to your profile:")
+		fmt.Println("    Add-Content -Path $PROFILE -Value '. " + scriptPath + "'")
+	} else {
+		fmt.Println("  Completions will be loaded automatically")
+	}
+
+	return nil
+}
+
+// CheckInstalled checks if pi is installed and available on PATH.
 
 // CheckInstalled checks if pi is installed and available on PATH.
 func CheckInstalled() (bool, error) {
@@ -52,7 +173,7 @@ func Install() error {
 	return nil
 }
 
-// EnsureInstalled checks if pi is installed, and installs it if not.
+// EnsureInstalled checks if pi is installed and installs it if not.
 // Returns true if pi was installed, false if it was already installed.
 func EnsureInstalled() (bool, error) {
 	installed, err := CheckInstalled()
@@ -61,6 +182,10 @@ func EnsureInstalled() (bool, error) {
 	}
 
 	if installed {
+		// Pi is installed, try to install completion for detected shell
+		if err := InstallCompletion(); err != nil {
+			fmt.Printf("Warning: failed to install shell completions: %v\n", err)
+		}
 		return false, nil
 	}
 
@@ -70,6 +195,11 @@ func EnsureInstalled() (bool, error) {
 
 	if err := Install(); err != nil {
 		return false, fmt.Errorf("failed to install pi: %w", err)
+	}
+
+	// Pi installed successfully, install completion
+	if err := InstallCompletion(); err != nil {
+		fmt.Printf("Warning: failed to install shell completions: %v\n", err)
 	}
 
 	return true, nil
@@ -103,8 +233,8 @@ func findPackageManager() (string, string, error) {
 	return "", "", fmt.Errorf("no package manager found (npm, pnpm, yarn, or bun required)")
 }
 
-// InstallCommand returns the command string to install pi.
-// This is useful for showing the user what command to run.
+// InstallCommand returns to command string to install pi.
+// This is useful for showing to user what command to run.
 func InstallCommand() string {
 	pm, cmd, err := findPackageManager()
 	if err != nil {

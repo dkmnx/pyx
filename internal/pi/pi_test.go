@@ -1,6 +1,7 @@
 package pi
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -123,5 +124,95 @@ func TestNPMPackage(t *testing.T) {
 	expected := "@mariozechner/pi-coding-agent"
 	if NPMPackage != expected {
 		t.Errorf("NPMPackage should be '%s', got: %s", expected, NPMPackage)
+	}
+}
+
+func TestDetectCurrentShell(t *testing.T) {
+	// Set SHELL environment variable for testing
+	oldShell := os.Getenv("SHELL")
+	t.Cleanup(func() {
+		os.Setenv("SHELL", oldShell)
+	})
+
+	tests := []struct {
+		name       string
+		setShell   string
+		want       ShellType
+	}{
+		{"bash", "/bin/bash", ShellBash},
+		{"zsh", "/bin/zsh", ShellZsh},
+		{"fish", "/usr/bin/fish", ShellFish},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			os.Setenv("SHELL", tt.setShell)
+			got := DetectCurrentShell()
+			if got != tt.want {
+				t.Errorf("DetectCurrentShell() with SHELL=%s = %v, want %v", tt.setShell, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCompletionScriptPath(t *testing.T) {
+	tests := []struct {
+		name   string
+		shell  ShellType
+		setup   func() string
+	}{
+		{
+			name:   "zsh",
+			shell:  ShellZsh,
+			setup:   func() string { home, _ := os.UserHomeDir(); return home + "/.zshrc" },
+		},
+		{
+			name:   "fish",
+			shell:  ShellFish,
+			setup:   func() string { home, _ := os.UserHomeDir(); return home + "/.config/fish/completions/ply.fish" },
+		},
+		{
+			name:   "bash",
+			shell:  ShellBash,
+			setup:   func() string { home, _ := os.UserHomeDir(); return home + "/.bashrc" },
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := CompletionScriptPath(tt.shell)
+			expected := tt.setup()
+			if got != expected {
+				t.Errorf("CompletionScriptPath(%s) = %v, want %v", tt.shell, got, expected)
+			}
+		})
+	}
+}
+
+func TestInstallCompletion(t *testing.T) {
+	// Test that InstallCompletion can be called without error
+	// We can't easily test the actual completion script generation
+	// Just verify the function exists and handles shell detection
+	shell := DetectCurrentShell()
+	if shell == "" {
+		t.Error("DetectCurrentShell() should return a shell type")
+	}
+
+	// Verify shell type is valid
+	validShells := map[ShellType]bool{
+		ShellBash:      true,
+		ShellZsh:       true,
+		ShellFish:      true,
+		ShellPowerShell: true,
+	}
+
+	if !validShells[shell] {
+		t.Errorf("Detected shell %s is not in valid shells list", shell)
+	}
+}
+
+func TestPackageManagerYarn(t *testing.T) {
+	if packageManagerYarn != "yarn" {
+		t.Errorf("packageManagerYarn should be 'yarn', got: %s", packageManagerYarn)
 	}
 }

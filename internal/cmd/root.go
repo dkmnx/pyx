@@ -186,12 +186,17 @@ func executePi(entries []database.Entry, piArgs []string, skipModelsFilter bool,
 	}
 
 	if wasInstalled {
-		// pi was just installed, show platform info for debugging
+		// pi was just installed, show platform info and install completion
 		fmt.Fprintf(os.Stderr, "Platform: %s\n", pi.PlatformInfo())
 		if version, err := pi.Version(); err == nil {
 			fmt.Fprintf(os.Stderr, "pi version: %s\n", version)
 		}
 		fmt.Fprintln(os.Stderr)
+
+		// Install shell completion for detected shell
+		if err := pi.InstallCompletion(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to install shell completions: %v\n", err)
+		}
 	}
 
 	var finalPiArgs []string
