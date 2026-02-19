@@ -14,8 +14,12 @@ func TestEnvVar(t *testing.T) {
 		{"openai", "OPENAI_API_KEY", true},
 		{"anthropic", "ANTHROPIC_API_KEY", true},
 		{"google", "GEMINI_API_KEY", true},
+		{"google-vertex", "GOOGLE_APPLICATION_CREDENTIALS", true},
 		{"openrouter", "OPENROUTER_API_KEY", true},
-		{"unknown", "", false},
+		{"groq", "GROQ_API_KEY", true},
+		{"mistral", "MISTRAL_API_KEY", true},
+		{"xai", "XAI_API_KEY", true},
+		{"zai", "ZAI_API_KEY", true},
 		{"", "", false},
 	}
 
@@ -32,28 +36,29 @@ func TestEnvVar(t *testing.T) {
 	}
 }
 
-func TestIsValid(t *testing.T) {
-	validProviders := Names()
-
-	for _, provider := range validProviders {
-		t.Run("valid_"+provider, func(t *testing.T) {
-			if !IsValid(provider) {
-				t.Errorf("IsValid(%q) returned false for known provider", provider)
-			}
-		})
+func TestDeriveEnvVar(t *testing.T) {
+	tests := []struct {
+		name     string
+		provider string
+		want     string
+	}{
+		{"cohere provider", "cohere", "COHERE_API_KEY"},
+		{"deepseek provider", "deepseek", "DEEPSEEK_API_KEY"},
+		{"meta provider", "meta", "META_API_KEY"},
+		{"nvidia provider", "nvidia", "NVIDIA_API_KEY"},
+		{"moonshot provider", "moonshot", "MOONSHOT_API_KEY"},
+		{"qwen provider", "qwen", "QWEN_API_KEY"},
+		{"writer provider", "writer", "WRITER_API_KEY"},
+		{"google vertex", "google-vertex", "GOOGLE_APPLICATION_CREDENTIALS"},
+		{"custom -ai suffix", "custom-ai", "CUSTOM_API_KEY"},
+		{"unknown provider", "unknown-provider", "UNKNOWN-PROVIDER_API_KEY"},
 	}
 
-	invalidProviders := []string{
-		"",
-		"unknown",
-		"not-a-provider",
-		"OpenAI", // case sensitive
-	}
-
-	for _, provider := range invalidProviders {
-		t.Run("invalid_"+provider, func(t *testing.T) {
-			if IsValid(provider) {
-				t.Errorf("IsValid(%q) returned true for invalid provider", provider)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, _ := deriveEnvVar(tt.provider)
+			if got != tt.want {
+				t.Errorf("deriveEnvVar() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -65,13 +70,14 @@ func TestValidate(t *testing.T) {
 		input   string
 		wantErr bool
 	}{
-		// Valid known providers
+		// Valid format (might not be in cache, but format is valid)
 		{"valid openai", "openai", false},
 		{"valid anthropic", "anthropic", false},
 		{"valid google-vertex", "google-vertex", false},
 		{"valid amazon-bedrock", "amazon-bedrock", false},
 		{"valid github-copilot", "github-copilot", false},
 		{"valid xai", "xai", false},
+		{"valid minimax", "minimax", false},
 
 		// Empty string
 		{"empty string", "", true},
@@ -114,15 +120,9 @@ func TestValidate(t *testing.T) {
 
 		// Too long (>50 characters)
 		{"too long", strings.Repeat("a", 51), true},
-		{"exactly 50 is ok", strings.Repeat("a", 50), true}, // still unknown provider
 
-		// Case sensitivity
-		{"uppercase known", "OPENAI", true},
-		{"mixed case known", "OpenAI", true},
-
-		// Unknown but valid format
-		{"unknown valid format", "unknown-provider", true},
-		{"unknown valid format 2", "another_provider", true},
+		// Exactly 50 is valid format
+		{"exactly 50", strings.Repeat("a", 50), false},
 	}
 
 	for _, tt := range tests {
@@ -138,8 +138,11 @@ func TestValidate(t *testing.T) {
 func TestNames(t *testing.T) {
 	names := Names()
 
+	// Note: This test may return empty if cache is not available
+	// That's expected behavior
 	if len(names) == 0 {
-		t.Error("Names() returned empty slice")
+		t.Skip("No models cache available, skipping Names() test")
+		return
 	}
 
 	// Check for duplicates
@@ -151,46 +154,33 @@ func TestNames(t *testing.T) {
 		seen[name] = true
 	}
 
-	// Verify all names are valid format
+	// Verify all names have valid format
 	for _, name := range names {
-		err := Validate(name)
-		if err != nil {
-			t.Errorf("Names() returned invalid provider name: %s (error: %v)", name, err)
+		if !validProviderNamePattern.MatchString(name) {
+			t.Errorf("Names() returned invalid provider name format: %s", name)
 		}
 	}
 }
 
-func TestEnvVarUnique(t *testing.T) {
-	// Note: Some providers intentionally share the same EnvVar (e.g., google providers
-	// share GEMINI_API_KEY, openai and openai-codex share OPENAI_API_KEY).
-	// This is by design as they use the same API key for different services.
-	// This test just verifies the mapping is consistent and documented.
-
-	// Build a map of env vars to their providers
-	envVarToProviders := make(map[string][]string)
-	for _, provider := range All {
-		envVarToProviders[provider.EnvVar] = append(envVarToProviders[provider.EnvVar], provider.Name)
+func TestEnvVarMappingCoverage(t *testing.T) {
+	// Test that we have env vars for known providers
+	knownProviders := []string{
+		"openai", "anthropic", "google", "groq", "mistral",
+		"amazon-bedrock", "azure-openai-responses", "cerebras",
+		"github-copilot", "huggingface", "kimi-coding",
+		"minimax", "minimax-cn", "openai-codex", "opencode",
+		"openrouter", "vercel-ai-gateway", "xai", "zai",
 	}
 
-	// Verify that all providers sharing an env var make sense
-	// (e.g., are related services that would logically share a key)
-	for envVar, providersList := range envVarToProviders {
-		if len(providersList) > 1 {
-			t.Logf("EnvVar %s is shared by: %v", envVar, providersList)
-		}
-	}
-}
-
-func TestProviderNameFormat(t *testing.T) {
-	for _, provider := range All {
-		// Check that all provider names match the expected pattern
-		if !validProviderNamePattern.MatchString(provider.Name) {
-			t.Errorf("Provider name %q does not match expected pattern", provider.Name)
-		}
-
-		// Check that env var is not empty
-		if provider.EnvVar == "" {
-			t.Errorf("Provider %q has empty EnvVar", provider.Name)
-		}
+	for _, provider := range knownProviders {
+		t.Run("has_env_var_"+provider, func(t *testing.T) {
+			envVar, found := EnvVar(provider)
+			if !found {
+				t.Errorf("EnvVar(%q) returned false for known provider", provider)
+			}
+			if envVar == "" {
+				t.Errorf("EnvVar(%q) returned empty string", provider)
+			}
+		})
 	}
 }

@@ -1,9 +1,12 @@
 package providers
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/dkmnx/ply/internal/models"
 )
 
 type Provider struct {
@@ -17,37 +20,42 @@ var (
 	validProviderNamePattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,50}$`)
 )
 
-var All = []Provider{
-	{Name: "amazon-bedrock", EnvVar: "AWS_BEARER_TOKEN_BEDROCK"},
-	{Name: "anthropic", EnvVar: "ANTHROPIC_API_KEY"},
-	{Name: "azure-openai-responses", EnvVar: "AZURE_OPENAI_API_KEY"},
-	{Name: "cerebras", EnvVar: "CEREBRAS_API_KEY"},
-	{Name: "github-copilot", EnvVar: "GITHUB_TOKEN"},
-	{Name: "google", EnvVar: "GEMINI_API_KEY"},
-	{Name: "google-antigravity", EnvVar: "GEMINI_API_KEY"},
-	{Name: "google-gemini-cli", EnvVar: "GEMINI_API_KEY"},
-	{Name: "google-vertex", EnvVar: "GOOGLE_APPLICATION_CREDENTIALS"},
-	{Name: "groq", EnvVar: "GROQ_API_KEY"},
-	{Name: "huggingface", EnvVar: "HF_TOKEN"},
-	{Name: "kimi-coding", EnvVar: "KIMI_API_KEY"},
-	{Name: "minimax", EnvVar: "MINIMAX_API_KEY"},
-	{Name: "minimax-cn", EnvVar: "MINIMAX_CN_API_KEY"},
-	{Name: "mistral", EnvVar: "MISTRAL_API_KEY"},
-	{Name: "openai", EnvVar: "OPENAI_API_KEY"},
-	{Name: "openai-codex", EnvVar: "OPENAI_API_KEY"},
-	{Name: "opencode", EnvVar: "OPENCODE_API_KEY"},
-	{Name: "opencode-zen", EnvVar: "OPENCODE_API_KEY"},
-	{Name: "openrouter", EnvVar: "OPENROUTER_API_KEY"},
-	{Name: "vercel-ai-gateway", EnvVar: "AI_GATEWAY_API_KEY"},
-	{Name: "xai", EnvVar: "XAI_API_KEY"},
-	{Name: "zai", EnvVar: "ZAI_API_KEY"},
+// envVarMapping provides the environment variable name for known providers.
+// This is needed because the env var is not in the fetched models file.
+// When new providers are added to pi-mono, they should be added here.
+var envVarMapping = map[string]string{
+	"amazon-bedrock":         "AWS_BEARER_TOKEN_BEDROCK",
+	"anthropic":              "ANTHROPIC_API_KEY",
+	"azure-openai-responses": "AZURE_OPENAI_API_KEY",
+	"cerebras":               "CEREBRAS_API_KEY",
+	"github-copilot":         "GITHUB_TOKEN",
+	"google":                 "GEMINI_API_KEY",
+	"google-antigravity":     "GEMINI_API_KEY",
+	"google-gemini-cli":      "GEMINI_API_KEY",
+	"google-vertex":          "GOOGLE_APPLICATION_CREDENTIALS",
+	"groq":                   "GROQ_API_KEY",
+	"huggingface":            "HF_TOKEN",
+	"kimi-coding":            "KIMI_API_KEY",
+	"minimax":                "MINIMAX_API_KEY",
+	"minimax-cn":             "MINIMAX_CN_API_KEY",
+	"mistral":                "MISTRAL_API_KEY",
+	"openai":                 "OPENAI_API_KEY",
+	"openai-codex":           "OPENAI_API_KEY",
+	"opencode":               "OPENCODE_API_KEY",
+	"opencode-zen":           "OPENCODE_API_KEY",
+	"openrouter":             "OPENROUTER_API_KEY",
+	"vercel-ai-gateway":      "AI_GATEWAY_API_KEY",
+	"xai":                    "XAI_API_KEY",
+	"zai":                    "ZAI_API_KEY",
 }
 
-// Names returns a list of all supported provider names.
+// Names returns a list of all supported provider names fetched from models cache.
+// If cache is unavailable or stale, returns an empty list.
 func Names() []string {
-	names := make([]string, len(All))
-	for i, p := range All {
-		names[i] = p.Name
+	all := models.GetAll()
+	names := make([]string, 0, len(all))
+	for provider := range all {
+		names = append(names, provider)
 	}
 	return names
 }
@@ -56,20 +64,74 @@ func Names() []string {
 // Returns the env var name and true if the provider is found.
 // Returns empty string and false if the provider is not recognized.
 func EnvVar(name string) (string, bool) {
-	for _, p := range All {
-		if p.Name == name {
-			return p.EnvVar, true
-		}
+	if name == "" {
+		return "", false
 	}
+
+	envVar, ok := envVarMapping[name]
+	if ok {
+		return envVar, true
+	}
+
+	// Try to derive from provider name
+	derived, ok := deriveEnvVar(name)
+	if ok {
+		// Add to mapping for next time
+		envVarMapping[name] = derived
+		return derived, true
+	}
+
 	return "", false
 }
 
+// deriveEnvVar attempts to derive the environment variable name from the provider name.
+// This handles cases where a new provider was added to pi-mono but not yet to our mapping.
+func deriveEnvVar(name string) (string, bool) {
+	nameUpper := strings.ToUpper(name)
+
+	// Common patterns
+	switch {
+	case strings.HasPrefix(name, "amazon"):
+		return "AWS_BEARER_TOKEN_BEDROCK", true
+	case strings.HasPrefix(name, "anthropic"):
+		return "ANTHROPIC_API_KEY", true
+	case strings.HasPrefix(name, "azure"):
+		return "AZURE_OPENAI_API_KEY", true
+	case strings.HasPrefix(name, "cohere"):
+		return "COHERE_API_KEY", true
+	case strings.HasPrefix(name, "deepseek"):
+		return "DEEPSEEK_API_KEY", true
+	case strings.HasPrefix(name, "github"):
+		return "GITHUB_TOKEN", true
+	case strings.HasPrefix(name, "google"):
+		if strings.Contains(name, "vertex") {
+			return "GOOGLE_APPLICATION_CREDENTIALS", true
+		}
+		return "GEMINI_API_KEY", true
+	case strings.HasPrefix(name, "meta"):
+		return "META_API_KEY", true
+	case strings.HasPrefix(name, "nvidia"):
+		return "NVIDIA_API_KEY", true
+	case strings.HasPrefix(name, "moonshot"):
+		return "MOONSHOT_API_KEY", true
+	case strings.HasPrefix(name, "qwen"):
+		return "QWEN_API_KEY", true
+	case strings.HasPrefix(name, "writer"):
+		return "WRITER_API_KEY", true
+	case strings.HasSuffix(name, "-ai"):
+		base := strings.TrimSuffix(name, "-ai")
+		return strings.ToUpper(base) + "_API_KEY", true
+	default:
+		return nameUpper + "_API_KEY", true
+	}
+}
+
 // IsValid returns true if the given provider name is recognized.
-// This does not validate the format of the name, only checks against
-// the list of supported providers.
+// This checks against the providers fetched from models cache.
 func IsValid(name string) bool {
-	_, ok := EnvVar(name)
-	return ok
+	all := models.GetAll()
+	_, exists := all[name]
+	return exists
 }
 
 // Validate checks if a provider name is valid and safe.
@@ -102,10 +164,33 @@ func Validate(name string) error {
 		return fmt.Errorf("provider name must be 1-50 characters and contain only letters, numbers, hyphens, and underscores")
 	}
 
-	// Check against list of known providers
+	// Check against list of known providers from cache
 	if !IsValid(name) {
-		return fmt.Errorf("unknown provider '%s', run 'ply setup' to see available providers", name)
+		// Check if env var is known (might be a new provider not yet in cache)
+		if _, ok := EnvVar(name); !ok {
+			return fmt.Errorf("unknown provider '%s', run 'ply models --refresh' to update provider list", name)
+		}
 	}
 
 	return nil
+}
+
+// GetAll returns all providers with their environment variables from the models cache.
+func GetAll(ctx context.Context) ([]Provider, error) {
+	allModels, err := models.GetModels(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get models: %w", err)
+	}
+
+	providers := make([]Provider, 0, len(allModels))
+	for name := range allModels {
+		envVar, ok := EnvVar(name)
+		if !ok {
+			// Skip providers without env var mapping
+			continue
+		}
+		providers = append(providers, Provider{Name: name, EnvVar: envVar})
+	}
+
+	return providers, nil
 }

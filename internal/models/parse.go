@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-
-	"github.com/dkmnx/ply/internal/providers"
 )
 
 func ParseModels(content string) (Models, error) {
@@ -28,8 +26,9 @@ func ParseModels(content string) (Models, error) {
 		sectionMatch := providerSectionPattern.FindStringSubmatch(trimmed)
 		if sectionMatch != nil {
 			key := sectionMatch[1]
-			if providers.IsValid(key) {
-				currentProvider = key
+			currentProvider = key
+			if result[currentProvider] == nil {
+				result[currentProvider] = []string{}
 			}
 			continue
 		}
