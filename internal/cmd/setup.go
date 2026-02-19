@@ -138,7 +138,7 @@ func runSetup(cmd *cobra.Command, args []string) {
 	migrated, err := keyMgr.MigrateFromLegacy()
 	if err != nil {
 		cmd.Printf("Error migrating master key: %v\n", err)
-		cmd.Println("Run 'ply setup' to initialize ply.")
+		cmd.Println("Run 'ply init' to initialize ply.")
 		return
 	}
 	if migrated {

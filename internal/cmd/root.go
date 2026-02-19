@@ -56,7 +56,7 @@ func runRoot(cmd *cobra.Command, args []string) {
 	migrated, err := keyMgr.MigrateFromLegacy()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error migrating master key: %v\n", err)
-		fmt.Fprintln(os.Stderr, "Run 'ply setup' to initialize ply.")
+		fmt.Fprintln(os.Stderr, "Run 'ply init' to initialize ply.")
 		os.Exit(1)
 	}
 	if migrated {
@@ -71,7 +71,7 @@ func runRoot(cmd *cobra.Command, args []string) {
 
 	if !keyExists {
 		fmt.Fprintln(os.Stderr, "Master key not found.")
-		fmt.Fprintln(os.Stderr, "Run 'ply setup' to initialize ply.")
+		fmt.Fprintln(os.Stderr, "Run 'ply init' to initialize ply.")
 		os.Exit(1)
 	}
 
