@@ -1,5 +1,15 @@
 # ply
 
+```text
+██████  ██
+██  ██  ██
+████  ██
+██    ██
+```
+
+[![Go Version](https://img.shields.io/github/go-mod/go-version/dkmnx/ply)](https://github.com/dkmnx/ply)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A CLI tool for managing AI provider configurations for the pi coding agent.
 
 ## Overview
