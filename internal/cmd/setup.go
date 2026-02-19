@@ -134,6 +134,17 @@ func runSetup(cmd *cobra.Command, args []string) {
 	// Initialize key manager
 	keyMgr := keys.New(dataDir)
 
+	// Attempt to migrate from legacy master key file if it exists
+	migrated, err := keyMgr.MigrateFromLegacy()
+	if err != nil {
+		cmd.Printf("Error migrating master key: %v\n", err)
+		cmd.Println("Run 'ply setup' to initialize ply.")
+		return
+	}
+	if migrated {
+		cmd.Println("Migrated master key to secure storage.")
+	}
+
 	// Get master key (load existing or create new)
 	masterKey, err := getMasterKey(cmd, keyMgr)
 	if err != nil {

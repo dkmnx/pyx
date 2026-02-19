@@ -66,6 +66,45 @@ func New(dataDir string) *Manager {
 	}
 }
 
+// MigrateFromLegacy attempts to migrate a legacy plaintext master key to secure storage.
+// It checks for the old master.key file and if found, migrates it to the new secure format.
+// Returns true if migration was attempted (regardless of success), false if no legacy key was found.
+func (m *Manager) MigrateFromLegacy() (bool, error) {
+	// Check if new key already exists
+	if exists, err := m.Exists(); exists || err != nil {
+		return false, err
+	}
+
+	// Check for legacy master key file
+	legacyKeyPath := filepath.Join(m.dataDir, "master.key")
+	data, err := os.ReadFile(legacyKeyPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// No legacy key found, nothing to migrate
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to read legacy master key: %w", err)
+	}
+
+	// Validate legacy key format (should be 32 bytes for AES-256)
+	if len(data) != keySize {
+		return false, fmt.Errorf("invalid legacy master key size: expected %d bytes, got %d", keySize, len(data))
+	}
+
+	// Save to new secure format
+	if err := m.Save(data); err != nil {
+		return false, fmt.Errorf("failed to migrate master key to secure storage: %w", err)
+	}
+
+	// Successfully migrated, now remove legacy file
+	if err := os.Remove(legacyKeyPath); err != nil {
+		// Log warning but don't fail - the key is now in secure storage
+		fmt.Fprintf(os.Stderr, "Warning: could not remove legacy master key file: %v\n", err)
+	}
+
+	return true, nil
+}
+
 // Save saves the master key securely.
 // It attempts to use keyring storage first. If that fails, it uses password-based storage.
 func (m *Manager) Save(key []byte) error {

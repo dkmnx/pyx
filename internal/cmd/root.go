@@ -49,20 +49,19 @@ func runRoot(cmd *cobra.Command, args []string) {
 		fatal(err)
 	}
 
-	db := database.New(dataDir)
-	if err := db.Load(context.Background()); err != nil {
-		fatal(err)
-	}
-
-	providerArg, piArgs, skipModelsFilter := parseArgs(args)
-
-	entries, err := resolveEntries(db, providerArg)
-	if err != nil {
-		os.Exit(1)
-	}
-
 	// Initialize key manager
 	keyMgr := keys.New(dataDir)
+
+	// Attempt to migrate from legacy master key file if it exists
+	migrated, err := keyMgr.MigrateFromLegacy()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error migrating master key: %v\n", err)
+		fmt.Fprintln(os.Stderr, "Run 'ply setup' to initialize ply.")
+		os.Exit(1)
+	}
+	if migrated {
+		fmt.Fprintln(os.Stderr, "Migrated master key to secure storage.")
+	}
 
 	// Check if master key exists
 	keyExists, err := keyMgr.Exists()
@@ -73,6 +72,18 @@ func runRoot(cmd *cobra.Command, args []string) {
 	if !keyExists {
 		fmt.Fprintln(os.Stderr, "Master key not found.")
 		fmt.Fprintln(os.Stderr, "Run 'ply setup' to initialize ply.")
+		os.Exit(1)
+	}
+
+	db := database.New(dataDir)
+	if err := db.Load(context.Background()); err != nil {
+		fatal(err)
+	}
+
+	providerArg, piArgs, skipModelsFilter := parseArgs(args)
+
+	entries, err := resolveEntries(db, providerArg)
+	if err != nil {
 		os.Exit(1)
 	}
 

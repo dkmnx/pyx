@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/zalando/go-keyring"
 )
 
 func tempDir(t *testing.T) string {
@@ -269,5 +270,162 @@ func TestEqual(t *testing.T) {
 				t.Errorf("Equal() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestManagerMigrateFromLegacy(t *testing.T) {
+	tests := []struct {
+		name           string
+		setupLegacy    bool
+		legacyKeySize  int
+		wantMigrated   bool
+		shouldFailSave bool
+	}{
+		{
+			name:           "successful migration",
+			setupLegacy:    true,
+			legacyKeySize:  keySize,
+			wantMigrated:   true,
+			shouldFailSave: false,
+		},
+		{
+			name:           "no legacy key to migrate",
+			setupLegacy:    false,
+			legacyKeySize:  keySize,
+			wantMigrated:   false,
+			shouldFailSave: false,
+		},
+		{
+			name:           "invalid legacy key size",
+			setupLegacy:    true,
+			legacyKeySize:  16, // Wrong size
+			wantMigrated:   false,
+			shouldFailSave: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := tempDir(t)
+			m := New(dir)
+
+			// Cleanup keyring before and after test to ensure isolation
+			t.Cleanup(func() {
+				_ = keyring.Delete(keyringService, keyringUser)
+			})
+			_ = keyring.Delete(keyringService, keyringUser)
+
+			// Setup legacy key if needed
+			var expectedKey []byte
+			if tt.setupLegacy {
+				expectedKey = make([]byte, tt.legacyKeySize)
+				for i := range expectedKey {
+					expectedKey[i] = byte(i)
+				}
+				legacyPath := filepath.Join(dir, "master.key")
+				if err := os.WriteFile(legacyPath, expectedKey, 0600); err != nil {
+					t.Fatalf("failed to write legacy key: %v", err)
+				}
+			}
+
+			// Run migration
+			migrated, err := m.MigrateFromLegacy()
+
+			if tt.shouldFailSave {
+				if err == nil {
+					t.Error("MigrateFromLegacy() expected error for invalid key size, got none")
+					return
+				}
+				if !migrated {
+					return // Expected behavior
+				}
+			}
+
+			if err != nil {
+				t.Fatalf("MigrateFromLegacy() unexpected error = %v", err)
+			}
+
+			if migrated != tt.wantMigrated {
+				t.Errorf("MigrateFromLegacy() migrated = %v, want %v", migrated, tt.wantMigrated)
+			}
+
+			if tt.setupLegacy && tt.legacyKeySize == keySize {
+				// Verify key was migrated correctly
+				loadedKey, err := m.Load(nil)
+				if err != nil {
+					t.Fatalf("failed to load migrated key: %v", err)
+				}
+
+				if !Equal(expectedKey, loadedKey) {
+					t.Error("migrated key does not match original")
+				}
+
+				// Verify legacy key file was removed
+				legacyPath := filepath.Join(dir, "master.key")
+				if _, err := os.Stat(legacyPath); err == nil {
+					t.Error("legacy master.key file was not removed after migration")
+				}
+			}
+
+			// For the invalid key size case, verify that if migration succeeded (to keyring),
+			// we can still load it, and the legacy file was removed
+			if tt.setupLegacy && tt.legacyKeySize != keySize && migrated {
+				// Legacy key file should be removed even if key was wrong size
+				legacyPath := filepath.Join(dir, "master.key")
+				if _, err := os.Stat(legacyPath); err == nil {
+					t.Error("legacy master.key file was not removed even after migration attempt")
+				}
+			}
+		})
+	}
+}
+
+func TestManagerMigrateFromLegacyWhenKeyExists(t *testing.T) {
+	dir := tempDir(t)
+	m := New(dir)
+
+	// Create a new key in the new format first
+	newKey, err := GenerateKey()
+	if err != nil {
+		t.Fatalf("GenerateKey() error = %v", err)
+	}
+
+	if err := m.Save(newKey); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	// Create legacy key file
+	legacyKey := make([]byte, keySize)
+	for i := range legacyKey {
+		legacyKey[i] = byte(i + 1)
+	}
+	legacyPath := filepath.Join(dir, "master.key")
+	if err := os.WriteFile(legacyPath, legacyKey, 0600); err != nil {
+		t.Fatalf("failed to write legacy key: %v", err)
+	}
+
+	// Run migration - should not migrate since new key exists
+	migrated, err := m.MigrateFromLegacy()
+	if err != nil {
+		t.Fatalf("MigrateFromLegacy() unexpected error = %v", err)
+	}
+
+	if migrated {
+		t.Error("MigrateFromLegacy() should not migrate when new key already exists")
+	}
+
+	// Verify the existing key was not replaced
+	loadedKey, err := m.Load(nil)
+	if err != nil {
+		t.Fatalf("failed to load key: %v", err)
+	}
+
+	if !Equal(newKey, loadedKey) {
+		t.Error("existing key was incorrectly replaced with legacy key")
+	}
+
+	// Verify legacy key file still exists
+	if _, err := os.Stat(legacyPath); os.IsNotExist(err) {
+		t.Error("legacy master.key file was removed when it shouldn't be")
 	}
 }
