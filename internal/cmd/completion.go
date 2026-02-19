@@ -3,14 +3,24 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 
+	"github.com/dkmnx/ply/internal/pi"
 	"github.com/spf13/cobra"
 )
 
+var installCompletion bool
+
 var completionCmd = &cobra.Command{
 	Use:   "completion [bash|zsh|fish|powershell]",
-	Short: "Generate shell completion script",
-	Long: `To load completions:
+	Short: "Generate or install shell completion script",
+	Long: `Generate or install shell completion for ply.
+
+By default (no arguments), detects current shell and installs completion:
+  $ ply completion
+
+To generate completion script to stdout:
 
 Bash:
   $ source <(ply completion bash)
@@ -43,24 +53,50 @@ PowerShell:
   # To load completions for every new session, run:
   PS> ply completion powershell > ply.ps1
   # and source this file from your PowerShell profile.
+
+Use --install flag to automatically install completion for the specified shell:
+  $ ply completion bash --install
+  $ ply completion zsh --install
+  $ ply completion fish --install
+  $ ply completion powershell --install
 `,
 	DisableFlagsInUseLine: true,
 	ValidArgs:             []string{"bash", "zsh", "fish", "powershell"},
-	Args:                  cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
+	Args:                  cobra.MaximumNArgs(1),
 	Run:                   runCompletion,
 }
 
 func init() {
+	completionCmd.Flags().BoolVarP(&installCompletion, "install", "i", false, "Install completion for the specified shell")
 	rootCmd.AddCommand(completionCmd)
 }
 
-// runCompletion generates and outputs shell completion scripts.
-//
-// Based on the shell argument (bash, zsh, fish, powershell), generates
-// the appropriate completion script and writes it to stdout. The script
-// enables shell tab-completion for ply commands and arguments.
+// runCompletion generates and/or installs shell completion scripts.
 func runCompletion(cmd *cobra.Command, args []string) {
-	switch args[0] {
+	// No arguments: detect current shell and install
+	if len(args) == 0 {
+		shell := pi.DetectCurrentShell()
+		fmt.Printf("Detected shell: %s\n", shell)
+		if err := installCompletionForShell(string(shell)); err != nil {
+			fmt.Fprintf(os.Stderr, "Error installing completion: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	shell := args[0]
+
+	// Install flag: install for specified shell
+	if installCompletion {
+		if err := installCompletionForShell(shell); err != nil {
+			fmt.Fprintf(os.Stderr, "Error installing completion: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	// Default: generate completion script to stdout (backward compatible)
+	switch shell {
 	case "bash":
 		if err := cmd.Root().GenBashCompletion(cmd.OutOrStdout()); err != nil {
 			fmt.Fprintf(os.Stderr, "Error generating bash completion: %v\n", err)
@@ -81,5 +117,78 @@ func runCompletion(cmd *cobra.Command, args []string) {
 			fmt.Fprintf(os.Stderr, "Error generating powershell completion: %v\n", err)
 			os.Exit(1)
 		}
+	}
+}
+
+// installCompletionForShell installs completion for a specific shell.
+func installCompletionForShell(shell string) error {
+	// Generate completion script
+	genCmd := exec.Command("ply", "completion", shell)
+	output, err := genCmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to generate completion script: %w", err)
+	}
+
+	// Determine installation path based on shell
+	path, err := completionInstallPath(shell)
+	if err != nil {
+		return err
+	}
+
+	// Ensure directory exists
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
+	}
+
+	// Write completion script
+	if err := os.WriteFile(path, output, 0644); err != nil {
+		return fmt.Errorf("failed to write completion script: %w", err)
+	}
+
+	fmt.Printf("✓ Completion script installed for %s shell\n", shell)
+	fmt.Printf("  Location: %s\n", path)
+
+	// Show activation instructions
+	showActivationInstructions(shell, path)
+
+	return nil
+}
+
+// completionInstallPath returns the installation path for a shell's completion script.
+func completionInstallPath(shell string) (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	switch shell {
+	case "bash":
+		return home + "/.bash_completions/ply.bash", nil
+	case "zsh":
+		return home + "/.zsh/completions/_ply", nil
+	case "fish":
+		return home + "/.config/fish/completions/ply.fish", nil
+	case "powershell":
+		return home + "/Documents/PowerShell/ply.ps1", nil
+	default:
+		return "", fmt.Errorf("unsupported shell: %s", shell)
+	}
+}
+
+// showActivationInstructions prints shell-specific activation instructions.
+func showActivationInstructions(shell, path string) {
+	switch shell {
+	case "zsh":
+		fmt.Println("  To enable completions, add to your ~/.zshrc:")
+		fmt.Printf("    source %s\n", path)
+	case "fish":
+		fmt.Println("  Completions will be loaded automatically on next shell start")
+	case "powershell":
+		fmt.Println("  To enable completions, add to your PowerShell profile:")
+		fmt.Printf("    . %s\n", path)
+	case "bash":
+		fmt.Println("  To enable completions, add to your ~/.bashrc:")
+		fmt.Printf("    source %s\n", path)
 	}
 }
