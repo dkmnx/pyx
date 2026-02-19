@@ -24,7 +24,10 @@ the appropriate environment variables.
 # Install
 go install github.com/dkmnx/ply/cmd/ply@latest
 
-# Initialize configuration
+# Initialize master key
+ply init
+
+# Add a provider
 ply setup
 
 # List providers
@@ -38,10 +41,12 @@ ply
 
 | Command | Description |
 |---------|-------------|
-| `ply setup` | Initialize configuration and add a provider |
+| `ply init` | Initialize master encryption key |
+| `ply setup` | Add a new provider configuration |
 | `ply config list` | List all configured providers |
 | `ply config edit <provider>` | Edit a provider's API key |
 | `ply config delete <provider>` | Delete a provider |
+| `ply models` | List supported AI models |
 | `ply [provider]` | Run pi with a specific provider |
 | `ply` | Run pi with all configured providers |
 | `ply completion [bash\|zsh\|fish\|powershell]` | Generate shell completion |
@@ -66,7 +71,11 @@ ply/
 │   ├── crypto/        # Encryption utilities (AES-256-GCM)
 │   ├── database/      # Encrypted credential storage
 │   ├── fs/            # File system utilities
-│   └── prompt/        # Interactive input utilities
+│   ├── keys/          # Master key management
+│   ├── models/        # AI models list
+│   ├── prompt/        # Interactive input utilities
+│   ├── providers/     # Provider utilities
+│   └── session/       # Session management
 ├── docs/              # Documentation
 ├── Makefile           # Build automation
 └── README.md          # This file
