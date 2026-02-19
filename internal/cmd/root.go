@@ -12,6 +12,7 @@ import (
 	"github.com/dkmnx/ply/internal/database"
 	"github.com/dkmnx/ply/internal/fs"
 	"github.com/dkmnx/ply/internal/keys"
+	"github.com/dkmnx/ply/internal/pi"
 	"github.com/dkmnx/ply/internal/prompt"
 	"github.com/dkmnx/ply/internal/providers"
 	"github.com/dkmnx/ply/internal/session"
@@ -27,9 +28,11 @@ const (
 var rootCmd = &cobra.Command{
 	Use:   "ply [provider] [args...]",
 	Short: "A CLI tool for managing AI providers",
-	Long:  `Ply is a command-line tool for managing and configuring AI provider configurations for pi coding agent.`,
-	Run:   runRoot,
-	Args:  cobra.ArbitraryArgs,
+	Long: `Ply is a command-line tool for managing and configuring AI provider configurations for pi coding agent.
+
+Pi will be auto-installed if not found, or you can install manually with: 'ply pi install'`,
+	Run:  runRoot,
+	Args: cobra.ArbitraryArgs,
 }
 
 var sessionFlag string
@@ -173,6 +176,24 @@ func resolveEntries(db *database.Database, providerArg string) ([]database.Entry
 }
 
 func executePi(entries []database.Entry, piArgs []string, skipModelsFilter bool, providerEnv []string, sessionFlag string) {
+	// Check if pi is installed, auto-install if not
+	wasInstalled, err := pi.EnsureInstalled()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error checking pi installation: %v\n", err)
+		fmt.Fprintln(os.Stderr, "Please install pi manually:")
+		fmt.Fprintf(os.Stderr, "  %s\n", pi.InstallCommand())
+		os.Exit(1)
+	}
+
+	if wasInstalled {
+		// pi was just installed, show platform info for debugging
+		fmt.Fprintf(os.Stderr, "Platform: %s\n", pi.PlatformInfo())
+		if version, err := pi.Version(); err == nil {
+			fmt.Fprintf(os.Stderr, "pi version: %s\n", version)
+		}
+		fmt.Fprintln(os.Stderr)
+	}
+
 	var finalPiArgs []string
 	if skipModelsFilter {
 		finalPiArgs = piArgs
