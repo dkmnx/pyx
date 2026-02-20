@@ -115,6 +115,13 @@ func runRoot(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
+	// Ensure master key is zeroed after use
+	defer func() {
+		for i := range masterKey {
+			masterKey[i] = 0
+		}
+	}()
+
 	providerEnv, err := buildProviderEnv(masterKey, entries)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
