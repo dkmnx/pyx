@@ -61,7 +61,7 @@ Use --install flag to automatically install completion for the specified shell:
   $ ply completion powershell --install
 `,
 	DisableFlagsInUseLine: true,
-	ValidArgs:             []string{"bash", "zsh", "fish", "powershell"},
+	ValidArgs:             pi.ShellNames,
 	Args:                  cobra.MaximumNArgs(1),
 	Run:                   runCompletion,
 }
@@ -84,11 +84,11 @@ func runCompletion(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	shell := args[0]
+	shellArg := args[0]
 
 	// Install flag: install for specified shell
 	if installCompletion {
-		if err := installCompletionForShell(shell); err != nil {
+		if err := installCompletionForShell(shellArg); err != nil {
 			fmt.Fprintf(os.Stderr, "Error installing completion: %v\n", err)
 			os.Exit(1)
 		}
@@ -96,27 +96,31 @@ func runCompletion(cmd *cobra.Command, args []string) {
 	}
 
 	// Default: generate completion script to stdout (backward compatible)
-	switch shell {
-	case "bash":
+	shellType := pi.ShellType(shellArg)
+	switch shellType {
+	case pi.ShellBash:
 		if err := cmd.Root().GenBashCompletion(cmd.OutOrStdout()); err != nil {
 			fmt.Fprintf(os.Stderr, "Error generating bash completion: %v\n", err)
 			os.Exit(1)
 		}
-	case "zsh":
+	case pi.ShellZsh:
 		if err := cmd.Root().GenZshCompletion(cmd.OutOrStdout()); err != nil {
 			fmt.Fprintf(os.Stderr, "Error generating zsh completion: %v\n", err)
 			os.Exit(1)
 		}
-	case "fish":
+	case pi.ShellFish:
 		if err := cmd.Root().GenFishCompletion(cmd.OutOrStdout(), true); err != nil {
 			fmt.Fprintf(os.Stderr, "Error generating fish completion: %v\n", err)
 			os.Exit(1)
 		}
-	case "powershell":
+	case pi.ShellPowerShell:
 		if err := cmd.Root().GenPowerShellCompletionWithDesc(cmd.OutOrStdout()); err != nil {
 			fmt.Fprintf(os.Stderr, "Error generating powershell completion: %v\n", err)
 			os.Exit(1)
 		}
+	default:
+		fmt.Fprintf(os.Stderr, "Error: unsupported shell: %s. Valid shells: %v\n", shellArg, pi.ShellNames)
+		os.Exit(1)
 	}
 }
 
@@ -162,14 +166,15 @@ func completionInstallPath(shell string) (string, error) {
 		return "", fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	switch shell {
-	case "bash":
+	shellType := pi.ShellType(shell)
+	switch shellType {
+	case pi.ShellBash:
 		return home + "/.bash_completions/ply.bash", nil
-	case "zsh":
+	case pi.ShellZsh:
 		return home + "/.zsh/completions/_ply", nil
-	case "fish":
+	case pi.ShellFish:
 		return home + "/.config/fish/completions/ply.fish", nil
-	case "powershell":
+	case pi.ShellPowerShell:
 		return home + "/Documents/PowerShell/ply.ps1", nil
 	default:
 		return "", fmt.Errorf("unsupported shell: %s", shell)
@@ -178,16 +183,17 @@ func completionInstallPath(shell string) (string, error) {
 
 // showActivationInstructions prints shell-specific activation instructions.
 func showActivationInstructions(shell, path string) {
-	switch shell {
-	case "zsh":
+	shellType := pi.ShellType(shell)
+	switch shellType {
+	case pi.ShellZsh:
 		fmt.Println("  To enable completions, add to your ~/.zshrc:")
 		fmt.Printf("    source %s\n", path)
-	case "fish":
+	case pi.ShellFish:
 		fmt.Println("  Completions will be loaded automatically on next shell start")
-	case "powershell":
+	case pi.ShellPowerShell:
 		fmt.Println("  To enable completions, add to your PowerShell profile:")
 		fmt.Printf("    . %s\n", path)
-	case "bash":
+	case pi.ShellBash:
 		fmt.Println("  To enable completions, add to your ~/.bashrc:")
 		fmt.Printf("    source %s\n", path)
 	}
