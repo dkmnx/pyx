@@ -158,10 +158,27 @@ func TestManagerSaveLoadFileNewPassword(t *testing.T) {
 		t.Fatalf("GenerateKey() error = %v", err)
 	}
 
-	// Don't set password first - this should fail
+	// Try to save without setting password first
+	// This will succeed if keyring is available, so we need to check
 	err = m.Save(key)
 	if err == nil {
-		t.Error("Save() without password should return error when keyring unavailable")
+		// Keyring is available, which is fine for this test
+		// Just verify the key can be loaded
+		loadedKey, loadErr := m.Load(nil)
+		if loadErr != nil {
+			t.Fatalf("Load() error = %v", loadErr)
+		}
+		if !Equal(key, loadedKey) {
+			t.Error("Load() returned different key than saved")
+		}
+		// Cleanup
+		_ = m.Delete()
+		return
+	}
+
+	// If error occurred, it should be ErrPasswordRequired
+	if !errors.Is(err, ErrPasswordRequired) {
+		t.Errorf("Save() error = %v, want ErrPasswordRequired", err)
 	}
 }
 

@@ -316,22 +316,46 @@ func (m *Manager) keyringKeyExists() (bool, error) {
 }
 
 // Save saves the master key securely.
-// It attempts to use keyring storage first. If that fails, it uses password-based storage.
+// It uses keyring storage when no password is set.
+// If a password has been set, it uses password-based file storage.
+// When keyring is unavailable and no password is set, it returns an error.
 func (m *Manager) Save(key []byte) error {
-	// Try keyring storage first
-	if err := m.saveToKeyring(key); err == nil {
-		return nil
+	// Check if password exists - if so, use file-based storage
+	passwordExists, err := m.PasswordExists()
+	if err != nil {
+		return fmt.Errorf("failed to check password existence: %w", err)
 	}
 
-	// Keyring failed, fall back to password-based storage
-	return m.saveToFile(key)
+	if passwordExists {
+		// Password set, use file-based storage
+		return m.saveToFile(key)
+	}
+
+	// No password set - use keyring storage only
+	// Don't fall back to file storage as that requires a password
+	if err := m.saveToKeyring(key); err != nil {
+		return fmt.Errorf("failed to save to keyring: %w", err)
+	}
+
+	return nil
 }
 
 // Load loads the master key securely.
-// It attempts to use keyring storage first. If that fails, it falls back to password-based storage.
-// For password-based storage, the password must be provided.
+// It checks if a password exists to determine which storage to use.
+// If password exists, uses file-based storage; otherwise tries keyring first.
 func (m *Manager) Load(password []byte) ([]byte, error) {
-	// Try keyring storage first
+	// Check if password exists to determine storage method
+	passwordExists, err := m.PasswordExists()
+	if err != nil {
+		return nil, fmt.Errorf("failed to check password existence: %w", err)
+	}
+
+	if passwordExists {
+		// Password exists, use file-based storage
+		return m.loadFromFile(password)
+	}
+
+	// No password, try keyring first
 	key, err := m.loadFromKeyring()
 	if err == nil {
 		return key, nil
