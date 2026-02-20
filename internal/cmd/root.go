@@ -277,12 +277,14 @@ func displaySessionHint() {
 		return
 	}
 
-	fmt.Fprintf(os.Stderr, `  ██████  ██
-  ██  ██  ██  To continue this session, run:
-  ████  ██    ply -s %s
-  ██    ██
+	// ANSI color code for gray (bright black)
+	gray := "\033[90m"
+	reset := "\033[0m"
 
-`, sessionInfo.UUID)
+	fmt.Fprintf(os.Stderr, "  ██████  ██%s\n", gray)
+	fmt.Fprintf(os.Stderr, "  %s██  ██  ██%s  To continue this session, run:\n", reset, gray)
+	fmt.Fprintf(os.Stderr, "  %s████  ██    ply -s %s\n", reset, sessionInfo.UUID)
+	fmt.Fprintf(os.Stderr, "  ██    ██\n\n")
 }
 
 func providerEnvVar(provider string) (string, bool) {
