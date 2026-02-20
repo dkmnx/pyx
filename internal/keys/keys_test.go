@@ -139,13 +139,13 @@ func TestManagerSaveLoadFile(t *testing.T) {
 		t.Errorf("Load() error = %v, want %v", err, ErrInvalidPassword)
 	}
 
-	// Try to load without password
-	_, err = m.Load(nil)
-	if err == nil {
-		t.Error("Load() without password should return error")
+	// Try to load without password - should succeed by retrieving from keyring
+	loadedKeyFromNil, err := m.Load(nil)
+	if err != nil {
+		t.Errorf("Load() without password should succeed (retrieved from keyring): %v", err)
 	}
-	if !errors.Is(err, ErrPasswordRequired) {
-		t.Errorf("Load() error = %v, want %v", err, ErrPasswordRequired)
+	if !Equal(key, loadedKeyFromNil) {
+		t.Error("Load(nil) returned different key than saved")
 	}
 }
 
@@ -183,6 +183,12 @@ func TestManagerSaveLoadFileNewPassword(t *testing.T) {
 }
 
 func TestManagerPasswordExists(t *testing.T) {
+	// Clean up any existing keyring entries first
+	_ = keyring.Delete(keyringService, keyringPasswordUser)
+	t.Cleanup(func() {
+		_ = keyring.Delete(keyringService, keyringPasswordUser)
+	})
+
 	dir := tempDir(t)
 	m := New(dir)
 
@@ -400,10 +406,18 @@ func TestManagerMigrateFromLegacy(t *testing.T) {
 }
 
 func TestManagerMigrateFromLegacyWhenKeyExists(t *testing.T) {
+	// Clean up any existing keyring entries first
+	_ = keyring.Delete(keyringService, keyringUser)
+	_ = keyring.Delete(keyringService, keyringPasswordUser)
+	t.Cleanup(func() {
+		_ = keyring.Delete(keyringService, keyringUser)
+		_ = keyring.Delete(keyringService, keyringPasswordUser)
+	})
+
 	dir := tempDir(t)
 	m := New(dir)
 
-	// Create a new key in the new format first
+	// Create a new key in the new format first (saves to keyring since no password set)
 	newKey, err := GenerateKey()
 	if err != nil {
 		t.Fatalf("GenerateKey() error = %v", err)

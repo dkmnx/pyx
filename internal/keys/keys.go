@@ -32,6 +32,9 @@ const (
 	keyringUser     = "master-key"
 
 	nonceSize = 12 // 96 bits for GCM
+
+	// keyringPasswordUser is the keyring item key for password storage
+	keyringPasswordUser = "password"
 )
 
 var (
@@ -531,24 +534,15 @@ func (m *Manager) loadFromKeyring() ([]byte, error) {
 
 // saveToFile saves the key encrypted with a password.
 // This is a fallback when keyring is unavailable.
-// It prompts for a password or uses an existing password if stored.
+// It retrieves the password from keyring.
 func (m *Manager) saveToFile(key []byte) error {
-	// Check if password file exists
-	passwordFile := m.passwordFilePath()
-	var password []byte
-
-	if _, err := os.Stat(passwordFile); err == nil {
-		// Password file exists, use existing password
-		password, err = os.ReadFile(passwordFile)
-		if err != nil {
-			return fmt.Errorf("failed to read password file: %w", err)
-		}
-		// Zero password after use
-		defer zeroBytes(password)
-	} else {
-		// No password file, cannot proceed
-		return fmt.Errorf("%w: no password file found, run 'ply setup' to initialize", ErrPasswordRequired)
+	// Get password from keyring
+	passwordStr, err := keyring.Get(keyringService, keyringPasswordUser)
+	if err != nil {
+		return fmt.Errorf("%w: no password found in keyring, run 'ply setup' to initialize", ErrPasswordRequired)
 	}
+	password := []byte(passwordStr)
+	defer zeroBytes(password)
 
 	// Generate salt
 	salt := make([]byte, saltSize)
@@ -599,8 +593,16 @@ func (m *Manager) saveToFile(key []byte) error {
 // loadFromFile loads the key encrypted with a password.
 // This is a fallback when keyring is unavailable.
 func (m *Manager) loadFromFile(password []byte) ([]byte, error) {
+	// Get password from keyring if not provided
 	if len(password) == 0 {
-		return nil, ErrPasswordRequired
+		passwordStr, err := keyring.Get(keyringService, keyringPasswordUser)
+		if err != nil {
+			if errors.Is(err, keyring.ErrNotFound) {
+				return nil, ErrPasswordRequired
+			}
+			return nil, fmt.Errorf("failed to get password from keyring: %w", err)
+		}
+		password = []byte(passwordStr)
 	}
 
 	// Zero password after use
@@ -648,40 +650,32 @@ func (m *Manager) loadFromFile(password []byte) ([]byte, error) {
 }
 
 // SetPassword sets or updates the password for key derivation.
-// This is used when keyring is unavailable.
+// Stores password securely in OS keyring instead of plaintext file.
 func (m *Manager) SetPassword(password []byte) error {
-	if err := os.MkdirAll(m.dataDir, 0700); err != nil {
-		return fmt.Errorf("failed to create data directory: %w", err)
-	}
-
-	filePath := m.passwordFilePath()
-	if err := os.WriteFile(filePath, password, 0600); err != nil {
-		return fmt.Errorf("failed to write password file: %w", err)
+	// Store password in keyring
+	passwordStr := string(password)
+	if err := keyring.Set(keyringService, keyringPasswordUser, passwordStr); err != nil {
+		return fmt.Errorf("failed to store password in keyring: %w", err)
 	}
 	return nil
 }
 
 // PasswordExists checks if a password has been set.
 func (m *Manager) PasswordExists() (bool, error) {
-	filePath := m.passwordFilePath()
-	_, err := os.Stat(filePath)
+	// Check keyring for password
+	_, err := keyring.Get(keyringService, keyringPasswordUser)
 	if err == nil {
 		return true, nil
 	}
-	if os.IsNotExist(err) {
+	if errors.Is(err, keyring.ErrNotFound) {
 		return false, nil
 	}
-	return false, fmt.Errorf("failed to check password file: %w", err)
+	return false, fmt.Errorf("failed to check password: %w", err)
 }
 
 // keyFilePath returns the path to the key data file.
 func (m *Manager) keyFilePath() string {
 	return filepath.Join(m.dataDir, "master-key.json")
-}
-
-// passwordFilePath returns the path to the password file.
-func (m *Manager) passwordFilePath() string {
-	return filepath.Join(m.dataDir, "password.bin")
 }
 
 // zeroBytes securely zeros a byte slice.
