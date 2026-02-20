@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -47,32 +48,10 @@ func init() {
 }
 
 func runRoot(cmd *cobra.Command, args []string) {
-	dataDir, err := fs.DataDir()
+	// Initialize key manager, database, and ensure master key exists
+	keyMgr, db, err := initializeKeyManager()
 	if err != nil {
-		fatal(err)
-	}
-
-	// Initialize key manager and database
-	keyMgr := keys.New(dataDir)
-	db := database.New(dataDir)
-
-	// Attempt to migrate from legacy master key file if it exists
-	_, err = keyMgr.MigrateFromLegacy(db)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error migrating master key: %v\n", err)
-		fmt.Fprintln(os.Stderr, "Run 'ply init' to initialize ply.")
-		os.Exit(1)
-	}
-
-	// Check if master key exists
-	keyExists, err := keyMgr.Exists()
-	if err != nil {
-		fatal(err)
-	}
-
-	if !keyExists {
-		fmt.Fprintln(os.Stderr, "Master key not found.")
-		fmt.Fprintln(os.Stderr, "Run 'ply init' to initialize ply.")
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
@@ -81,6 +60,7 @@ func runRoot(cmd *cobra.Command, args []string) {
 		fatal(err)
 	}
 
+	// Parse arguments and resolve entries
 	providerArg, piArgs, skipModelsFilter := parseArgs(args)
 
 	entries, err := resolveEntries(db, providerArg)
@@ -88,40 +68,17 @@ func runRoot(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	// Check if password is required
-	requiresPassword, err := keyMgr.RequiresPassword()
+	// Load master key (prompting for password if needed)
+	masterKey, err := loadMasterKey(keyMgr)
 	if err != nil {
-		fatal(err)
-	}
-
-	var password []byte
-	if requiresPassword {
-		fmt.Print("Enter password to unlock your API keys: ")
-		pwStr, err := prompt.ReadPassword()
-		if err != nil {
-			fatal(err)
-		}
-		fmt.Println()
-		password = []byte(pwStr)
-	}
-
-	// Load master key
-	masterKey, err := keyMgr.Load(password)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading master key: %v\n", err)
-		if err == keys.ErrInvalidPassword {
-			fmt.Fprintln(os.Stderr, "Password incorrect.")
-		}
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
 	// Ensure master key is zeroed after use
-	defer func() {
-		for i := range masterKey {
-			masterKey[i] = 0
-		}
-	}()
+	defer zeroMasterKey(masterKey)
 
+	// Build provider environment and execute pi
 	providerEnv, err := buildProviderEnv(masterKey, entries)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -129,6 +86,72 @@ func runRoot(cmd *cobra.Command, args []string) {
 	}
 
 	executePi(entries, piArgs, skipModelsFilter, providerEnv, sessionFlag)
+}
+
+// initializeKeyManager creates the key manager, database, handles migration, and verifies master key exists.
+func initializeKeyManager() (*keys.Manager, *database.Database, error) {
+	dataDir, err := fs.DataDir()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	keyMgr := keys.New(dataDir)
+	db := database.New(dataDir)
+
+	// Attempt to migrate from legacy master key file if it exists
+	_, err = keyMgr.MigrateFromLegacy(db)
+	if err != nil {
+		return nil, nil, fmt.Errorf("migrating master key: %w", err)
+	}
+
+	// Check if master key exists
+	keyExists, err := keyMgr.Exists()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if !keyExists {
+		return nil, nil, errors.New("master key not found")
+	}
+
+	return keyMgr, db, nil
+}
+
+// loadMasterKey prompts for password if needed and loads the master key.
+func loadMasterKey(keyMgr *keys.Manager) ([]byte, error) {
+	requiresPassword, err := keyMgr.RequiresPassword()
+	if err != nil {
+		return nil, fmt.Errorf("Error checking password requirement: %w", err)
+	}
+
+	var password []byte
+	if requiresPassword {
+		fmt.Print("Enter password to unlock your API keys: ")
+		pwStr, err := prompt.ReadPassword()
+		if err != nil {
+			return nil, fmt.Errorf("Error reading password: %w", err)
+		}
+		fmt.Println()
+		password = []byte(pwStr)
+	}
+
+	masterKey, err := keyMgr.Load(password)
+	if err != nil {
+		msg := fmt.Sprintf("Error loading master key: %v", err)
+		if err == keys.ErrInvalidPassword {
+			msg = "Password incorrect."
+		}
+		return nil, errors.New(msg)
+	}
+
+	return masterKey, nil
+}
+
+// zeroMasterKey securely zeros the master key bytes.
+func zeroMasterKey(masterKey []byte) {
+	for i := range masterKey {
+		masterKey[i] = 0
+	}
 }
 
 func parseArgs(args []string) (providerArg string, piArgs []string, skipModelsFilter bool) {
