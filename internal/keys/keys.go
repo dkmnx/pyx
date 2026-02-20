@@ -2,13 +2,15 @@ package keys
 
 import (
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/rand"
-	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -28,6 +30,8 @@ const (
 	argon2KeyLength = keySize
 	keyringService  = "ply"
 	keyringUser     = "master-key"
+
+	nonceSize = 12 // 96 bits for GCM
 )
 
 var (
@@ -50,12 +54,71 @@ var (
 // KeyData represents stored key data for password-based storage.
 type KeyData struct {
 	Key           string `json:"key"`
+	Nonce         string `json:"nonce"`
 	Salt          string `json:"salt"`
 	VerifyHash    string `json:"verify_hash"`
 	Argon2Time    uint32 `json:"argon2_time"`
 	Argon2Memory  uint32 `json:"argon2_memory"`
 	Argon2Threads uint8  `json:"argon2_threads"`
 	Argon2KeyLen  uint32 `json:"argon2_key_len"`
+}
+
+// encrypt encrypts plaintext using AES-GCM with the given key.
+// Returns base64-encoded ciphertext and nonce.
+func encrypt(key []byte, plaintext []byte) (string, string, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to create cipher: %w", err)
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to create GCM: %w", err)
+	}
+
+	nonce := make([]byte, nonceSize)
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return "", "", fmt.Errorf("failed to generate nonce: %w", err)
+	}
+
+	ciphertext := gcm.Seal(nil, nonce, plaintext, nil)
+
+	return base64.StdEncoding.EncodeToString(ciphertext), base64.StdEncoding.EncodeToString(nonce), nil
+}
+
+// decrypt decrypts ciphertext using AES-GCM with the given key.
+// Expects base64-encoded ciphertext and nonce.
+func decrypt(key []byte, cipherB64, nonceB64 string) ([]byte, error) {
+	ciphertext, err := base64.StdEncoding.DecodeString(cipherB64)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode ciphertext: %w", err)
+	}
+
+	nonce, err := base64.StdEncoding.DecodeString(nonceB64)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode nonce: %w", err)
+	}
+
+	if len(nonce) != nonceSize {
+		return nil, fmt.Errorf("invalid nonce size: got %d bytes, want %d", len(nonce), nonceSize)
+	}
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cipher: %w", err)
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GCM: %w", err)
+	}
+
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt: %w", err)
+	}
+
+	return plaintext, nil
 }
 
 // Manager handles secure master key storage.
@@ -496,25 +559,19 @@ func (m *Manager) saveToFile(key []byte) error {
 	// Derive encryption key from password
 	derivedKey := argon2.IDKey(password, salt, argon2Time, argon2Memory, argon2Threads, argon2KeyLength)
 
-	// Create a verification hash of the derived key
-	hasher := sha256.New()
-	hasher.Write(derivedKey)
-	verifyHash := hasher.Sum(nil)
-
-	// Encrypt the master key using XOR (simple, but combined with Argon2 provides security)
-	encryptedKey := make([]byte, keySize)
-	for i := range key {
-		encryptedKey[i] = key[i] ^ derivedKey[i]
+	// Encrypt the master key using AES-GCM
+	cipher, nonce, err := encrypt(derivedKey, key)
+	if err != nil {
+		zeroBytes(derivedKey)
+		return fmt.Errorf("failed to encrypt master key: %w", err)
 	}
-
-	// Zero derived key
 	zeroBytes(derivedKey)
 
 	// Create key data
 	keyData := KeyData{
-		Key:           base64.StdEncoding.EncodeToString(encryptedKey),
+		Key:           cipher,
+		Nonce:         nonce,
 		Salt:          base64.StdEncoding.EncodeToString(salt),
-		VerifyHash:    base64.StdEncoding.EncodeToString(verifyHash),
 		Argon2Time:    argon2Time,
 		Argon2Memory:  argon2Memory,
 		Argon2Threads: argon2Threads,
@@ -565,10 +622,9 @@ func (m *Manager) loadFromFile(password []byte) ([]byte, error) {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidKeyData, err)
 	}
 
-	// Decode encrypted key
-	encryptedKey, err := base64.StdEncoding.DecodeString(keyData.Key)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidKeyData, err)
+	// Check for nonce - if missing, it's using legacy XOR encryption
+	if keyData.Nonce == "" {
+		return nil, fmt.Errorf("legacy key format detected, please re-initialize with 'ply init'")
 	}
 
 	// Decode salt
@@ -577,31 +633,15 @@ func (m *Manager) loadFromFile(password []byte) ([]byte, error) {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidKeyData, err)
 	}
 
-	// Derive encryption key from password
+	// Derive decryption key from password
 	derivedKey := argon2.IDKey(password, salt, keyData.Argon2Time, keyData.Argon2Memory, keyData.Argon2Threads, keyData.Argon2KeyLen)
 
-	// Verify the derived key against the stored hash
-	hasher := sha256.New()
-	hasher.Write(derivedKey)
-	computedHash := hasher.Sum(nil)
-
-	storedHash, err := base64.StdEncoding.DecodeString(keyData.VerifyHash)
+	// Decrypt the master key using AES-GCM
+	masterKey, err := decrypt(derivedKey, keyData.Key, keyData.Nonce)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidKeyData, err)
-	}
-
-	if !Equal(computedHash, storedHash) {
 		zeroBytes(derivedKey)
 		return nil, ErrInvalidPassword
 	}
-
-	// Decrypt the master key
-	masterKey := make([]byte, keySize)
-	for i := range encryptedKey {
-		masterKey[i] = encryptedKey[i] ^ derivedKey[i]
-	}
-
-	// Zero derived key
 	zeroBytes(derivedKey)
 
 	return masterKey, nil
