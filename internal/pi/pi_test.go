@@ -135,9 +135,9 @@ func TestDetectCurrentShell(t *testing.T) {
 	})
 
 	tests := []struct {
-		name       string
-		setShell   string
-		want       ShellType
+		name     string
+		setShell string
+		want     ShellType
 	}{
 		{"bash", "/bin/bash", ShellBash},
 		{"zsh", "/bin/zsh", ShellZsh},
@@ -157,24 +157,24 @@ func TestDetectCurrentShell(t *testing.T) {
 
 func TestCompletionScriptPath(t *testing.T) {
 	tests := []struct {
-		name   string
-		shell  ShellType
-		setup   func() string
+		name  string
+		shell ShellType
+		setup func() string
 	}{
 		{
-			name:   "zsh",
-			shell:  ShellZsh,
-			setup:   func() string { home, _ := os.UserHomeDir(); return home + "/.zshrc" },
+			name:  "zsh",
+			shell: ShellZsh,
+			setup: func() string { home, _ := os.UserHomeDir(); return home + "/.zshrc" },
 		},
 		{
-			name:   "fish",
-			shell:  ShellFish,
-			setup:   func() string { home, _ := os.UserHomeDir(); return home + "/.config/fish/completions/ply.fish" },
+			name:  "fish",
+			shell: ShellFish,
+			setup: func() string { home, _ := os.UserHomeDir(); return home + "/.config/fish/completions/ply.fish" },
 		},
 		{
-			name:   "bash",
-			shell:  ShellBash,
-			setup:   func() string { home, _ := os.UserHomeDir(); return home + "/.bashrc" },
+			name:  "bash",
+			shell: ShellBash,
+			setup: func() string { home, _ := os.UserHomeDir(); return home + "/.bashrc" },
 		},
 	}
 
@@ -200,9 +200,9 @@ func TestInstallCompletion(t *testing.T) {
 
 	// Verify shell type is valid
 	validShells := map[ShellType]bool{
-		ShellBash:      true,
-		ShellZsh:       true,
-		ShellFish:      true,
+		ShellBash:       true,
+		ShellZsh:        true,
+		ShellFish:       true,
 		ShellPowerShell: true,
 	}
 

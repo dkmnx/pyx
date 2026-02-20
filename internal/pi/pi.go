@@ -23,9 +23,9 @@ const (
 type ShellType string
 
 const (
-	ShellBash      ShellType = "bash"
-	ShellZsh       ShellType = "zsh"
-	ShellFish      ShellType = "fish"
+	ShellBash       ShellType = "bash"
+	ShellZsh        ShellType = "zsh"
+	ShellFish       ShellType = "fish"
 	ShellPowerShell ShellType = "powershell"
 )
 
@@ -109,6 +109,11 @@ func InstallCompletion() error {
 	scriptPath := CompletionScriptPath(shell)
 	if scriptPath == "" {
 		fmt.Printf("Completion installation not available for %s shell\n", shell)
+		return nil
+	}
+
+	// Skip if already installed
+	if _, err := os.Stat(scriptPath); err == nil {
 		return nil
 	}
 
