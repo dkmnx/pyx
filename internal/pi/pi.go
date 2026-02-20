@@ -2,6 +2,7 @@
 package pi
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -23,11 +24,18 @@ const (
 type ShellType string
 
 const (
-	ShellBash       ShellType = "bash"
-	ShellZsh        ShellType = "zsh"
-	ShellFish       ShellType = "fish"
+	// ShellBash represents the bash shell
+	ShellBash ShellType = "bash"
+	// ShellZsh represents the zsh shell
+	ShellZsh ShellType = "zsh"
+	// ShellFish represents the fish shell
+	ShellFish ShellType = "fish"
+	// ShellPowerShell represents PowerShell
 	ShellPowerShell ShellType = "powershell"
 )
+
+// ShellNames contains all valid shell type names
+var ShellNames = []string{string(ShellBash), string(ShellZsh), string(ShellFish), string(ShellPowerShell)}
 
 // DetectCurrentShell detects the current shell environment.
 // Returns the detected shell type.
@@ -65,39 +73,49 @@ func DetectCurrentShell() ShellType {
 	return ShellBash
 }
 
+// getHomeDir returns the user's home directory or empty string on error
+func getHomeDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get home directory: %w", err)
+	}
+	return home, nil
+}
+
+// ErrUnknownShell is returned when the shell type is not recognized
+var ErrUnknownShell = errors.New("unknown shell type")
+
 // CompletionScriptPath returns the completion script path for a shell.
-func CompletionScriptPath(shell ShellType) string {
+// Returns an error if the home directory cannot be determined or shell is unknown.
+func CompletionScriptPath(shell ShellType) (string, error) {
+	home, err := getHomeDir()
+	if err != nil {
+		return "", err
+	}
+
 	switch shell {
 	case ShellZsh:
 		// Zsh: ${fpath[1]}/_ply
-		home, _ := os.UserHomeDir()
-		return home + "/.zshrc"
+		return home + "/.zshrc", nil
 	case ShellFish:
 		// Fish: ~/.config/fish/completions/ply.fish
-		home, _ := os.UserHomeDir()
-		return home + "/.config/fish/completions/ply.fish"
+		return home + "/.config/fish/completions/ply.fish", nil
 	case ShellPowerShell:
 		// PowerShell: ply.ps1 in user's Documents/PowerShell
-		home, _ := os.UserHomeDir()
-		return home + "/Documents/PowerShell/ply.ps1"
+		return home + "/Documents/PowerShell/ply.ps1", nil
 	case ShellBash:
 		// Bash: try both system and user locations
 		// System: /etc/bash_completion.d/ply (Linux)
 		// User: ~/.bashrc
-		home, _ := os.UserHomeDir()
-		return home + "/.bashrc"
+		return home + "/.bashrc", nil
 	default:
-		return ""
+		return "", ErrUnknownShell
 	}
 }
 
 // InstallCompletion installs the appropriate completion script for the detected shell.
 func InstallCompletion() error {
 	shell := DetectCurrentShell()
-	if shell == "" {
-		fmt.Println("Could not detect shell, skipping completion installation")
-		return nil
-	}
 
 	// Generate completion script using ply
 	cmd := exec.Command("ply", "completion", string(shell))
@@ -106,15 +124,25 @@ func InstallCompletion() error {
 		return fmt.Errorf("failed to generate completion script: %w", err)
 	}
 
-	scriptPath := CompletionScriptPath(shell)
-	if scriptPath == "" {
-		fmt.Printf("Completion installation not available for %s shell\n", shell)
+	// Get the actual completion script install path
+	scriptPath, err := completionScriptInstallPath(shell)
+	if err != nil {
+		if errors.Is(err, ErrUnknownShell) {
+			fmt.Printf("Completion installation not available for %s shell\n", shell)
+			return nil
+		}
+		return fmt.Errorf("failed to get install path: %w", err)
+	}
+
+	// Skip if already installed (check actual completion script, not config file)
+	if _, err := os.Stat(scriptPath); err == nil {
 		return nil
 	}
 
-	// Skip if already installed
-	if _, err := os.Stat(scriptPath); err == nil {
-		return nil
+	// Ensure directory exists
+	dir := filepath.Dir(scriptPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
 	// Write completion script to appropriate location
@@ -140,6 +168,27 @@ func InstallCompletion() error {
 	}
 
 	return nil
+}
+
+// completionScriptInstallPath returns the path where completion scripts are installed.
+func completionScriptInstallPath(shell ShellType) (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	switch shell {
+	case ShellBash:
+		return home + "/.bash_completions/ply.bash", nil
+	case ShellZsh:
+		return home + "/.zsh/completions/_ply", nil
+	case ShellFish:
+		return home + "/.config/fish/completions/ply.fish", nil
+	case ShellPowerShell:
+		return home + "/Documents/PowerShell/ply.ps1", nil
+	default:
+		return "", ErrUnknownShell
+	}
 }
 
 // CheckInstalled checks if pi is installed and available on PATH.

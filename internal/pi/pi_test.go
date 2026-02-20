@@ -157,31 +157,65 @@ func TestDetectCurrentShell(t *testing.T) {
 
 func TestCompletionScriptPath(t *testing.T) {
 	tests := []struct {
-		name  string
-		shell ShellType
-		setup func() string
+		name      string
+		shell     ShellType
+		setup     func() (string, error)
+		expectErr bool
 	}{
 		{
 			name:  "zsh",
 			shell: ShellZsh,
-			setup: func() string { home, _ := os.UserHomeDir(); return home + "/.zshrc" },
+			setup: func() (string, error) {
+				home, err := os.UserHomeDir()
+				if err != nil {
+					return "", err
+				}
+				return home + "/.zshrc", nil
+			},
 		},
 		{
 			name:  "fish",
 			shell: ShellFish,
-			setup: func() string { home, _ := os.UserHomeDir(); return home + "/.config/fish/completions/ply.fish" },
+			setup: func() (string, error) {
+				home, err := os.UserHomeDir()
+				if err != nil {
+					return "", err
+				}
+				return home + "/.config/fish/completions/ply.fish", nil
+			},
 		},
 		{
 			name:  "bash",
 			shell: ShellBash,
-			setup: func() string { home, _ := os.UserHomeDir(); return home + "/.bashrc" },
+			setup: func() (string, error) {
+				home, err := os.UserHomeDir()
+				if err != nil {
+					return "", err
+				}
+				return home + "/.bashrc", nil
+			},
+		},
+		{
+			name:      "unknown shell",
+			shell:     ShellType("unknown"),
+			setup:     func() (string, error) { return "", nil },
+			expectErr: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := CompletionScriptPath(tt.shell)
-			expected := tt.setup()
+			got, err := CompletionScriptPath(tt.shell)
+			if tt.expectErr {
+				if err == nil {
+					t.Errorf("CompletionScriptPath(%s) expected error, got nil", tt.shell)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("CompletionScriptPath(%s) unexpected error: %v", tt.shell, err)
+			}
+			expected, _ := tt.setup()
 			if got != expected {
 				t.Errorf("CompletionScriptPath(%s) = %v, want %v", tt.shell, got, expected)
 			}
