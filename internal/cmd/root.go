@@ -80,9 +80,6 @@ func runRoot(cmd *cobra.Command, args []string) {
 	if err := db.Load(context.Background()); err != nil {
 		fatal(err)
 	}
-	if err := db.Load(context.Background()); err != nil {
-		fatal(err)
-	}
 
 	providerArg, piArgs, skipModelsFilter := parseArgs(args)
 

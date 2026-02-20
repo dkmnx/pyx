@@ -155,10 +155,6 @@ func runSetup(cmd *cobra.Command, args []string) {
 		cmd.Printf("Error loading database: %v\n", err)
 		return
 	}
-	if err := db.Load(context.Background()); err != nil {
-		cmd.Printf("Error loading database: %v\n", err)
-		return
-	}
 
 	// Prompt for provider
 	provider, err := prompt.PromptProvider(cmd)
@@ -196,7 +192,9 @@ func runSetup(cmd *cobra.Command, args []string) {
 
 	// Create or update entry
 	var entry database.Entry
+	isUpdate := false
 	if existing, err := db.GetEntry(provider); err == nil {
+		isUpdate = true
 		existing.Cipher = cipher
 		existing.Nonce = nonce
 		existing.UpdatedAt = time.Now().UTC()
@@ -221,7 +219,11 @@ func runSetup(cmd *cobra.Command, args []string) {
 
 	// Output confirmation
 	cmd.Printf("  ❯ %s\n", entry.Provider)
-	cmd.Printf("    Created  : %s\n", entry.CreatedAt.Format(timeFormat))
+	if isUpdate {
+		cmd.Printf("    Updated  : %s\n", entry.UpdatedAt.Format(timeFormat))
+	} else {
+		cmd.Printf("    Created  : %s\n", entry.CreatedAt.Format(timeFormat))
+	}
 	cmd.Println()
 	cmd.Printf("✓ API key stored securely\n")
 }
