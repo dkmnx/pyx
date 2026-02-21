@@ -1,23 +1,27 @@
 .PHONY: build build-prod test lint fmt clean vet install help deps
 
-# Variables
 APP_NAME=ply
 CMD_DIR=./cmd/ply
 BUILD_DIR=./bin
 MAIN_CMD=$(CMD_DIR)/main.go
+VERSION=$(shell git describe --tags --always 2>/dev/null || echo "dev")
+COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
+DATE=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+LDFLAGS=-ldflags "-X github.com/dkmnx/ply/internal/cmd.version=$(VERSION) \
+	-X github.com/dkmnx/ply/internal/cmd.commit=$(COMMIT) \
+	-X github.com/dkmnx/ply/internal/cmd.date=$(DATE)"
 
 # Build the application
 build:
 	@echo "Building $(APP_NAME)..."
 	@mkdir -p $(BUILD_DIR)
-	@go build -o $(BUILD_DIR)/$(APP_NAME) $(MAIN_CMD)
+	@go build $(LDFLAGS) -o $(BUILD_DIR)/$(APP_NAME) $(MAIN_CMD)
 	@echo "Built: $(BUILD_DIR)/$(APP_NAME)"
 
-# Build for production (stripped binary)
 build-prod:
 	@echo "Building $(APP_NAME) (production)..."
 	@mkdir -p $(BUILD_DIR)
-	@go build -ldflags="-s -w" -o $(BUILD_DIR)/$(APP_NAME) $(MAIN_CMD)
+	@go build $(LDFLAGS) -ldflags="-s -w" -o $(BUILD_DIR)/$(APP_NAME) $(MAIN_CMD)
 	@echo "Built: $(BUILD_DIR)/$(APP_NAME)"
 
 # Run tests
@@ -59,13 +63,12 @@ clean:
 # Install locally
 install:
 	@echo "Installing $(APP_NAME)..."
-	@go install $(CMD_DIR)
+	@go build $(LDFLAGS) -o $$(go env GOPATH)/bin/$(APP_NAME) $(MAIN_CMD)
 	@echo "Installed to $$(go env GOPATH)/bin/$(APP_NAME)"
 
-# Run the application
 run:
 	@echo "Running $(APP_NAME)..."
-	@go run $(MAIN_CMD) $(ARGS)
+	@go run $(LDFLAGS) $(MAIN_CMD) $(ARGS)
 
 # All checks before committing
 check: fmt vet lint test
