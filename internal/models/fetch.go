@@ -18,6 +18,11 @@ const (
 	modelsFilePath = "packages/ai/src/models.generated.ts"
 )
 
+// Shared HTTP client with reasonable timeouts
+var httpClient = &http.Client{
+	Timeout: 30 * time.Second,
+}
+
 type ReleaseResponse struct {
 	TagName string `json:"tag_name"`
 }
@@ -31,8 +36,7 @@ func FetchLatestReleaseTag(ctx context.Context) (string, error) {
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "ply-cli")
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch release: %w", err)
 	}
@@ -61,8 +65,7 @@ func FetchModelsFile(ctx context.Context, tag string) (string, error) {
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "ply-cli")
 
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch models file: %w", err)
 	}

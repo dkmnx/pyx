@@ -6,12 +6,15 @@ import (
 	"strings"
 )
 
+// Precompiled regex patterns for parsing model definitions
+var (
+	providerFieldPattern   = regexp.MustCompile(`provider:\s*"([^"]+)"`)
+	modelIDPattern         = regexp.MustCompile(`id:\s*"([^"]+)"`)
+	providerSectionPattern = regexp.MustCompile(`^"([a-z][a-z0-9-]*)":\s*\{\s*$`)
+)
+
 func ParseModels(content string) (Models, error) {
 	result := make(Models)
-
-	providerFieldPattern := regexp.MustCompile(`provider:\s*"([^"]+)"`)
-	modelIDPattern := regexp.MustCompile(`id:\s*"([^"]+)"`)
-	providerSectionPattern := regexp.MustCompile(`^"([a-z][a-z0-9-]*)":\s*\{\s*$`)
 
 	lines := strings.Split(content, "\n")
 	currentProvider := ""
