@@ -141,12 +141,12 @@ func InstallCompletion() error {
 
 	// Ensure directory exists
 	dir := filepath.Dir(scriptPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	// Write completion script to appropriate location
-	if err := os.WriteFile(scriptPath, output, 0644); err != nil {
+	// Write completion script (0600 for security-sensitive files)
+	if err := os.WriteFile(scriptPath, output, 0600); err != nil {
 		return fmt.Errorf("failed to write completion script: %w", err)
 	}
 

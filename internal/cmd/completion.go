@@ -169,13 +169,13 @@ func completionInstallPath(shell string) (string, error) {
 	shellType := pi.ShellType(shell)
 	switch shellType {
 	case pi.ShellBash:
-		return home + "/.bash_completions/ply.bash", nil
+		return filepath.Join(home, ".bash_completions", "ply.bash"), nil
 	case pi.ShellZsh:
-		return home + "/.zsh/completions/_ply", nil
+		return filepath.Join(home, ".zsh", "completions", "_ply"), nil
 	case pi.ShellFish:
-		return home + "/.config/fish/completions/ply.fish", nil
+		return filepath.Join(home, ".config", "fish", "completions", "ply.fish"), nil
 	case pi.ShellPowerShell:
-		return home + "/Documents/PowerShell/ply.ps1", nil
+		return filepath.Join(home, "Documents", "PowerShell", "ply.ps1"), nil
 	default:
 		return "", fmt.Errorf("unsupported shell: %s", shell)
 	}

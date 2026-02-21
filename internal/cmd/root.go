@@ -319,6 +319,9 @@ func buildProviderEnv(masterKey []byte, entries []database.Entry) ([]string, err
 	}
 
 	// Build environment slice: start with current process env, then add/override with provider env
+	// Note: string conversion is required for exec.Cmd environment variables.
+	// The string will remain in memory until garbage collected - this is a limitation
+	// of passing environment variables to OS processes.
 	env := os.Environ()
 	for envVar, value := range envValues {
 		env = append(env, envVar+"="+string(value.Bytes()))

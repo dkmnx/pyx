@@ -35,6 +35,9 @@ const (
 
 	// keyringPasswordUser is the keyring item key for password storage
 	keyringPasswordUser = "password"
+
+	// Legacy key file name for migration
+	LegacyKeyFileName = "master.key"
 )
 
 var (
@@ -146,7 +149,7 @@ func New(dataDir string) *Manager {
 // Returns true if migration was attempted (regardless of success), false if no legacy key was found.
 func (m *Manager) MigrateFromLegacy(db *database.Database) (bool, error) {
 	// Check for legacy master key file
-	legacyKeyPath := filepath.Join(m.dataDir, "master.key")
+	legacyKeyPath := filepath.Join(m.dataDir, LegacyKeyFileName)
 	legacyKey, err := os.ReadFile(legacyKeyPath)
 	if err != nil {
 		if os.IsNotExist(err) {
