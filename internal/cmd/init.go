@@ -62,7 +62,10 @@ func runInit(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	_ = masterKey // Variable used but not needed after initialization
+	// Zero master key after use - no longer needed after initialization
+	for i := range masterKey {
+		masterKey[i] = 0
+	}
 
 	cmd.Println()
 	cmd.Println("✓ Ply initialized successfully.")
