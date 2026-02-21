@@ -5,10 +5,12 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 )
 
 const (
@@ -45,6 +47,7 @@ func (s SecureBytes) Bytes() []byte {
 // and ensure sensitive data can be securely zeroed. It does not implement
 // fmt.Stringer to prevent accidental logging.
 type SecureString struct {
+	mu    sync.RWMutex
 	bytes SecureBytes
 }
 
@@ -65,14 +68,22 @@ func NewSecureStringFromBytes(sb SecureBytes) *SecureString {
 	}
 }
 
-// Bytes returns the underlying bytes. The caller should ensure
-// they do not keep references to the returned slice beyond the
-// SecureString's lifetime.
+// Bytes returns a copy of the underlying bytes. The caller is responsible
+// for zeroing the returned slice when done to prevent sensitive data from
+// remaining in memory.
 func (ss *SecureString) Bytes() []byte {
 	if ss == nil {
 		return nil
 	}
-	return []byte(ss.bytes)
+	ss.mu.RLock()
+	defer ss.mu.RUnlock()
+	if len(ss.bytes) == 0 {
+		return nil
+	}
+	// Return a copy to prevent data races
+	result := make([]byte, len(ss.bytes))
+	copy(result, ss.bytes)
+	return result
 }
 
 // Zero securely erases the contents of the SecureString.
@@ -81,18 +92,25 @@ func (ss *SecureString) Zero() {
 	if ss == nil {
 		return
 	}
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
 	ss.bytes.Zero()
 }
 
 // IsZeroed returns true if the SecureString has been zeroed.
 func (ss *SecureString) IsZeroed() bool {
-	if ss == nil || len(ss.bytes) == 0 {
+	if ss == nil {
 		return true
 	}
-	return false
+	ss.mu.RLock()
+	defer ss.mu.RUnlock()
+	return len(ss.bytes) == 0
 }
 
 // Equal securely compares two SecureString values in constant time.
+// Note: When both SecureStrings are non-nil, this method acquires locks in a consistent
+// order (ss first, then other) to prevent deadlocks. This is safe even if the same
+// SecureString is passed as both arguments (idempotent).
 func (ss *SecureString) Equal(other *SecureString) bool {
 	if ss == nil && other == nil {
 		return true
@@ -100,15 +118,17 @@ func (ss *SecureString) Equal(other *SecureString) bool {
 	if ss == nil || other == nil {
 		return false
 	}
+
+	ss.mu.RLock()
+	defer ss.mu.RUnlock()
+	other.mu.RLock()
+	defer other.mu.RUnlock()
+
 	if len(ss.bytes) != len(other.bytes) {
 		return false
 	}
-	for i := range ss.bytes {
-		if ss.bytes[i] != other.bytes[i] {
-			return false
-		}
-	}
-	return true
+
+	return subtle.ConstantTimeCompare(ss.bytes, other.bytes) == 1
 }
 
 // Encrypt encrypts plaintext using AES-GCM with the provided key.
