@@ -6,11 +6,6 @@ Overview of ply's design, security model, and component interactions.
 
 ```mermaid
 graph TB
-    subgraph User Interface
-        CLI[CLI Commands]
-        Shell[Shell Completion]
-    end
-
     subgraph Core
         Root[Root Command]
         Setup[Setup Command]
@@ -18,6 +13,7 @@ graph TB
         Init[Init Command]
         Models[Models Command]
         Pi[Pi Command]
+        Completion[Completion Command]
     end
 
     subgraph Storage
@@ -32,12 +28,13 @@ graph TB
         Decrypt[Decrypt]
     end
 
-    CLI --> Root
-    CLI --> Setup
-    CLI --> Config
-    CLI --> Init
-    CLI --> Models
-    CLI --> Pi
+    ply --> Root
+    ply --> Setup
+    ply --> Config
+    ply --> Init
+    ply --> Models
+    ply --> Pi
+    ply --> Completion
 
     Root --> FS
     Setup --> FS
@@ -45,6 +42,7 @@ graph TB
     Init --> FS
     Models --> FS
     Pi --> FS
+    Completion --> FS
 
     FS --> MasterKey
     FS --> DB
