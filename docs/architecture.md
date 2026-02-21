@@ -62,18 +62,43 @@ graph TB
 sequenceDiagram
     participant User
     participant Ply
-    participant Storage
+    participant Database
+    participant Keys
     participant Crypto
     participant PI
 
-    User->>Ply: ply [provider]
-    Ply->>Storage: Load database.json
-    Ply->>Storage: Load master.key
-    Storage-->>Ply: Encrypted data
-    Ply->>Crypto: Decrypt API key
-    Crypto-->>Ply: Plaintext API key
-    Ply->>Environment: Set ENV_VAR
-    Ply->>PI: Execute pi --models "provider/*,provider2/*"
+    rect rgb(240, 248, 255)
+        note right of User: Case 1: ply (all providers)
+        User->>Ply: ply
+    end
+
+    rect rgb(240, 248, 255)
+        note right of User: Case 2: ply anthropic (specific provider)
+        User->>Ply: ply anthropic
+    end
+
+    rect rgb(240, 248, 255)
+        note right of User: Case 3: ply -- --help (pass-through)
+        User->>Ply: ply -- --help
+    end
+
+    Ply->>Keys: Load master key
+    Keys-->>Ply: Master key
+
+    Ply->>Database: Load entries
+    alt Provider argument given
+        Database-->>Ply: Single entry
+    else No provider argument
+        Database-->>Ply: All entries
+    end
+
+    Ply->>Crypto: Decrypt API keys
+    Crypto-->>Ply: Plaintext API keys
+
+    Ply->>Ply: Set ENV_VARs from entries
+    Ply->>Ply: Build --models filter
+
+    Ply->>PI: Execute pi --models "provider/*"
     PI-->>User: AI coding assistant
 ```
 
