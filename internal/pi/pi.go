@@ -96,18 +96,18 @@ func CompletionScriptPath(shell ShellType) (string, error) {
 	switch shell {
 	case ShellZsh:
 		// Zsh: ${fpath[1]}/_ply
-		return home + "/.zshrc", nil
+		return filepath.Join(home, ".zshrc"), nil
 	case ShellFish:
 		// Fish: ~/.config/fish/completions/ply.fish
-		return home + "/.config/fish/completions/ply.fish", nil
+		return filepath.Join(home, ".config", "fish", "completions", "ply.fish"), nil
 	case ShellPowerShell:
 		// PowerShell: ply.ps1 in user's Documents/PowerShell
-		return home + "/Documents/PowerShell/ply.ps1", nil
+		return filepath.Join(home, "Documents", "PowerShell", "ply.ps1"), nil
 	case ShellBash:
 		// Bash: try both system and user locations
 		// System: /etc/bash_completion.d/ply (Linux)
 		// User: ~/.bashrc
-		return home + "/.bashrc", nil
+		return filepath.Join(home, ".bashrc"), nil
 	default:
 		return "", ErrUnknownShell
 	}
@@ -179,19 +179,17 @@ func completionScriptInstallPath(shell ShellType) (string, error) {
 
 	switch shell {
 	case ShellBash:
-		return home + "/.bash_completions/ply.bash", nil
+		return filepath.Join(home, ".bash_completions", "ply.bash"), nil
 	case ShellZsh:
-		return home + "/.zsh/completions/_ply", nil
+		return filepath.Join(home, ".zsh", "completions", "_ply"), nil
 	case ShellFish:
-		return home + "/.config/fish/completions/ply.fish", nil
+		return filepath.Join(home, ".config", "fish", "completions", "ply.fish"), nil
 	case ShellPowerShell:
-		return home + "/Documents/PowerShell/ply.ps1", nil
+		return filepath.Join(home, "Documents", "PowerShell", "ply.ps1"), nil
 	default:
 		return "", ErrUnknownShell
 	}
 }
-
-// CheckInstalled checks if pi is installed and available on PATH.
 
 // CheckInstalled checks if pi is installed and available on PATH.
 func CheckInstalled() (bool, error) {

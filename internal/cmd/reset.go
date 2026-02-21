@@ -3,10 +3,19 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/dkmnx/ply/internal/fs"
 	"github.com/dkmnx/ply/internal/keys"
 	"github.com/spf13/cobra"
+)
+
+// File names for ply configuration files
+const (
+	dbFileName       = "database.json"
+	dbBackupFileName = "database.json.bak"
+	legacyKeyFile    = "master.key"
+	passwordFileName = "password.bin"
 )
 
 var resetCmd = &cobra.Command{
@@ -53,7 +62,7 @@ func runReset(cmd *cobra.Command, args []string) {
 	}
 
 	// Remove database
-	dbPath := dataDir + "/database.json"
+	dbPath := filepath.Join(dataDir, dbFileName)
 	if _, err := os.Stat(dbPath); err == nil {
 		if err := os.Remove(dbPath); err != nil {
 			cmd.Printf("Error removing database: %v\n", err)
@@ -63,7 +72,7 @@ func runReset(cmd *cobra.Command, args []string) {
 	}
 
 	// Remove database backup
-	dbBackupPath := dataDir + "/database.json.bak"
+	dbBackupPath := filepath.Join(dataDir, dbBackupFileName)
 	if _, err := os.Stat(dbBackupPath); err == nil {
 		if err := os.Remove(dbBackupPath); err != nil {
 			cmd.Printf("Error removing database backup: %v\n", err)
@@ -81,7 +90,7 @@ func runReset(cmd *cobra.Command, args []string) {
 	fmt.Println("✓ Master key deleted")
 
 	// Remove legacy key file
-	legacyKeyPath := dataDir + "/master.key"
+	legacyKeyPath := filepath.Join(dataDir, legacyKeyFile)
 	if _, err := os.Stat(legacyKeyPath); err == nil {
 		if err := os.Remove(legacyKeyPath); err != nil {
 			cmd.Printf("Error removing legacy key file: %v\n", err)
@@ -91,7 +100,7 @@ func runReset(cmd *cobra.Command, args []string) {
 	}
 
 	// Remove password file
-	passwordFile := dataDir + "/password.bin"
+	passwordFile := filepath.Join(dataDir, passwordFileName)
 	if _, err := os.Stat(passwordFile); err == nil {
 		if err := os.Remove(passwordFile); err != nil {
 			cmd.Printf("Error removing password file: %v\n", err)
