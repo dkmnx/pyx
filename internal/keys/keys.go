@@ -654,8 +654,16 @@ func (m *Manager) loadFromFile(password []byte) ([]byte, error) {
 
 // SetPassword sets or updates the password for key derivation.
 // Stores password securely in OS keyring instead of plaintext file.
-// Note: The caller should zero the password slice after calling this function
-// to ensure it is removed from memory.
+//
+// Security Note: Due to Go's immutable strings, the password string passed
+// from the caller (e.g., from prompt.PromptNewPassword) will remain in memory
+// after this function returns. This is a known limitation of Go's memory
+// model. The OS keyring securely stores the password, but the caller's
+// string copy cannot be zeroed. For high-security environments, consider
+// using keyring-only storage when available.
+//
+// The caller should zero the password slice after calling this function
+// to ensure it is removed from memory where possible.
 func (m *Manager) SetPassword(password []byte) error {
 	// Store password in keyring - keyring requires string, so convert at the last moment
 	if err := keyring.Set(keyringService, keyringPasswordUser, string(password)); err != nil {

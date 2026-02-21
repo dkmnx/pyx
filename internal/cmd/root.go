@@ -320,9 +320,18 @@ func buildProviderEnv(masterKey []byte, entries []database.Entry) ([]string, err
 	}
 
 	// Build environment slice: start with current process env, then add/override with provider env
-	// Note: string conversion is required for exec.Cmd environment variables.
-	// The string will remain in memory until garbage collected - this is a limitation
-	// of passing environment variables to OS processes.
+	//
+	// SECURITY NOTE: This function necessarily exposes decrypted API keys as environment
+	// variables to the spawned subprocess. This is a fundamental limitation of passing
+	// environment variables to OS processes via exec.Cmd - they must be strings.
+	//
+	// Mitigations in place:
+	//   - API keys are decrypted using crypto.SecureString which zeros memory on destruction
+	//   - The SecureString is zeroed immediately after string conversion (value.Zero())
+	//   - Keys are only decrypted on-demand when pi is executed, not stored in memory
+	//
+	// This risk is inherent to any CLI tool that passes secrets to subprocesses. Users should
+	// ensure their environment is secure (e.g., not running on shared systems).
 	env := os.Environ()
 	for envVar, value := range envValues {
 		env = append(env, envVar+"="+string(value.Bytes()))

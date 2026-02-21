@@ -41,6 +41,9 @@ func getMasterKey(cmd *cobra.Command, keyMgr *keys.Manager) ([]byte, error) {
 }
 
 // loadExistingMasterKey loads the existing master key.
+//
+// Security Note: The password string from PromptPassword cannot be securely
+// zeroed due to Go's immutable strings. See keys.Manager.SetPassword for details.
 func loadExistingMasterKey(cmd *cobra.Command, keyMgr *keys.Manager) ([]byte, error) {
 	cmd.Printf("✓ Using existing master key\n")
 
@@ -70,6 +73,11 @@ func loadExistingMasterKey(cmd *cobra.Command, keyMgr *keys.Manager) ([]byte, er
 }
 
 // createMasterKey creates and saves a new master key.
+//
+// Security Note: The password string from PromptNewPassword cannot be securely
+// zeroed due to Go's immutable strings. The password is stored in the OS
+// keyring, but the caller's string copy remains in memory. This is a known
+// limitation. See keys.Manager.SetPassword for details.
 func createMasterKey(cmd *cobra.Command, keyMgr *keys.Manager) ([]byte, error) {
 	cmd.Println("Initializing ply for the first time...")
 
