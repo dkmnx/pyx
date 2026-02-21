@@ -15,14 +15,12 @@ graph TB
         Root[Root Command]
         Setup[Setup Command]
         Config[Config Commands]
-        Default[Default Command]
     end
 
     subgraph Storage
         FS[File System]
         MasterKey[Master Key<br/>~/.local/share/ply/master.key]
         DB[Database<br/>~/.local/share/ply/database.json]
-        DefaultFile[Default ID<br/>~/.local/share/ply/default.txt]
     end
 
     subgraph Security
@@ -66,7 +64,6 @@ sequenceDiagram
 
     User->>Ply: ply [provider]
     Ply->>Storage: Load database.json
-    Ply->>Storage: Load default.txt
     Ply->>Storage: Load master.key
     Storage-->>Ply: Encrypted data
     Ply->>Crypto: Decrypt API key
@@ -107,7 +104,6 @@ graph LR
 |------|------------|-------------|
 | `master.key` | 0600 | Read/write only for owner |
 | `database.json` | 0600 | Read/write only for owner |
-| `default.txt` | 0600 | Read/write only for owner |
 
 ## Components
 
@@ -122,7 +118,6 @@ CLI command implementations using Cobra.
 | `config_list.go` | List configured providers |
 | `config_edit.go` | Edit provider configuration |
 | `config_delete.go` | Delete provider |
-| `default.go` | View/set default provider |
 | `completion.go` | Shell completion scripts |
 | `version.go` | Version information |
 
@@ -196,3 +191,9 @@ graph LR
 | Hugging Face | `HF_TOKEN` | `huggingface/*` |
 | OpenCode | `OPENCODE_API_KEY` | `opencode/*` |
 | Kimi | `KIMI_API_KEY` | `kimi-coding/*` |
+| Cerebras | `CEREBRAS_API_KEY` | `cerebras/*` |
+| Amazon Bedrock | `AWS_BEARER_TOKEN_BEDROCK` | `amazon-bedrock/*` |
+| GitHub Copilot | `GITHUB_TOKEN` | `github-copilot/*` |
+| Google Vertex | `GOOGLE_APPLICATION_CREDENTIALS` | `google-vertex/*` |
+| OpenAI Codex | `OPENAI_API_KEY` | `openai-codex/*` |
+| MiniMax CN | `MINIMAX_CN_API_KEY` | `minimax-cn/*` |

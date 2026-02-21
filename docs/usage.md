@@ -43,10 +43,9 @@ ply reset
 ```
 
 This command removes:
-- All encrypted API keys (database.json and backup)
+- All encrypted API keys (database.json and database.json.bak)
 - Master key from OS keyring
 - Legacy master.key file (if exists)
-- Password file (if exists)
 
 **Warning:** This action cannot be undone and requires explicit "yes" confirmation.
 
@@ -82,6 +81,16 @@ Delete a provider configuration.
 ```bash
 ply config delete <provider>
 ```
+
+### version
+
+Print version information.
+
+```bash
+ply version
+```
+
+Shows version, commit, and build date.
 
 ### pi
 

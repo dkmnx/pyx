@@ -24,10 +24,7 @@ the appropriate environment variables.
 # Install
 go install github.com/dkmnx/ply/cmd/ply@latest
 
-# Initialize master key
-ply init
-
-# Add a provider
+# Initialize configuration and add a provider
 ply setup
 
 # List providers
@@ -76,6 +73,7 @@ ply/
 │   ├── fs/            # File system utilities
 │   ├── keys/          # Master key management
 │   ├── models/        # AI models list
+│   ├── pi/            # pi integration
 │   ├── prompt/        # Interactive input utilities
 │   ├── providers/     # Provider utilities
 │   └── session/       # Session management

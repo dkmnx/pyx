@@ -36,9 +36,6 @@ ply setup
 # List providers
 ply config list
 
-# Set default provider
-ply default openai
-
 # Run pi
 ply
 ```
@@ -61,16 +58,6 @@ Manage provider configurations:
 ply config list              # List all providers
 ply config edit <name|id>    # Edit a provider
 ply config delete <name|id>  # Delete a provider
-```
-
-### default
-
-View or set the default provider:
-
-```bash
-ply default                  # View current default
-ply default anthropic        # Set by label
-ply default 123abc...         # Set by ID
 ```
 
 ### completion
@@ -120,9 +107,9 @@ Add-Content -Path $PROFILE -Value '. .\ply.ps1'
 
 ## Running pi
 
-### Default Provider
+### Running pi
 
-Run pi with the configured default:
+Run pi with all configured providers:
 
 ```bash
 ply
@@ -191,6 +178,12 @@ go build -ldflags="-s -w" \
 | Hugging Face | `HF_TOKEN` |
 | OpenCode | `OPENCODE_API_KEY` |
 | Kimi | `KIMI_API_KEY` |
+| Cerebras | `CEREBRAS_API_KEY` |
+| Amazon Bedrock | `AWS_BEARER_TOKEN_BEDROCK` |
+| GitHub Copilot | `GITHUB_TOKEN` |
+| Google Vertex | `GOOGLE_APPLICATION_CREDENTIALS` |
+| OpenAI Codex | `OPENAI_API_KEY` |
+| MiniMax CN | `MINIMAX_CN_API_KEY` |
 
 ## Files
 
@@ -200,7 +193,6 @@ Configuration is stored in `~/.local/share/ply/`:
 |------|---------|
 | `master.key` | AES-256-GCM encryption key |
 | `database.json` | Encrypted provider credentials |
-| `default.txt` | Default provider ID |
 
 ## Security
 

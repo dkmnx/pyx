@@ -70,6 +70,19 @@ Ply sets the following environment variables when running pi:
 | Azure OpenAI | `AZURE_OPENAI_API_KEY` |
 | xAI | `XAI_API_KEY` |
 | OpenRouter | `OPENROUTER_API_KEY` |
+| Vercel AI Gateway | `AI_GATEWAY_API_KEY` |
+| ZAI | `ZAI_API_KEY` |
+| Mistral | `MISTRAL_API_KEY` |
+| MiniMax | `MINIMAX_API_KEY` |
+| Hugging Face | `HF_TOKEN` |
+| OpenCode | `OPENCODE_API_KEY` |
+| Kimi | `KIMI_API_KEY` |
+| Cerebras | `CEREBRAS_API_KEY` |
+| Amazon Bedrock | `AWS_BEARER_TOKEN_BEDROCK` |
+| GitHub Copilot | `GITHUB_TOKEN` |
+| Google Vertex | `GOOGLE_APPLICATION_CREDENTIALS` |
+| OpenAI Codex | `OPENAI_API_KEY` |
+| MiniMax CN | `MINIMAX_CN_API_KEY` |
 
 ## Directory Structure
 

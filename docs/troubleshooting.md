@@ -30,22 +30,12 @@ go install github.com/dkmnx/ply/cmd/ply@latest
 
 ## Configuration
 
-### "No default provider set"
+### "No providers configured"
 
-Run `ply setup` to initialize configuration or set a default:
-
-```bash
-ply default my-label
-```
-
-### "Error loading default provider"
-
-The default provider file may be corrupted or the provider was deleted:
+Run `ply setup` to initialize configuration and add a provider:
 
 ```bash
-# Remove default and set a new one
-rm ~/.local/share/ply/default.txt
-ply default openai
+ply setup
 ```
 
 ### "Error loading master key"
@@ -76,10 +66,6 @@ The specified provider label or ID doesn't exist:
 ```bash
 # List all providers
 ply config list
-
-# Use exact label or full ID
-ply default "exact-label"
-ply default 123e4567-e89b-12d3-a456-426614174000
 ```
 
 ### "Unsupported provider"
@@ -161,20 +147,6 @@ ply anthropic
 
 # Skip filtering entirely
 ply -- --model gpt-4
-```
-
-### Wrong provider used
-
-Check which provider is set as default:
-
-```bash
-ply default
-```
-
-Override with explicit provider:
-
-```bash
-ply openai
 ```
 
 ## File Permissions

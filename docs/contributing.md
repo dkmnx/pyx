@@ -40,8 +40,11 @@ make fmt
 # Run linters
 make lint
 
-# Run all checks
+# Run all checks (fmt, vet, lint, test)
 make check
+
+# Tidy go modules
+make mod-tidy
 ```
 
 ## Code Standards
