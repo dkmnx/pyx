@@ -15,6 +15,9 @@ graph TB
         Root[Root Command]
         Setup[Setup Command]
         Config[Config Commands]
+        Init[Init Command]
+        Models[Models Command]
+        Pi[Pi Command]
     end
 
     subgraph Storage
@@ -32,16 +35,19 @@ graph TB
     CLI --> Root
     CLI --> Setup
     CLI --> Config
-    CLI --> Default
+    CLI --> Init
+    CLI --> Models
+    CLI --> Pi
 
     Root --> FS
     Setup --> FS
     Config --> FS
-    Default --> FS
+    Init --> FS
+    Models --> FS
+    Pi --> FS
 
     FS --> MasterKey
     FS --> DB
-    FS --> DefaultFile
 
     DB --> Crypto
     MasterKey --> Crypto
@@ -69,7 +75,7 @@ sequenceDiagram
     Ply->>Crypto: Decrypt API key
     Crypto-->>Ply: Plaintext API key
     Ply->>Environment: Set ENV_VAR
-    Ply->>PI: Execute pi --models "provider/*"
+    Ply->>PI: Execute pi --models "provider/*,provider2/*"
     PI-->>User: AI coding assistant
 ```
 
@@ -115,9 +121,14 @@ CLI command implementations using Cobra.
 |------|---------|
 | `root.go` | Root command, provider selection, pi execution |
 | `setup.go` | Initialize configuration, add providers |
+| `init.go` | Initialize master encryption key |
+| `reset.go` | Reset all configuration and data |
+| `config.go` | Parent command for config subcommands |
 | `config_list.go` | List configured providers |
 | `config_edit.go` | Edit provider configuration |
 | `config_delete.go` | Delete provider |
+| `models.go` | List supported AI models |
+| `pi.go` | Manage pi installation |
 | `completion.go` | Shell completion scripts |
 | `version.go` | Version information |
 
@@ -143,7 +154,9 @@ Encrypted credential storage.
 | `Save()` | Persist entries to disk |
 | `AddEntry()` | Add new provider |
 | `GetEntry()` | Retrieve by ID |
-| `GetEntryByLabel()` | Retrieve by label |
+| `ListEntries()` | List all entries |
+| `DeleteEntry()` | Delete entry by ID |
+| `UpdateEntry()` | Update existing entry |
 
 ### internal/fs
 
@@ -152,10 +165,12 @@ File system utilities.
 | Function | Purpose |
 |----------|---------|
 | `DataDir()` | Get ply data directory |
+| `EnsureDataDir()` | Create data directory if missing |
 | `LoadMasterKey()` | Load encryption key |
 | `SaveMasterKey()` | Save encryption key |
-| `LoadDefaultProvider()` | Get default provider ID |
-| `SaveDefaultProvider()` | Set default provider ID |
+| `MasterKeyExists()` | Check if master key exists |
+| `MasterKeyPath()` | Get master key file path |
+| `DataDirExists()` | Check if data directory exists |
 
 ## Environment Integration
 
@@ -170,6 +185,23 @@ graph LR
         anthropic --> ANTHROPIC_API_KEY
         openai --> OPENAI_API_KEY
         google --> GEMINI_API_KEY
+        groq --> GROQ_API_KEY
+        azure-openai-responses --> AZURE_OPENAI_API_KEY
+        xai --> XAI_API_KEY
+        openrouter --> OPENROUTER_API_KEY
+        vercel-ai-gateway --> AI_GATEWAY_API_KEY
+        zai --> ZAI_API_KEY
+        mistral --> MISTRAL_API_KEY
+        minimax --> MINIMAX_API_KEY
+        huggingface --> HF_TOKEN
+        opencode --> OPENCODE_API_KEY
+        kimi-coding --> KIMI_API_KEY
+        cerebras --> CEREBRAS_API_KEY
+        amazon-bedrock --> AWS_BEARER_TOKEN_BEDROCK
+        github-copilot --> GITHUB_TOKEN
+        google-vertex --> GOOGLE_APPLICATION_CREDENTIALS
+        openai-codex --> OPENAI_API_KEY
+        minimax-cn --> MINIMAX_CN_API_KEY
     end
 ```
 
