@@ -21,13 +21,28 @@ import (
 	"golang.org/x/crypto/argon2"
 )
 
+// Cryptographic parameters for key derivation and encryption.
+//
+// Argon2id parameters chosen based on OWASP recommendations for password hashing.
+// These values provide a good balance between security and usability for a CLI tool.
+// They are not configurable to ensure consistent security across installations.
+//
+// Reference: OWASP Password Storage Cheat Sheet (2023)
+// - argon2Time: Number of iterations (t)
+// - argon2Memory: Memory cost in KiB (m)
+// - argon2Threads: Parallelism factor (p)
+// - argon2KeyLength: Derived key length in bytes
+//
+// AES-256-GCM is used for master key encryption:
+// - keySize: 32 bytes (256 bits)
+// - nonceSize: 12 bytes (96 bits) as recommended for GCM
 const (
 	keySize         = 32        // 256 bits for AES-256
 	saltSize        = 32        // Salt size for KDF
-	argon2Time      = 3         // Number of iterations
-	argon2Memory    = 64 * 1024 // 64 MB
-	argon2Threads   = 4
-	argon2KeyLength = keySize
+	argon2Time      = 3         // OWASP minimum: 1 iteration (t)
+	argon2Memory    = 64 * 1024 // OWASP minimum: 64 MiB (m)
+	argon2Threads   = 4         // OWASP minimum: 1 thread (p), 4 for modern CPUs
+	argon2KeyLength = keySize   // Match AES-256 key size
 	keyringService  = "ply"
 	keyringUser     = "master-key"
 
