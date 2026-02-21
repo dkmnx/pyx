@@ -111,6 +111,7 @@ Ply uses AES-256-GCM for encrypting API keys:
 - **Key Size**: 256 bits (32 bytes)
 - **Mode**: Galois/Counter Mode (GCM)
 - **Nonce Size**: 96 bits (12 bytes)
+- **Encoding**: Base64 for ciphertext and nonce storage
 
 ```mermaid
 graph LR
@@ -118,14 +119,24 @@ graph LR
     Key[Master Key<br/>32 bytes] --> Encrypt
     Nonce[Random Nonce<br/>12 bytes] --> Encrypt
 
-    Encrypt --> Ciphertext[Encrypted<br/>Cipher + Nonce]
+    Encrypt --> Base64Encode[Base64 Encode]
+    Base64Encode --> Ciphertext[Encrypted<br/>Cipher + Nonce<br/>Base64]
 
-    Ciphertext --> Decrypt
-    Key --> Decrypt
-    Nonce --> Decrypt
+    Ciphertext --> Base64Decode[Base64 Decode]
+    Key --> Base64Decode
+    Nonce2[Nonce<br/>12 bytes] --> Base64Decode
 
-    Decrypt --> Plaintext
+    Base64Decode --> Decrypt
+    Decrypt --> Plaintext2[API Key]
 ```
+
+### Secure Memory
+
+Ply uses `SecureBytes` type to handle sensitive data:
+
+- Automatically zeroizes memory after use
+- Constant-time comparison to prevent timing attacks
+- All decrypted API keys are returned as `SecureBytes`
 
 ### File Permissions
 
@@ -157,13 +168,31 @@ CLI command implementations using Cobra.
 
 ### internal/crypto
 
-Encryption utilities.
+Encryption utilities using AES-256-GCM.
 
-| Function | Purpose |
-|----------|---------|
+| Type/Function | Purpose |
+|---------------|---------|
+| `SecureBytes` | Memory-safe byte slice that auto-zeroizes |
+| `SecureString` | Memory-safe string wrapper |
 | `Encrypt()` | Encrypt plaintext with AES-256-GCM |
 | `Decrypt()` | Decrypt ciphertext with AES-256-GCM |
 | `GenerateKey()` | Generate random 32-byte key |
+
+### internal/keys
+
+Master key management with OS keyring integration.
+
+| Function | Purpose |
+|----------|---------|
+| `Manager` | Key manager with keyring support |
+| `Get()` | Retrieve master key from keyring |
+| `Set()` | Store master key in keyring |
+| `Exists()` | Check if master key exists |
+| `MigrateFromLegacy()` | Migrate from old key file |
+
+Key storage options:
+1. **OS Keyring** (preferred): Uses system keyring (Keychain/KSecretservice/Pass)
+2. **Password-encrypted file**: Falls back to Argon2id-derived key
 
 ### internal/database
 
