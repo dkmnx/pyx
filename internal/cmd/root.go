@@ -57,7 +57,8 @@ func runRoot(cmd *cobra.Command, args []string) {
 
 	// Load database
 	if err := db.Load(context.Background()); err != nil {
-		fatal(err)
+		fmt.Fprintf(os.Stderr, "Error loading database: %v\n", err)
+		os.Exit(1)
 	}
 
 	// Parse arguments and resolve entries
@@ -111,7 +112,7 @@ func initializeKeyManager() (*keys.Manager, *database.Database, error) {
 	}
 
 	if !keyExists {
-		return nil, nil, errors.New("master key not found")
+		return nil, nil, errors.New("master key not found, run 'ply init' to initialize")
 	}
 
 	return keyMgr, db, nil
@@ -137,11 +138,10 @@ func loadMasterKey(keyMgr *keys.Manager) ([]byte, error) {
 
 	masterKey, err := keyMgr.Load(password)
 	if err != nil {
-		msg := fmt.Sprintf("Error loading master key: %v", err)
 		if err == keys.ErrInvalidPassword {
-			msg = "Password incorrect."
+			return nil, errors.New("password incorrect")
 		}
-		return nil, errors.New(msg)
+		return nil, fmt.Errorf("loading master key: %w", err)
 	}
 
 	return masterKey, nil
@@ -254,7 +254,8 @@ func executePi(entries []database.Entry, piArgs []string, skipModelsFilter bool,
 		if errors.As(err, &exitErr) {
 			os.Exit(exitErr.ExitCode())
 		}
-		fatalf("Error running pi: %v", err)
+		fmt.Fprintf(os.Stderr, "Error running pi: %v\n", err)
+		os.Exit(1)
 	}
 
 	// Display hint after pi exits
