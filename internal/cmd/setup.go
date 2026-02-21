@@ -90,8 +90,13 @@ func createMasterKey(cmd *cobra.Command, keyMgr *keys.Manager) ([]byte, error) {
 		}
 
 		// Set password for encryption
-		if err := keyMgr.SetPassword([]byte(pwStr)); err != nil {
+		password := []byte(pwStr)
+		if err := keyMgr.SetPassword(password); err != nil {
 			return nil, fmt.Errorf("error saving password: %w", err)
+		}
+		// Zero password after use
+		for i := range password {
+			password[i] = 0
 		}
 
 		// Save master key with password encryption
@@ -199,8 +204,8 @@ func runSetup(cmd *cobra.Command, args []string) {
 		existing.Nonce = nonce
 		existing.UpdatedAt = time.Now().UTC()
 		entry = existing
-		if updateErr := db.UpdateEntry(entry); updateErr != nil {
-			cmd.Printf("Error updating entry: %v\n", updateErr)
+		if updateEntryErr := db.UpdateEntry(entry); updateEntryErr != nil {
+			cmd.Printf("Error updating entry: %v\n", updateEntryErr)
 			return
 		}
 	} else {

@@ -651,10 +651,11 @@ func (m *Manager) loadFromFile(password []byte) ([]byte, error) {
 
 // SetPassword sets or updates the password for key derivation.
 // Stores password securely in OS keyring instead of plaintext file.
+// Note: The caller should zero the password slice after calling this function
+// to ensure it is removed from memory.
 func (m *Manager) SetPassword(password []byte) error {
-	// Store password in keyring
-	passwordStr := string(password)
-	if err := keyring.Set(keyringService, keyringPasswordUser, passwordStr); err != nil {
+	// Store password in keyring - keyring requires string, so convert at the last moment
+	if err := keyring.Set(keyringService, keyringPasswordUser, string(password)); err != nil {
 		return fmt.Errorf("failed to store password in keyring: %w", err)
 	}
 	return nil
