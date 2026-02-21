@@ -250,7 +250,8 @@ func executePi(entries []database.Entry, piArgs []string, skipModelsFilter bool,
 	piCmd.Env = providerEnv
 
 	if err := piCmd.Run(); err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
 			os.Exit(exitErr.ExitCode())
 		}
 		fatalf("Error running pi: %v", err)
