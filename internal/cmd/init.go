@@ -1,10 +1,13 @@
 package cmd
 
 import (
+	"context"
+
 	"github.com/dkmnx/ply/internal/database"
 	"github.com/dkmnx/ply/internal/fs"
 	"github.com/dkmnx/ply/internal/keys"
 	"github.com/spf13/cobra"
+	"github.com/yarlson/tap"
 )
 
 var initCmd = &cobra.Command{
@@ -18,56 +21,48 @@ func init() {
 	rootCmd.AddCommand(initCmd)
 }
 
-// runInit initializes the ply master key.
-//
-// The init process creates the data directory if needed, attempts to migrate
-// from a legacy master key file, and creates a new master key if one doesn't
-// already exist. If a master key already exists, it reports that and exits.
 func runInit(cmd *cobra.Command, args []string) {
-	// Create data directory
+	ctx := context.Background()
+
+	tap.Intro("ply init")
+
 	dataDir, err := fs.EnsureDataDir()
 	if err != nil {
-		cmd.Printf("Error creating data directory: %v\n", err)
+		tap.Cancel("Error creating data directory")
 		return
 	}
 
-	// Initialize key manager and database
 	keyMgr := keys.New(dataDir)
 	db := database.New(dataDir)
 
-	// Attempt to migrate from legacy master key file if it exists
 	_, err = keyMgr.MigrateFromLegacy(db)
 	if err != nil {
-		cmd.Printf("Error migrating master key: %v\n", err)
+		tap.Cancel("Error migrating master key")
 		return
 	}
 
-	// Check if master key already exists
 	keyExists, err := keyMgr.Exists()
 	if err != nil {
-		cmd.Printf("Error checking master key: %v\n", err)
+		tap.Cancel("Error checking master key")
 		return
 	}
 
 	if keyExists {
-		cmd.Println("Master key already initialized.")
-		cmd.Println("Run 'ply setup' to add a provider.")
+		tap.Message("Master key already initialized.")
+		tap.Message("Run 'ply setup' to add a provider.")
 		return
 	}
 
-	// Create new master key
-	masterKey, err := createMasterKey(cmd, keyMgr)
+	masterKey, err := createMasterKey(ctx, keyMgr)
 	if err != nil {
-		cmd.Printf("%v\n", err)
+		tap.Cancel("Error creating master key")
 		return
 	}
 
-	// Zero master key after use - no longer needed after initialization
 	for i := range masterKey {
 		masterKey[i] = 0
 	}
 
-	cmd.Println()
-	cmd.Println("✓ Ply initialized successfully.")
-	cmd.Println("Run 'ply setup' to add a provider.")
+	tap.Outro("Ply initialized successfully")
+	tap.Message("Run 'ply setup' to add a provider.")
 }

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/dkmnx/ply/internal/crypto"
@@ -9,6 +10,7 @@ import (
 	"github.com/dkmnx/ply/internal/fs"
 	"github.com/dkmnx/ply/internal/prompt"
 	"github.com/spf13/cobra"
+	"github.com/yarlson/tap"
 )
 
 var configEditCmd = &cobra.Command{
@@ -24,43 +26,44 @@ func init() {
 }
 
 func runConfigEdit(cmd *cobra.Command, args []string) {
+	ctx := context.Background()
 	target := args[0]
 
 	dataDir, err := fs.DataDir()
 	if err != nil {
-		cmd.Printf("Error getting data directory: %v\n", err)
+		tap.Cancel(fmt.Sprintf("Error getting data directory: %v", err))
 		return
 	}
 
 	db := database.New(dataDir)
-	if loadErr := db.Load(context.Background()); loadErr != nil {
-		cmd.Printf("Error loading database: %v\n", loadErr)
+	if loadErr := db.Load(ctx); loadErr != nil {
+		tap.Cancel(fmt.Sprintf("Error loading database: %v", loadErr))
 		return
 	}
 
-	entry, err := findEntry(cmd, db, target)
+	entry, err := findEntry(db, target)
 	if err != nil {
 		return
 	}
 
-	cmd.Printf("Editing provider '%s'\n", entry.Provider)
-	cmd.Printf("  Created : %s\n\n", entry.CreatedAt.Format(timeFormat))
+	tap.Message(fmt.Sprintf("Editing provider '%s'", entry.Provider))
+	tap.Message(fmt.Sprintf("  Created: %s", entry.CreatedAt.Format(timeFormat)))
 
 	masterKey, err := fs.LoadMasterKey()
 	if err != nil {
-		cmd.Printf("Error loading master key: %v\n", err)
+		tap.Cancel(fmt.Sprintf("Error loading master key: %v", err))
 		return
 	}
 
-	newAPIKey, err := prompt.PromptAPIKey(cmd)
+	newAPIKey, err := prompt.PromptAPIKey(ctx)
 	if err != nil {
-		cmd.Printf("Error: %v\n", err)
+		tap.Cancel(fmt.Sprintf("Error: %v", err))
 		return
 	}
 
 	cipher, nonce, err := crypto.Encrypt(masterKey, newAPIKey)
 	if err != nil {
-		cmd.Printf("Error encrypting API key: %v\n", err)
+		tap.Cancel(fmt.Sprintf("Error encrypting API key: %v", err))
 		return
 	}
 
@@ -69,23 +72,23 @@ func runConfigEdit(cmd *cobra.Command, args []string) {
 	entry.UpdatedAt = time.Now().UTC()
 
 	if updateErr := db.UpdateEntry(entry); updateErr != nil {
-		cmd.Printf("Error updating entry: %v\n", updateErr)
+		tap.Cancel(fmt.Sprintf("Error updating entry: %v", updateErr))
 		return
 	}
 
-	if saveErr := db.Save(context.Background()); saveErr != nil {
-		cmd.Printf("Error saving database: %v\n", saveErr)
+	if saveErr := db.Save(ctx); saveErr != nil {
+		tap.Cancel(fmt.Sprintf("Error saving database: %v", saveErr))
 		return
 	}
 
-	cmd.Printf("✓ Provider '%s' updated\n", entry.Provider)
+	tap.Message(fmt.Sprintf("Provider '%s' updated", entry.Provider))
 }
 
-func findEntry(cmd *cobra.Command, db *database.Database, target string) (database.Entry, error) {
+func findEntry(db *database.Database, target string) (database.Entry, error) {
 	entry, err := db.GetEntry(target)
 	if err != nil {
-		cmd.Printf("Error: provider '%s' not found\n", target)
-		cmd.Println("Use 'ply config list' to see all configured providers.")
+		tap.Cancel(fmt.Sprintf("Provider '%s' not found", target))
+		tap.Message("Use 'ply config list' to see all configured providers.")
 		return database.Entry{}, err
 	}
 	return entry, nil

@@ -204,9 +204,9 @@ func TestIntegration_MultipleProviders(t *testing.T) {
 
 	// Define multiple providers with different API keys
 	providers := map[string]string{
-		"openai":     "sk-openai-test-key-123",
-		"anthropic":  "sk-ant-test-key-456",
-		"google":     "google-api-key-789",
+		"openai":       "sk-openai-test-key-123",
+		"anthropic":    "sk-ant-test-key-456",
+		"google":       "google-api-key-789",
 		"azure-openai": "azure-test-key-abc",
 	}
 

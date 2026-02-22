@@ -3,15 +3,16 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/dkmnx/ply/internal/crypto"
 	"github.com/dkmnx/ply/internal/database"
 	"github.com/dkmnx/ply/internal/fs"
 	"github.com/dkmnx/ply/internal/keys"
+	"github.com/dkmnx/ply/internal/models"
 	"github.com/dkmnx/ply/internal/prompt"
 	"github.com/spf13/cobra"
+	"github.com/yarlson/tap"
 )
 
 var setupCmd = &cobra.Command{
@@ -25,27 +26,20 @@ func init() {
 	rootCmd.AddCommand(setupCmd)
 }
 
-// getMasterKey retrieves or creates the master key.
-// If the key exists, it loads it (prompting for password if needed).
-// If the key doesn't exist, it creates and saves a new one.
-func getMasterKey(cmd *cobra.Command, keyMgr *keys.Manager) ([]byte, error) {
+func getMasterKey(ctx context.Context, keyMgr *keys.Manager) ([]byte, error) {
 	keyExists, err := keyMgr.Exists()
 	if err != nil {
 		return nil, err
 	}
 
 	if keyExists {
-		return loadExistingMasterKey(cmd, keyMgr)
+		return loadExistingMasterKey(ctx, keyMgr)
 	}
-	return createMasterKey(cmd, keyMgr)
+	return createMasterKey(ctx, keyMgr)
 }
 
-// loadExistingMasterKey loads the existing master key.
-//
-// Security Note: The password string from PromptPassword cannot be securely
-// zeroed due to Go's immutable strings. See keys.Manager.SetPassword for details.
-func loadExistingMasterKey(cmd *cobra.Command, keyMgr *keys.Manager) ([]byte, error) {
-	cmd.Printf("✓ Using existing master key\n")
+func loadExistingMasterKey(ctx context.Context, keyMgr *keys.Manager) ([]byte, error) {
+	tap.Message("Using existing master key")
 
 	requiresPassword, err := keyMgr.RequiresPassword()
 	if err != nil {
@@ -54,7 +48,7 @@ func loadExistingMasterKey(cmd *cobra.Command, keyMgr *keys.Manager) ([]byte, er
 
 	var password []byte
 	if requiresPassword {
-		pwStr, err := prompt.PromptPassword(cmd, "Enter password to unlock your API keys")
+		pwStr, err := prompt.PromptPassword(ctx, "Enter password to unlock your API keys")
 		if err != nil {
 			return nil, fmt.Errorf("error: %w", err)
 		}
@@ -64,7 +58,7 @@ func loadExistingMasterKey(cmd *cobra.Command, keyMgr *keys.Manager) ([]byte, er
 	masterKey, err := keyMgr.Load(password)
 	if err != nil {
 		if err == keys.ErrInvalidPassword {
-			cmd.Println("Password incorrect.")
+			tap.Message("Password incorrect.")
 		}
 		return nil, fmt.Errorf("error loading master key: %w", err)
 	}
@@ -72,138 +66,111 @@ func loadExistingMasterKey(cmd *cobra.Command, keyMgr *keys.Manager) ([]byte, er
 	return masterKey, nil
 }
 
-// createMasterKey creates and saves a new master key.
-//
-// Security Note: The password string from PromptNewPassword cannot be securely
-// zeroed due to Go's immutable strings. The password is stored in the OS
-// keyring, but the caller's string copy remains in memory. This is a known
-// limitation. See keys.Manager.SetPassword for details.
-func createMasterKey(cmd *cobra.Command, keyMgr *keys.Manager) ([]byte, error) {
-	cmd.Println("Initializing ply for the first time...")
+func createMasterKey(ctx context.Context, keyMgr *keys.Manager) ([]byte, error) {
+	tap.Message("Initializing ply for the first time...")
 
 	masterKey, err := keys.GenerateKey()
 	if err != nil {
 		return nil, fmt.Errorf("error generating master key: %w", err)
 	}
 
-	// Try to save to keyring first
 	if err := keyMgr.Save(masterKey); err != nil {
-		// Keyring unavailable, need password
-		cmd.Println("OS keyring unavailable. A password will be used to encrypt your master key.")
-		cmd.Println("You will need to enter this password each time you run ply.")
+		tap.Message("OS keyring unavailable. A password will be used to encrypt your master key.")
+		tap.Message("You will need to enter this password each time you run ply.")
 
-		pwStr, err := prompt.PromptNewPassword(cmd)
+		pwStr, err := prompt.PromptNewPassword(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("error: %w", err)
 		}
 
-		// Set password for encryption
 		password := []byte(pwStr)
 		if err := keyMgr.SetPassword(password); err != nil {
 			return nil, fmt.Errorf("error saving password: %w", err)
 		}
-		// Zero password after use
 		for i := range password {
 			password[i] = 0
 		}
 
-		// Save master key with password encryption
 		if err := keyMgr.Save(masterKey); err != nil {
 			return nil, fmt.Errorf("error saving master key: %w", err)
 		}
 	}
 
-	cmd.Printf("✓ Master key initialized\n")
+	tap.Message("Master key initialized")
 	return masterKey, nil
 }
 
-// confirmProviderOverride prompts the user to confirm overriding an existing provider.
-func confirmProviderOverride(cmd *cobra.Command, provider string) (bool, error) {
-	cmd.Printf("Provider '%s' already configured. Override? (y/N): ", provider)
-	confirm, err := prompt.ReadLine()
-	if err != nil {
-		return false, fmt.Errorf("error reading input: %w", err)
-	}
-	confirm = strings.TrimSpace(strings.ToLower(confirm))
-	if confirm != confirmY && confirm != confirmYes {
-		return false, nil
-	}
-	return true, nil
+func confirmProviderOverride(ctx context.Context, provider string) bool {
+	return prompt.Confirm(ctx, fmt.Sprintf("Provider '%s' already configured. Override?", provider))
 }
 
-// runSetup initializes ply configuration and adds a new provider.
-//
-// The setup process creates the data directory if needed, initializes or
-// loads the master encryption key, prompts the user for provider selection
-// and API key, then encrypts and stores the credentials securely.
 func runSetup(cmd *cobra.Command, args []string) {
-	// Create data directory
+	ctx := context.Background()
+
+	tap.Intro("ply setup")
+
 	dataDir, err := fs.EnsureDataDir()
 	if err != nil {
-		cmd.Printf("Error creating data directory: %v\n", err)
+		tap.Cancel(fmt.Sprintf("Error creating data directory: %v", err))
 		return
 	}
 
-	// Initialize key manager and database
 	keyMgr := keys.New(dataDir)
 	db := database.New(dataDir)
 
-	// Attempt to migrate from legacy master key file if it exists
 	_, err = keyMgr.MigrateFromLegacy(db)
 	if err != nil {
-		cmd.Printf("Error migrating master key: %v\n", err)
-		cmd.Println("Run 'ply init' to initialize ply.")
+		tap.Cancel(fmt.Sprintf("Error migrating master key: %v", err))
+		tap.Message("Run 'ply init' to initialize ply.")
 		return
 	}
 
-	// Get master key (load existing or create new)
-	masterKey, err := getMasterKey(cmd, keyMgr)
+	masterKey, err := getMasterKey(ctx, keyMgr)
 	if err != nil {
-		cmd.Printf("%v\n", err)
+		tap.Cancel(fmt.Sprintf("%v", err))
 		return
 	}
 
-	// Load database
-	if err := db.Load(context.Background()); err != nil {
-		cmd.Printf("Error loading database: %v\n", err)
+	if err := db.Load(ctx); err != nil {
+		tap.Cancel(fmt.Sprintf("Error loading database: %v", err))
 		return
 	}
 
-	// Prompt for provider
-	provider, err := prompt.PromptProvider(cmd)
+	spinner := tap.NewSpinner(tap.SpinnerOptions{})
+	spinner.Start("Fetching providers...")
+
+	if err := models.FetchAndCache(ctx); err != nil {
+		spinner.Stop("Failed", 1)
+		tap.Cancel(fmt.Sprintf("Error fetching providers: %v", err))
+		return
+	}
+	spinner.Stop("Done", 0)
+
+	provider, err := prompt.PromptProvider(ctx)
 	if err != nil {
-		cmd.Printf("Error: %v\n", err)
+		tap.Cancel(fmt.Sprintf("Error: %v", err))
 		return
 	}
 
-	// Check for existing provider
 	if _, err := db.GetEntry(provider); err == nil {
-		confirmed, err := confirmProviderOverride(cmd, provider)
-		if err != nil {
-			cmd.Printf("%v\n", err)
-			return
-		}
-		if !confirmed {
-			cmd.Println("Setup cancelled.")
+		if !confirmProviderOverride(ctx, provider) {
+			tap.Message("Setup cancelled.")
 			return
 		}
 	}
 
-	// Prompt for API key
-	apiKey, err := prompt.PromptAPIKey(cmd)
+	apiKey, err := prompt.PromptAPIKey(ctx)
 	if err != nil {
-		cmd.Printf("Error: %v\n", err)
+		tap.Cancel(fmt.Sprintf("Error: %v", err))
 		return
 	}
 
-	// Encrypt API key
 	cipher, nonce, err := crypto.Encrypt(masterKey, apiKey)
 	if err != nil {
-		cmd.Printf("Error encrypting API key: %v\n", err)
+		tap.Cancel(fmt.Sprintf("Error encrypting API key: %v", err))
 		return
 	}
 
-	// Create or update entry
 	var entry database.Entry
 	isUpdate := false
 	if existing, err := db.GetEntry(provider); err == nil {
@@ -213,30 +180,27 @@ func runSetup(cmd *cobra.Command, args []string) {
 		existing.UpdatedAt = time.Now().UTC()
 		entry = existing
 		if updateEntryErr := db.UpdateEntry(entry); updateEntryErr != nil {
-			cmd.Printf("Error updating entry: %v\n", updateEntryErr)
+			tap.Cancel(fmt.Sprintf("Error updating entry: %v", updateEntryErr))
 			return
 		}
 	} else {
 		entry = database.NewEntry(provider, cipher, nonce)
 		if addErr := db.AddEntry(entry); addErr != nil {
-			cmd.Printf("Error adding entry: %v\n", addErr)
+			tap.Cancel(fmt.Sprintf("Error adding entry: %v", addErr))
 			return
 		}
 	}
 
-	// Save database
-	if err := db.Save(context.Background()); err != nil {
-		cmd.Printf("Error saving database: %v\n", err)
+	if err := db.Save(ctx); err != nil {
+		tap.Cancel(fmt.Sprintf("Error saving database: %v", err))
 		return
 	}
 
-	// Output confirmation
-	cmd.Printf("  ❯ %s\n", entry.Provider)
+	action := "Created"
 	if isUpdate {
-		cmd.Printf("    Updated  : %s\n", entry.UpdatedAt.Format(timeFormat))
-	} else {
-		cmd.Printf("    Created  : %s\n", entry.CreatedAt.Format(timeFormat))
+		action = "Updated"
 	}
-	cmd.Println()
-	cmd.Printf("✓ API key stored securely\n")
+	tap.Message(fmt.Sprintf("  %s: %s (%s)", entry.Provider, action, entry.UpdatedAt.Format(timeFormat)))
+
+	tap.Outro("API key stored securely")
 }

@@ -8,7 +8,6 @@ import (
 	"github.com/dkmnx/ply/internal/crypto"
 	"github.com/dkmnx/ply/internal/database"
 	"github.com/dkmnx/ply/internal/fs"
-	"github.com/spf13/cobra"
 )
 
 func TestFindEntry_ByProvider(t *testing.T) {
@@ -30,8 +29,7 @@ func TestFindEntry_ByProvider(t *testing.T) {
 	_ = db.AddEntry(entry)
 	_ = db.Save(context.Background())
 
-	cmd := &cobra.Command{}
-	found, err := findEntry(cmd, db, "openai")
+	found, err := findEntry(db, "openai")
 	if err != nil {
 		t.Errorf("findEntry() error = %v", err)
 		return
@@ -60,8 +58,7 @@ func TestFindEntry_NotFound(t *testing.T) {
 	_ = db.AddEntry(entry)
 	_ = db.Save(context.Background())
 
-	cmd := &cobra.Command{}
-	_, err := findEntry(cmd, db, "non-existent")
+	_, err := findEntry(db, "non-existent")
 	if err == nil {
 		t.Error("findEntry() should return error for non-existent entry")
 	}

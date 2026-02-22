@@ -127,12 +127,10 @@ func loadMasterKey(keyMgr *keys.Manager) ([]byte, error) {
 
 	var password []byte
 	if requiresPassword {
-		fmt.Print("Enter password to unlock your API keys: ")
-		pwStr, err := prompt.ReadPassword()
+		pwStr, err := prompt.PromptPassword(context.Background(), "Enter password to unlock your API keys")
 		if err != nil {
 			return nil, fmt.Errorf("Error reading password: %w", err)
 		}
-		fmt.Println()
 		password = []byte(pwStr)
 	}
 

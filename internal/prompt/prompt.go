@@ -1,168 +1,122 @@
-// Package prompt provides interactive user input utilities for configuring
-// AI provider credentials in the ply CLI tool.
-//
-// This package handles prompting users for provider selection
-// and API keys with secure input handling.
 package prompt
 
 import (
-	"bufio"
 	"context"
-	"fmt"
-	"os"
 	"sort"
 	"strings"
-	"syscall"
 
-	"github.com/dkmnx/ply/internal/models"
-	"golang.org/x/term"
-
-	"github.com/spf13/cobra"
+	"github.com/dkmnx/ply/internal/providers"
+	"github.com/yarlson/tap"
 )
 
-func PromptProvider(cmd *cobra.Command) (string, error) {
-	if err := models.FetchAndCache(context.Background()); err != nil {
-		return "", fmt.Errorf("failed to fetch models: %w", err)
+func PromptProvider(ctx context.Context) (string, error) {
+	providerNames := providers.Names()
+	sort.Strings(providerNames)
+
+	suggest := func(input string) []string {
+		if input == "" {
+			return providerNames
+		}
+		var filtered []string
+		for _, name := range providerNames {
+			if strings.Contains(strings.ToLower(name), strings.ToLower(input)) {
+				filtered = append(filtered, name)
+			}
+		}
+		return filtered
 	}
 
-	allModels := models.GetAll()
-	providerList := make([]string, 0, len(allModels))
-	for p := range allModels {
-		providerList = append(providerList, p)
+	result := tap.Autocomplete(ctx, tap.AutocompleteOptions{
+		Message:     "Select a provider:",
+		Placeholder: "Start typing...",
+		Suggest:     suggest,
+		MaxResults:  7,
+	})
+
+	if result == "" {
+		return "", ErrCancelled
 	}
 
-	sort.Strings(providerList)
-
-	cmd.Printf("Select a provider:\n")
-	for i, p := range providerList {
-		cmd.Printf("  %d. %s\n", i+1, p)
+	for _, name := range providerNames {
+		if strings.EqualFold(name, result) {
+			return name, nil
+		}
 	}
+
+	matches := suggest(result)
+	if len(matches) == 1 {
+		return matches[0], nil
+	}
+
+	return "", ErrInvalidProvider
+}
+
+func PromptAPIKey(ctx context.Context) (string, error) {
+	result := tap.Password(ctx, tap.PasswordOptions{
+		Message: "Enter API key:",
+	})
+
+	if result == "" {
+		return "", ErrEmptyAPIKey
+	}
+
+	return result, nil
+}
+
+func PromptPassword(ctx context.Context, message string) (string, error) {
+	result := tap.Password(ctx, tap.PasswordOptions{
+		Message: message,
+	})
+
+	if result == "" {
+		return "", ErrEmptyPassword
+	}
+
+	return result, nil
+}
+
+func PromptNewPassword(ctx context.Context) (string, error) {
+	tap.Message("Choose a password to encrypt your master key.")
+	tap.Message("This password will be required each time you use ply.")
 
 	for {
-		cmd.Print("Enter provider number or name: ")
-		input, err := ReadLine()
-		if err != nil {
-			return "", fmt.Errorf("failed to read input: %w", err)
-		}
+		password := tap.Password(ctx, tap.PasswordOptions{
+			Message: "Enter password:",
+		})
 
-		input = strings.TrimSpace(input)
-
-		// Check if input is a number
-		var num int
-		if _, err := fmt.Sscanf(input, "%d", &num); err == nil {
-			if num >= 1 && num <= len(providerList) {
-				return providerList[num-1], nil
-			}
-			cmd.Printf("Invalid number. Please enter 1-%d\n", len(providerList))
+		if password == "" {
 			continue
 		}
 
-		// Check if input matches a provider name
-		for _, p := range providerList {
-			if strings.EqualFold(input, p) {
-				return p, nil
-			}
-		}
-
-		cmd.Printf("Invalid provider. Please choose from: %s\n", strings.Join(providerList, ", "))
-	}
-}
-
-// PromptAPIKey prompts the user for an API key with hidden terminal input.
-//
-// The API key is read without echoing to the terminal for security.
-// Empty input is rejected and prompts are repeated until valid input is received.
-//
-// Returns the API key string or an error if input fails.
-func PromptAPIKey(cmd *cobra.Command) (string, error) {
-	cmd.Print("Enter API key: ")
-	input, err := readPassword()
-	if err != nil {
-		return "", fmt.Errorf("failed to read API key: %w", err)
-	}
-
-	input = strings.TrimSpace(input)
-	if input == "" {
-		return "", fmt.Errorf("API key cannot be empty")
-	}
-
-	return input, nil
-}
-
-// PromptPassword prompts the user for a password with hidden terminal input.
-//
-// The password is read without echoing to the terminal for security.
-// Empty input is rejected and prompts are repeated until valid input is received.
-//
-// Returns the password string or an error if input fails.
-func PromptPassword(cmd *cobra.Command, prompt string) (string, error) {
-	cmd.Printf("%s: ", prompt)
-	input, err := readPassword()
-	if err != nil {
-		return "", fmt.Errorf("failed to read password: %w", err)
-	}
-
-	input = strings.TrimSpace(input)
-	if input == "" {
-		return "", fmt.Errorf("password cannot be empty")
-	}
-
-	return input, nil
-}
-
-// PromptNewPassword prompts the user for a new password and confirmation.
-//
-// The password is read without echoing to the terminal for security.
-// Empty input is rejected and passwords must match.
-//
-// Returns the password string or an error if input fails or passwords don't match.
-func PromptNewPassword(cmd *cobra.Command) (string, error) {
-	cmd.Println("Choose a password to encrypt your master key.")
-	cmd.Println("This password will be required each time you use ply.")
-	cmd.Println()
-
-	for {
-		password, err := PromptPassword(cmd, "Enter password")
-		if err != nil {
-			return "", err
-		}
-
-		cmd.Print("Confirm password: ")
-		confirm, err := readPassword()
-		if err != nil {
-			return "", fmt.Errorf("failed to read password confirmation: %w", err)
-		}
-		fmt.Println()
+		confirm := tap.Password(ctx, tap.PasswordOptions{
+			Message: "Confirm password:",
+		})
 
 		if password == confirm {
 			return password, nil
 		}
 
-		cmd.Println("Passwords do not match. Please try again.")
+		tap.Message("Passwords do not match. Please try again.")
 	}
 }
 
-// ReadLine reads a line of input from stdin.
-func ReadLine() (string, error) {
-	reader := bufio.NewReader(os.Stdin)
-	line, err := reader.ReadString('\n')
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSuffix(line, "\n"), nil
+func Confirm(ctx context.Context, message string) bool {
+	return tap.Confirm(ctx, tap.ConfirmOptions{
+		Message: message,
+	})
 }
 
-// readPassword reads a password from stdin without echoing.
-func readPassword() (string, error) {
-	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
-	if err != nil {
-		return "", err
-	}
-	fmt.Println() // Print newline after password input
-	return string(bytePassword), nil
+var (
+	ErrEmptyAPIKey     = &InputError{Message: "API key cannot be empty"}
+	ErrEmptyPassword   = &InputError{Message: "password cannot be empty"}
+	ErrCancelled       = &InputError{Message: "operation cancelled"}
+	ErrInvalidProvider = &InputError{Message: "invalid provider selection"}
+)
+
+type InputError struct {
+	Message string
 }
 
-// ReadPassword reads a password from stdin without echoing (public version).
-func ReadPassword() (string, error) {
-	return readPassword()
+func (e *InputError) Error() string {
+	return e.Message
 }
