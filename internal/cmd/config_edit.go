@@ -50,6 +50,11 @@ func runConfigEdit(cmd *cobra.Command, args []string) {
 	tap.Message(fmt.Sprintf("Editing provider '%s'", entry.Provider))
 	tap.Message(fmt.Sprintf("  Created: %s", entry.CreatedAt.Format(timeFormat)))
 
+	if !prompt.Confirm(ctx, "Update API key for this provider?") {
+		tap.Message("Edit cancelled.")
+		return
+	}
+
 	keyMgr := keys.New(dataDir)
 	masterKey, err := loadExistingMasterKey(ctx, keyMgr)
 	if err != nil {
