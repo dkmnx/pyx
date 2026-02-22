@@ -8,6 +8,7 @@ import (
 	"github.com/dkmnx/ply/internal/crypto"
 	"github.com/dkmnx/ply/internal/database"
 	"github.com/dkmnx/ply/internal/fs"
+	"github.com/dkmnx/ply/internal/keys"
 	"github.com/dkmnx/ply/internal/prompt"
 	"github.com/spf13/cobra"
 	"github.com/yarlson/tap"
@@ -49,9 +50,10 @@ func runConfigEdit(cmd *cobra.Command, args []string) {
 	tap.Message(fmt.Sprintf("Editing provider '%s'", entry.Provider))
 	tap.Message(fmt.Sprintf("  Created: %s", entry.CreatedAt.Format(timeFormat)))
 
-	masterKey, err := fs.LoadMasterKey()
+	keyMgr := keys.New(dataDir)
+	masterKey, err := loadExistingMasterKey(ctx, keyMgr)
 	if err != nil {
-		tap.Cancel(fmt.Sprintf("Error loading master key: %v", err))
+		tap.Cancel(fmt.Sprintf("%v", err))
 		return
 	}
 
