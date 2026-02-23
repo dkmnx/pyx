@@ -4,7 +4,7 @@
 
 Go CLI tool for securely managing AI provider API keys for the pi coding agent.
 
-**Tech Stack**: Go 1.24+, Cobra, AES-256-GCM encryption
+**Tech Stack**: Go 1.24+, Cobra, tap (interactive prompts), AES-256-GCM encryption
 
 **Key Directories**:
 
@@ -13,6 +13,7 @@ Go CLI tool for securely managing AI provider API keys for the pi coding agent.
 - `internal/crypto/` - Encryption (AES-256-GCM)
 - `internal/database/` - Encrypted credential storage
 - `internal/keys/` - Master key management (OS keyring)
+- `internal/prompt/` - Interactive prompts (tap library)
 - `docs/` - Architecture, contributing, usage
 
 **Data**: `~/.local/share/ply/` (master.key, database.json - 0600 permissions)
