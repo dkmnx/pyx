@@ -7,6 +7,7 @@ import (
 	"github.com/dkmnx/ply/internal/database"
 	"github.com/dkmnx/ply/internal/fs"
 	"github.com/dkmnx/ply/internal/prompt"
+	"github.com/dkmnx/ply/internal/providers"
 	"github.com/spf13/cobra"
 	"github.com/yarlson/tap"
 )
@@ -26,6 +27,12 @@ func init() {
 func runConfigDelete(cmd *cobra.Command, args []string) {
 	ctx := context.Background()
 	target := args[0]
+
+	// Validate provider name before checking database
+	if err := providers.Validate(target); err != nil {
+		tap.Cancel(fmt.Sprintf("%v", err))
+		return
+	}
 
 	dataDir, err := fs.DataDir()
 	if err != nil {
