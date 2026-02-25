@@ -184,3 +184,48 @@ func TestEnvVarMappingCoverage(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateErrorMessage(t *testing.T) {
+	tests := []struct {
+		name        string
+		provider    string
+		wantErr     bool
+		errContains []string
+	}{
+		{
+			name:        "path traversal error",
+			provider:    "../etc",
+			wantErr:     true,
+			errContains: []string{"path traversal"},
+		},
+		{
+			name:        "empty provider error",
+			provider:    "",
+			wantErr:     true,
+			errContains: []string{"cannot be empty"},
+		},
+		{
+			name:        "invalid characters error",
+			provider:    "provider@bad",
+			wantErr:     true,
+			errContains: []string{"1-50 characters"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := Validate(tt.provider)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if err != nil {
+				for _, contain := range tt.errContains {
+					if !strings.Contains(err.Error(), contain) {
+						t.Errorf("Validate() error = %v, should contain %q", err, contain)
+					}
+				}
+			}
+		})
+	}
+}

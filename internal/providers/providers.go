@@ -168,7 +168,7 @@ func Validate(name string) error {
 	if !IsValid(name) {
 		// Check if env var is known (might be a new provider not yet in cache)
 		if _, ok := EnvVar(name); !ok {
-			return fmt.Errorf("unknown provider '%s', run 'ply models --refresh' to update provider list", name)
+			return fmt.Errorf("unknown provider '%s'. Run 'ply models update' to refresh the provider list, or verify the provider name", name)
 		}
 	}
 
