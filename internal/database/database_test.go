@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestNewDatabase(t *testing.T) {
@@ -182,5 +183,53 @@ func TestNewEntry(t *testing.T) {
 
 	if entry.CreatedAt.IsZero() {
 		t.Error("NewEntry() CreatedAt is zero")
+	}
+}
+
+func TestNewDuplicateDetector(t *testing.T) {
+	detector := newDuplicateDetector()
+
+	entry1 := Entry{Provider: "openai", UpdatedAt: time.Date(2024, time.January, 1, 0, 0, 0, 0, time.UTC)}
+	entry2 := Entry{Provider: "openai", UpdatedAt: time.Date(2024, time.January, 2, 0, 0, 0, 0, time.UTC)}
+	entry3 := Entry{Provider: "anthropic", UpdatedAt: time.Date(2024, time.January, 1, 0, 0, 0, 0, time.UTC)}
+
+	// First entry should be kept
+	dropped := detector.processEntry(entry1)
+	if dropped {
+		t.Error("First entry should not be dropped")
+	}
+
+	// Second entry (newer) should replace first
+	dropped = detector.processEntry(entry2)
+	if !dropped {
+		t.Error("Second entry should cause first to be dropped")
+	}
+
+	// Different provider should be kept
+	dropped = detector.processEntry(entry3)
+	if dropped {
+		t.Error("Different provider entry should not be dropped")
+	}
+
+	if !detector.hasDuplicates() {
+		t.Error("Should detect duplicates")
+	}
+}
+
+func TestCreateBackup(t *testing.T) {
+	tempDir := t.TempDir()
+
+	dropped := map[string][]Entry{
+		"openai": {{Provider: "openai", Cipher: "old"}},
+	}
+
+	if err := createBackup(tempDir, dropped); err != nil {
+		t.Fatalf("createBackup() error = %v", err)
+	}
+
+	// Verify backup file exists
+	backupPath := filepath.Join(tempDir, "database.json.dropped.bak")
+	if _, err := os.Stat(backupPath); err != nil {
+		t.Errorf("Backup file not created: %v", err)
 	}
 }

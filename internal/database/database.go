@@ -196,6 +196,7 @@ func (db *Database) UpdateEntry(entry Entry) error {
 	return ErrEntryNotFound
 }
 
+// newerEntry compares two entries and returns true if a is newer than b.
 func newerEntry(a, b Entry) bool {
 	aTime := a.UpdatedAt
 	if aTime.IsZero() {
@@ -208,69 +209,122 @@ func newerEntry(a, b Entry) bool {
 	return aTime.After(bTime)
 }
 
+// duplicateDetector tracks duplicate providers and finds newest entries.
+type duplicateDetector struct {
+	byProvider map[string]Entry
+	counts     map[string]int
+	dropped    map[string][]Entry
+}
+
+// newDuplicateDetector creates a new duplicate detector.
+func newDuplicateDetector() *duplicateDetector {
+	return &duplicateDetector{
+		byProvider: make(map[string]Entry),
+		counts:    make(map[string]int),
+		dropped:   make(map[string][]Entry),
+	}
+}
+
+// processEntry adds an entry to the detector and tracks duplicates.
+// Returns true if an entry was dropped (replaced by newer), false if kept.
+func (d *duplicateDetector) processEntry(entry Entry) bool {
+	if entry.Provider == "" {
+		return false
+	}
+
+	existing, ok := d.byProvider[entry.Provider]
+	if !ok {
+		d.byProvider[entry.Provider] = entry
+		d.counts[entry.Provider] = 1
+		return false
+	}
+
+	d.counts[entry.Provider]++
+	if newerEntry(entry, existing) {
+		d.dropped[entry.Provider] = append(d.dropped[entry.Provider], existing)
+		d.byProvider[entry.Provider] = entry
+		return true // Dropped old
+	}
+
+	d.dropped[entry.Provider] = append(d.dropped[entry.Provider], entry)
+	return true // Dropped current
+}
+
+// hasDuplicates returns true if any duplicates were found.
+func (d *duplicateDetector) hasDuplicates() bool {
+	for _, v := range d.counts {
+		if v > 1 {
+			return true
+		}
+	}
+	return false
+}
+
+// createBackup creates a backup of dropped entries.
+func createBackup(dataDir string, dropped map[string][]Entry) error {
+	if len(dropped) == 0 {
+		return nil
+	}
+
+	backupData := make([]Entry, 0)
+	for _, entries := range dropped {
+		backupData = append(backupData, entries...)
+	}
+
+	if len(backupData) == 0 {
+		return nil
+	}
+
+	backupPath := filepath.Join(dataDir, "database.json.dropped.bak")
+	backupJSON, err := json.MarshalIndent(backupData, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal backup: %w", err)
+	}
+
+	if err := os.WriteFile(backupPath, backupJSON, 0600); err != nil {
+		return fmt.Errorf("failed to write backup: %w", err)
+	}
+
+	return nil
+}
+
 func normalizeEntries(filePath string, entries *[]Entry) []string {
 	if entries == nil || len(*entries) == 0 {
 		return nil
 	}
 
-	byProvider := make(map[string]Entry)
-	counts := make(map[string]int)
-	dropped := make(map[string][]Entry)
+	detector := newDuplicateDetector()
 
+	// Process all entries to find duplicates
 	for _, entry := range *entries {
-		if entry.Provider == "" {
-			continue
-		}
-		if existing, ok := byProvider[entry.Provider]; ok {
-			counts[entry.Provider]++
-			if newerEntry(entry, existing) {
-				dropped[entry.Provider] = append(dropped[entry.Provider], byProvider[entry.Provider])
-				byProvider[entry.Provider] = entry
-			} else {
-				dropped[entry.Provider] = append(dropped[entry.Provider], entry)
-			}
-			continue
-		}
-		byProvider[entry.Provider] = entry
-		counts[entry.Provider] = 1
+		detector.processEntry(entry)
 	}
 
-	hasDropped := false
-	for _, v := range counts {
-		if v > 1 {
-			hasDropped = true
-			break
-		}
+	// If no duplicates, nothing to do
+	if !detector.hasDuplicates() {
+		return nil
 	}
 
-	if hasDropped && len(*entries) > 0 {
-		backupData := make([]Entry, 0)
-		for _, entries := range dropped {
-			backupData = append(backupData, entries...)
-		}
-		if len(backupData) > 0 {
-			backupPath := filepath.Join(filepath.Dir(filePath), "database.json.dropped.bak")
-			if backupJSON, err := json.MarshalIndent(backupData, "", "  "); err == nil {
-				if err := os.WriteFile(backupPath, backupJSON, 0600); err != nil {
-					fmt.Fprintf(os.Stderr, "Warning: failed to write backup file: %v\n", err)
-				}
-			}
-		}
+	// Create backup of dropped entries
+	dataDir := filepath.Dir(filePath)
+	if err := createBackup(dataDir, detector.dropped); err != nil {
+		return []string{fmt.Sprintf("Warning: %v", err)}
 	}
 
-	providers := make([]string, 0, len(byProvider))
-	for provider := range byProvider {
+	// Update entries list to only keep unique entries
+	providers := make([]string, 0, len(detector.byProvider))
+	for provider := range detector.byProvider {
 		providers = append(providers, provider)
 	}
 	sort.Strings(providers)
 
-	normalized := make([]Entry, 0, len(byProvider))
+	normalized := make([]Entry, 0, len(detector.byProvider))
 	warnings := make([]string, 0)
 	for _, provider := range providers {
-		entry := byProvider[provider]
+		entry := detector.byProvider[provider]
 		normalized = append(normalized, entry)
-		if counts[provider] > 1 {
-			warnings = append(warnings, fmt.Sprintf("Warning: multiple entries for provider '%s' found; keeping newest and dropping %d old entries. Dropped entries backed up to database.json.dropped.bak", provider, counts[provider]-1))
+		if detector.counts[provider] > 1 {
+			warnings = append(warnings, fmt.Sprintf("Warning: multiple entries for provider '%s' found; keeping newest and dropping %d old entries. Dropped entries backed up to database.json.dropped.bak", provider, detector.counts[provider]-1))
 		}
 	}
 
