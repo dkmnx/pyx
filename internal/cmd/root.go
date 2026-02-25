@@ -299,52 +299,77 @@ func providerEnvVar(provider string) (string, bool) {
 	return providers.EnvVar(provider)
 }
 
-func buildProviderEnv(masterKey []byte, entries []database.Entry) ([]string, error) {
+// decryptProviderKeys decrypts API keys for all configured providers.
+func decryptProviderKeys(masterKey []byte, entries []database.Entry) (map[string]*crypto.SecureString, error) {
 	envValues := make(map[string]*crypto.SecureString)
+
 	for _, entry := range entries {
 		apiKey, err := crypto.Decrypt(masterKey, entry.Cipher, entry.Nonce)
 		if err != nil {
-			return nil, fmt.Errorf("Error decrypting API key for provider '%s': %w", entry.Provider, err)
-		}
-		// Create SecureString directly from SecureBytes without intermediate string
-		decrypted := crypto.NewSecureStringFromBytes(apiKey)
-
-		envVar, ok := providerEnvVar(entry.Provider)
-		if !ok {
-			decrypted.Zero()
-			return nil, fmt.Errorf("Error: unsupported provider '%s'", entry.Provider)
-		}
-
-		if existing, ok := envValues[envVar]; ok {
-			if !existing.Equal(decrypted) {
-				decrypted.Zero()
-				return nil, fmt.Errorf("Conflicting API keys: provider '%s' has a different key for %s", entry.Provider, envVar)
+			// Zero any already-decrypted keys before returning
+			for _, v := range envValues {
+				v.Zero()
 			}
-			decrypted.Zero()
-			continue
+			return nil, fmt.Errorf("error decrypting API key for provider '%s': %w", entry.Provider, err)
 		}
-		envValues[envVar] = decrypted
+		decrypted := crypto.NewSecureStringFromBytes(apiKey)
+		envValues[entry.Provider] = decrypted
 	}
 
-	// Build environment slice: start with current process env, then add/override with provider env
-	//
-	// SECURITY NOTE: This function necessarily exposes decrypted API keys as environment
-	// variables to the spawned subprocess. This is a fundamental limitation of passing
-	// environment variables to OS processes via exec.Cmd - they must be strings.
-	//
-	// Mitigations in place:
-	//   - API keys are decrypted using crypto.SecureString which zeros memory on destruction
-	//   - The SecureString is zeroed immediately after string conversion (value.Zero())
-	//   - Keys are only decrypted on-demand when pi is executed, not stored in memory
-	//
-	// This risk is inherent to any CLI tool that passes secrets to subprocesses. Users should
-	// ensure their environment is secure (e.g., not running on shared systems).
+	return envValues, nil
+}
+
+// mapProvidersToEnvVars maps providers to their environment variables.
+// Returns (envVars, error) where envVars is mapping of env var names to values.
+func mapProvidersToEnvVars(envValues map[string]*crypto.SecureString) (map[string]*crypto.SecureString, error) {
+	result := make(map[string]*crypto.SecureString)
+
+	for provider, value := range envValues {
+		envVar, ok := providerEnvVar(provider)
+		if !ok {
+			value.Zero()
+			return nil, fmt.Errorf("unsupported provider '%s'", provider)
+		}
+
+		if existing, ok := result[envVar]; ok {
+			if !existing.Equal(value) {
+				value.Zero()
+				existing.Zero()
+				return nil, fmt.Errorf("conflicting API keys: provider '%s' has a different key for %s", provider, envVar)
+			}
+			value.Zero()
+			continue
+		}
+		result[envVar] = value
+	}
+
+	return result, nil
+}
+
+// buildEnvSlice builds the final environment variable slice.
+// It zeroes all SecureStrings after use.
+func buildEnvSlice(envValues map[string]*crypto.SecureString) []string {
 	env := os.Environ()
 	for envVar, value := range envValues {
 		env = append(env, envVar+"="+string(value.Bytes()))
-		// Zero the SecureString after use
 		value.Zero()
 	}
+	return env
+}
 
-	return env, nil
+func buildProviderEnv(masterKey []byte, entries []database.Entry) ([]string, error) {
+	// Decrypt all provider keys
+	decryptedKeys, err := decryptProviderKeys(masterKey, entries)
+	if err != nil {
+		return nil, err
+	}
+
+	// Map providers to environment variables
+	envMap, err := mapProvidersToEnvVars(decryptedKeys)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build final environment slice
+	return buildEnvSlice(envMap), nil
 }
