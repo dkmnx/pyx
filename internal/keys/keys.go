@@ -611,42 +611,73 @@ func (m *Manager) saveToFile(key []byte) error {
 // loadFromFile loads the key encrypted with a password.
 // This is a fallback when keyring is unavailable.
 func (m *Manager) loadFromFile(password []byte) ([]byte, error) {
-	// Get password from keyring if not provided
-	if len(password) == 0 {
-		passwordStr, err := keyring.Get(keyringService, keyringPasswordUser)
-		if err != nil {
-			if errors.Is(err, keyring.ErrNotFound) {
-				return nil, ErrPasswordRequired
-			}
-			return nil, fmt.Errorf("failed to get password from keyring: %w", err)
-		}
-		password = []byte(passwordStr)
+	// Get or retrieve password
+	loadPassword, err := m.getLoadPassword(password)
+	if err != nil {
+		return nil, err
+	}
+	defer zeroBytes(loadPassword)
+
+	// Load and unmarshal key data
+	keyData, err := m.loadKeyData()
+	if err != nil {
+		return nil, err
 	}
 
-	// Zero password after use
-	defer zeroBytes(password)
+	// Decrypt the master key
+	masterKey, err := decryptMasterKey(loadPassword, keyData)
+	if err != nil {
+		return nil, err
+	}
 
-	// Read key data
+	return masterKey, nil
+}
+
+// loadKeyData reads and unmarshals the encrypted key data file.
+func (m *Manager) loadKeyData() (KeyData, error) {
 	filePath := m.keyFilePath()
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, ErrKeyNotFound
+			return KeyData{}, ErrKeyNotFound
 		}
-		return nil, fmt.Errorf("failed to read key file: %w", err)
+		return KeyData{}, fmt.Errorf("failed to read key file: %w", err)
 	}
 
-	// Unmarshal
 	var keyData KeyData
 	if err := json.Unmarshal(data, &keyData); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidKeyData, err)
+		return KeyData{}, fmt.Errorf("%w: %v", ErrInvalidKeyData, err)
 	}
 
 	// Check for nonce - if missing, it's using legacy XOR encryption
 	if keyData.Nonce == "" {
-		return nil, fmt.Errorf("legacy key format detected, please re-initialize with 'ply init'")
+		return KeyData{}, fmt.Errorf("legacy key format detected, please re-initialize with 'ply init'")
 	}
 
+	return keyData, nil
+}
+
+// getLoadPassword retrieves password for key loading.
+// Returns password slice that caller should zero after use.
+func (m *Manager) getLoadPassword(providedPassword []byte) ([]byte, error) {
+	if len(providedPassword) > 0 {
+		return providedPassword, nil
+	}
+
+	// Get password from keyring
+	passwordStr, err := keyring.Get(keyringService, keyringPasswordUser)
+	if err != nil {
+		if errors.Is(err, keyring.ErrNotFound) {
+			return nil, ErrPasswordRequired
+		}
+		return nil, fmt.Errorf("failed to get password from keyring: %w", err)
+	}
+
+	return []byte(passwordStr), nil
+}
+
+// decryptMasterKey decrypts the master key using password-derived key.
+func decryptMasterKey(password []byte, keyData KeyData) ([]byte, error) {
 	// Decode salt
 	salt, err := base64.StdEncoding.DecodeString(keyData.Salt)
 	if err != nil {
@@ -654,15 +685,15 @@ func (m *Manager) loadFromFile(password []byte) ([]byte, error) {
 	}
 
 	// Derive decryption key from password
-	derivedKey := argon2.IDKey(password, salt, keyData.Argon2Time, keyData.Argon2Memory, keyData.Argon2Threads, keyData.Argon2KeyLen)
+	derivedKey := argon2.IDKey(password, salt,
+		keyData.Argon2Time, keyData.Argon2Memory,
+		keyData.Argon2Threads, keyData.Argon2KeyLen)
 
-	// Decrypt the master key using AES-GCM
+	// Decrypt master key using AES-GCM
 	masterKey, err := decrypt(derivedKey, keyData.Key, keyData.Nonce)
 	if err != nil {
-		zeroBytes(derivedKey)
 		return nil, ErrInvalidPassword
 	}
-	zeroBytes(derivedKey)
 
 	return masterKey, nil
 }
