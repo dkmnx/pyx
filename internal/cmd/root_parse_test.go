@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -115,5 +116,34 @@ func TestZeroMasterKey_Empty(t *testing.T) {
 
 	if len(masterKey) != 0 {
 		t.Errorf("zeroMasterKey() modified empty slice length from 0 to %d", len(masterKey))
+	}
+}
+
+func TestValidateProvider(t *testing.T) {
+	tests := []struct {
+		name        string
+		provider    string
+		wantErr     bool
+		errContains string
+	}{
+		{"valid provider format", "openai", false, ""},
+		{"empty provider", "", true, "cannot be empty"},
+		{"path traversal", "../etc", true, "path traversal"},
+		{"invalid characters", "provider@bad", true, "must be 1-50 characters"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateProvider(tt.provider)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("validateProvider() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if err != nil && tt.errContains != "" {
+				if !strings.Contains(err.Error(), tt.errContains) {
+					t.Errorf("validateProvider() error = %v, should contain %q", err, tt.errContains)
+				}
+			}
+		})
 	}
 }

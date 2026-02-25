@@ -176,8 +176,22 @@ func parseArgs(args []string) (providerArg string, piArgs []string, skipModelsFi
 	return
 }
 
+// validateProvider checks if a provider name is valid against pi's model list.
+// Returns a helpful error message if validation fails.
+func validateProvider(provider string) error {
+	if err := providers.Validate(provider); err != nil {
+		return err
+	}
+	return nil
+}
+
 func resolveEntries(db *database.Database, providerArg string) ([]database.Entry, error) {
 	if providerArg != "" {
+		// Validate provider name before looking up in database
+		if err := validateProvider(providerArg); err != nil {
+			return nil, err
+		}
+
 		entry, err := db.GetEntry(providerArg)
 		if err != nil {
 			return nil, fmt.Errorf("provider '%s' not found. Use 'ply config list' to see all configured providers", providerArg)
