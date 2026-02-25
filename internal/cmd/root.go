@@ -202,7 +202,7 @@ func resolveEntries(db *database.Database, providerArg string) ([]database.Entry
 
 func executePi(entries []database.Entry, piArgs []string, skipModelsFilter bool, providerEnv []string, sessionFlag string) {
 	// Check if pi is installed, auto-install if not
-	wasInstalled, err := pi.EnsureInstalled()
+	wasInstalled, err := pi.EnsureInstalled(context.Background())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error checking pi installation: %v\n", err)
 		fmt.Fprintln(os.Stderr, "Please install pi manually:")

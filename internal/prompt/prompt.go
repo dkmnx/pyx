@@ -100,6 +100,32 @@ func PromptNewPassword(ctx context.Context) (string, error) {
 	}
 }
 
+func PromptPackageManager(ctx context.Context) (string, error) {
+	result := tap.Select(ctx, tap.SelectOptions[string]{
+		Message: "Select a package manager:",
+		Options: []tap.SelectOption[string]{
+			{Value: "npm", Label: "npm"},
+			{Value: "pnpm", Label: "pnpm"},
+			{Value: "yarn", Label: "yarn"},
+			{Value: "bun", Label: "bun"},
+		},
+	})
+
+	if result == "" {
+		return "", ErrCancelled
+	}
+
+	// Validate the selection
+	validOptions := []string{"npm", "pnpm", "yarn", "bun"}
+	for _, opt := range validOptions {
+		if strings.EqualFold(opt, result) {
+			return opt, nil
+		}
+	}
+
+	return "", ErrInvalidPackageManager
+}
+
 func Confirm(ctx context.Context, message string) bool {
 	return tap.Confirm(ctx, tap.ConfirmOptions{
 		Message: message,
@@ -107,10 +133,11 @@ func Confirm(ctx context.Context, message string) bool {
 }
 
 var (
-	ErrEmptyAPIKey     = &InputError{Message: "API key cannot be empty"}
-	ErrEmptyPassword   = &InputError{Message: "password cannot be empty"}
-	ErrCancelled       = &InputError{Message: "operation cancelled"}
-	ErrInvalidProvider = &InputError{Message: "invalid provider selection"}
+	ErrEmptyAPIKey           = &InputError{Message: "API key cannot be empty"}
+	ErrEmptyPassword         = &InputError{Message: "password cannot be empty"}
+	ErrCancelled             = &InputError{Message: "operation cancelled"}
+	ErrInvalidProvider       = &InputError{Message: "invalid provider selection"}
+	ErrInvalidPackageManager = &InputError{Message: "invalid package manager selection"}
 )
 
 type InputError struct {

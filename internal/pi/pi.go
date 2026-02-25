@@ -2,6 +2,7 @@
 package pi
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -9,6 +10,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/dkmnx/ply/internal/prompt"
 )
 
 const (
@@ -200,21 +203,34 @@ func CheckInstalled() (bool, error) {
 	return true, nil
 }
 
-// Install installs pi using npm.
-// It checks which npm command is available (npm, pnpm, yarn, bun)
-// and uses the appropriate command.
-func Install() error {
-	// Check which package manager is available
-	pm, cmd, err := findPackageManager()
-	if err != nil {
-		return fmt.Errorf("no compatible package manager found: %w", err)
+// Install installs pi using the specified package manager.
+// If pm is empty, auto-detects the first available package manager.
+func Install(pm string) error {
+	// If no package manager specified, find one
+	if pm == "" {
+		var err error
+		pm, _, err = findPackageManager()
+		if err != nil {
+			return fmt.Errorf("no compatible package manager found: %w", err)
+		}
+	}
+
+	// Verify the selected package manager is available
+	if _, err := exec.LookPath(pm); err != nil {
+		return fmt.Errorf("package manager '%s' not found: %w", pm, err)
 	}
 
 	// Confirm installation
 	fmt.Printf("Installing pi using %s...\n", pm)
 
 	// Run install command
-	installCmd := exec.Command(cmd, "install", "-g", NPMPackage)
+	// yarn uses 'global add', others use 'install -g'
+	var installCmd *exec.Cmd
+	if pm == packageManagerYarn {
+		installCmd = exec.Command(pm, "global", "add", NPMPackage)
+	} else {
+		installCmd = exec.Command(pm, "install", "-g", NPMPackage)
+	}
 	installCmd.Stdout = os.Stdout
 	installCmd.Stderr = os.Stderr
 	if err := installCmd.Run(); err != nil {
@@ -226,8 +242,9 @@ func Install() error {
 }
 
 // EnsureInstalled checks if pi is installed and installs it if not.
+// Prompts for package manager selection if installation is needed.
 // Returns true if pi was installed, false if it was already installed.
-func EnsureInstalled() (bool, error) {
+func EnsureInstalled(ctx context.Context) (bool, error) {
 	installed, err := CheckInstalled()
 	if err != nil {
 		return false, fmt.Errorf("failed to check if pi is installed: %w", err)
@@ -241,11 +258,16 @@ func EnsureInstalled() (bool, error) {
 		return false, nil
 	}
 
-	// Auto-install
+	// Auto-install with package manager prompt
 	fmt.Println("pi is not installed.")
-	fmt.Println("Installing...")
 
-	if err := Install(); err != nil {
+	// Prompt for package manager selection
+	pm, err := prompt.PromptPackageManager(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to select package manager: %w", err)
+	}
+
+	if err := Install(pm); err != nil {
 		return false, fmt.Errorf("failed to install pi: %w", err)
 	}
 
