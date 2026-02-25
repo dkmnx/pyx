@@ -13,10 +13,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Validation for `ply config edit <provider>` to ensure provider names are valid
 - Validation for `ply config delete <provider>` to ensure provider names are valid
 - Integration tests for end-to-end provider validation
+- Comprehensive unit tests for extracted helper functions
 
 ### Changed
 - Improved error message for unknown providers to guide users to run `ply models update`
 - Provider validation now checks format (alphanumeric, hyphens, underscores) and rejects path traversal attempts
+- Refactored runSetup() in setup.go for better separation of concerns
+- Refactored buildProviderEnv() in root.go for improved testability
+- Refactored normalizeEntries() in database.go to extract duplicate detection
+- Refactored loadFromFile() in keys.go to extract key data loading
+- Refactored getMigrationKey() in keys.go to improve testability
 
 ### Security
 - Provider name validation prevents path traversal attacks by rejecting names containing `..` or path separators
