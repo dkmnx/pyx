@@ -10,6 +10,7 @@ import (
 	"github.com/dkmnx/ply/internal/fs"
 	"github.com/dkmnx/ply/internal/keys"
 	"github.com/dkmnx/ply/internal/prompt"
+	"github.com/dkmnx/ply/internal/providers"
 	"github.com/spf13/cobra"
 	"github.com/yarlson/tap"
 )
@@ -92,6 +93,11 @@ func runConfigEdit(cmd *cobra.Command, args []string) {
 }
 
 func findEntry(db *database.Database, target string) (database.Entry, error) {
+	// Validate provider name before checking database
+	if err := providers.Validate(target); err != nil {
+		return database.Entry{}, err
+	}
+
 	entry, err := db.GetEntry(target)
 	if err != nil {
 		tap.Cancel(fmt.Sprintf("Provider '%s' not found", target))

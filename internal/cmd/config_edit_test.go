@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"context"
+	"io"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/dkmnx/ply/internal/crypto"
@@ -61,5 +63,56 @@ func TestFindEntry_NotFound(t *testing.T) {
 	_, err := findEntry(db, "non-existent")
 	if err == nil {
 		t.Error("findEntry() should return error for non-existent entry")
+	}
+}
+
+func TestFindEntry_InvalidProvider(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	db := database.New(tmpDir)
+	ctx := context.Background()
+
+	// Load empty database
+	if err := db.Load(ctx); err != nil {
+		t.Fatalf("Failed to load database: %v", err)
+	}
+
+	tests := []struct {
+		name        string
+		provider    string
+		wantErr     bool
+		errContains string
+	}{
+		{"path traversal", "../etc", true, "path traversal"},
+		{"invalid characters", "provider@bad", true, "must be 1-50 characters"},
+		{"empty string", "", true, "cannot be empty"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Capture stderr to suppress tap.Cancel output
+			oldStderr := os.Stderr
+			r, w, _ := os.Pipe()
+			os.Stderr = w
+
+			entry, err := findEntry(db, tt.provider)
+
+			w.Close()
+			os.Stderr = oldStderr
+			io.ReadAll(r) // Drain the pipe
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("findEntry() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if err != nil && tt.errContains != "" {
+				if !strings.Contains(err.Error(), tt.errContains) {
+					t.Errorf("findEntry() error = %v, should contain %q", err, tt.errContains)
+				}
+			}
+			if entry.Provider != "" {
+				t.Errorf("findEntry() returned entry with provider %q, want empty", entry.Provider)
+			}
+		})
 	}
 }
