@@ -66,6 +66,7 @@ func runRoot(cmd *cobra.Command, args []string) {
 
 	entries, err := resolveEntries(db, providerArg)
 	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
@@ -179,18 +180,14 @@ func resolveEntries(db *database.Database, providerArg string) ([]database.Entry
 	if providerArg != "" {
 		entry, err := db.GetEntry(providerArg)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: provider '%s' not found\n", providerArg)
-			fmt.Fprintf(os.Stderr, "Use 'ply config list' to see all configured providers.\n")
-			return nil, err
+			return nil, fmt.Errorf("provider '%s' not found. Use 'ply config list' to see all configured providers", providerArg)
 		}
 		return []database.Entry{entry}, nil
 	}
 
 	entries := db.ListEntries()
 	if len(entries) == 0 {
-		fmt.Fprintln(os.Stderr, "No providers configured.")
-		fmt.Fprintln(os.Stderr, "Run 'ply setup' to add a provider.")
-		return nil, fmt.Errorf("no providers configured")
+		return nil, fmt.Errorf("no providers configured. Run 'ply setup' to add a provider")
 	}
 
 	sort.Slice(entries, func(i, j int) bool {
