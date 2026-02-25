@@ -317,4 +317,3 @@ func TestStoreProviderEntry_Update(t *testing.T) {
 		t.Error("Entry was not updated with new cipher")
 	}
 }
-

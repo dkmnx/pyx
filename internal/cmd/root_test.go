@@ -244,7 +244,7 @@ func TestMapProvidersToEnvVars_Conflict(t *testing.T) {
 
 	// Both map to same env var (openai and openai-codex both use OPENAI_API_KEY)
 	envValues := map[string]*crypto.SecureString{
-		"openai":      key1,
+		"openai":       key1,
 		"openai-codex": key2,
 	}
 

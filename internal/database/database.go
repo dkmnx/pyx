@@ -220,8 +220,8 @@ type duplicateDetector struct {
 func newDuplicateDetector() *duplicateDetector {
 	return &duplicateDetector{
 		byProvider: make(map[string]Entry),
-		counts:    make(map[string]int),
-		dropped:   make(map[string][]Entry),
+		counts:     make(map[string]int),
+		dropped:    make(map[string][]Entry),
 	}
 }
 
