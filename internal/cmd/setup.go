@@ -104,71 +104,32 @@ func confirmProviderOverride(ctx context.Context, provider string) bool {
 	return prompt.Confirm(ctx, fmt.Sprintf("Provider '%s' already configured. Override?", provider))
 }
 
-func runSetup(cmd *cobra.Command, args []string) {
-	ctx := context.Background()
-
-	tap.Intro("ply setup")
-
-	dataDir, err := fs.EnsureDataDir()
-	if err != nil {
-		tap.Cancel(fmt.Sprintf("Error creating data directory: %v", err))
-		return
-	}
-
-	keyMgr := keys.New(dataDir)
-	db := database.New(dataDir)
-
-	_, err = keyMgr.MigrateFromLegacy(db)
-	if err != nil {
-		tap.Cancel(fmt.Sprintf("Error migrating master key: %v", err))
-		tap.Message("Run 'ply init' to initialize ply.")
-		return
-	}
-
-	masterKey, err := getMasterKey(ctx, keyMgr)
-	if err != nil {
-		tap.Cancel(fmt.Sprintf("%v", err))
-		return
-	}
-
-	if err := db.Load(ctx); err != nil {
-		tap.Cancel(fmt.Sprintf("Error loading database: %v", err))
-		return
-	}
-
+// fetchProviders updates the provider model cache with user feedback.
+func fetchProviders(ctx context.Context) error {
 	spinner := tap.NewSpinner(tap.SpinnerOptions{})
 	spinner.Start("Fetching providers...")
 
 	if err := models.FetchAndCache(ctx); err != nil {
 		spinner.Stop("Failed", 1)
-		tap.Cancel(fmt.Sprintf("Error fetching providers: %v", err))
-		return
+		return fmt.Errorf("error fetching providers: %w", err)
 	}
+
 	spinner.Stop("Done", 0)
+	return nil
+}
 
-	provider, err := prompt.PromptProvider(ctx)
-	if err != nil {
-		tap.Cancel(fmt.Sprintf("Error: %v", err))
-		return
-	}
-
-	if _, err := db.GetEntry(provider); err == nil {
-		if !confirmProviderOverride(ctx, provider) {
-			tap.Message("Setup cancelled.")
-			return
-		}
-	}
-
-	apiKey, err := prompt.PromptAPIKey(ctx)
-	if err != nil {
-		tap.Cancel(fmt.Sprintf("Error: %v", err))
-		return
-	}
-
+// storeProviderEntry encrypts and stores a provider entry.
+// Returns true if this was an update, false if it was a new entry.
+func storeProviderEntry(
+	ctx context.Context,
+	db *database.Database,
+	masterKey []byte,
+	provider string,
+	apiKey string,
+) (bool, error) {
 	cipher, nonce, err := crypto.Encrypt(masterKey, apiKey)
 	if err != nil {
-		tap.Cancel(fmt.Sprintf("Error encrypting API key: %v", err))
-		return
+		return false, fmt.Errorf("error encrypting API key: %w", err)
 	}
 
 	var entry database.Entry
@@ -180,27 +141,126 @@ func runSetup(cmd *cobra.Command, args []string) {
 		existing.UpdatedAt = time.Now().UTC()
 		entry = existing
 		if updateEntryErr := db.UpdateEntry(entry); updateEntryErr != nil {
-			tap.Cancel(fmt.Sprintf("Error updating entry: %v", updateEntryErr))
-			return
+			return false, fmt.Errorf("error updating entry: %w", updateEntryErr)
 		}
 	} else {
 		entry = database.NewEntry(provider, cipher, nonce)
 		if addErr := db.AddEntry(entry); addErr != nil {
-			tap.Cancel(fmt.Sprintf("Error adding entry: %v", addErr))
-			return
+			return false, fmt.Errorf("error adding entry: %w", addErr)
 		}
 	}
 
 	if err := db.Save(ctx); err != nil {
-		tap.Cancel(fmt.Sprintf("Error saving database: %v", err))
-		return
+		return false, fmt.Errorf("error saving database: %w", err)
 	}
 
+	return isUpdate, nil
+}
+
+// handleLegacyMigration handles legacy key migration if needed.
+func handleLegacyMigration(ctx context.Context, keyMgr *keys.Manager, db *database.Database) error {
+	_, err := keyMgr.MigrateFromLegacy(db)
+	if err != nil {
+		tap.Cancel(fmt.Sprintf("Error migrating master key: %v", err))
+		tap.Message("Run 'ply init' to initialize ply.")
+		return err
+	}
+	return nil
+}
+
+// loadOrCreateMasterKey loads existing master key or creates a new one.
+func loadOrCreateMasterKey(ctx context.Context, keyMgr *keys.Manager) ([]byte, error) {
+	masterKey, err := getMasterKey(ctx, keyMgr)
+	if err != nil {
+		tap.Cancel(fmt.Sprintf("%v", err))
+		return nil, err
+	}
+	return masterKey, nil
+}
+
+// promptProviderAndKey prompts user for provider and API key, handling overrides.
+func promptProviderAndKey(ctx context.Context, db *database.Database) (string, string, error) {
+	provider, err := prompt.PromptProvider(ctx)
+	if err != nil {
+		return "", "", fmt.Errorf("error: %w", err)
+	}
+
+	// Check if provider already configured
+	if _, err := db.GetEntry(provider); err == nil {
+		if !confirmProviderOverride(ctx, provider) {
+			return "", "", fmt.Errorf("setup cancelled")
+		}
+	}
+
+	apiKey, err := prompt.PromptAPIKey(ctx)
+	if err != nil {
+		return "", "", fmt.Errorf("error: %w", err)
+	}
+
+	return provider, apiKey, nil
+}
+
+// reportStoredEntry prints success message for stored provider.
+func reportStoredEntry(provider string, isUpdate bool) {
 	action := "Created"
 	if isUpdate {
 		action = "Updated"
 	}
-	tap.Message(fmt.Sprintf("  %s: %s (%s)", entry.Provider, action, entry.UpdatedAt.Format(timeFormat)))
+	tap.Message(fmt.Sprintf("  %s: %s (%s)", provider, action, time.Now().UTC().Format(timeFormat)))
+}
 
+func runSetup(cmd *cobra.Command, args []string) {
+	ctx := context.Background()
+
+	tap.Intro("ply setup")
+
+	// Initialize data directory and key manager
+	dataDir, err := fs.EnsureDataDir()
+	if err != nil {
+		tap.Cancel(fmt.Sprintf("Error creating data directory: %v", err))
+		return
+	}
+
+	keyMgr := keys.New(dataDir)
+	db := database.New(dataDir)
+
+	// Handle legacy migration
+	if err := handleLegacyMigration(ctx, keyMgr, db); err != nil {
+		return
+	}
+
+	// Load or create master key
+	masterKey, err := loadOrCreateMasterKey(ctx, keyMgr)
+	if err != nil {
+		return
+	}
+	defer zeroMasterKey(masterKey)
+
+	// Load database
+	if err := db.Load(ctx); err != nil {
+		tap.Cancel(fmt.Sprintf("Error loading database: %v", err))
+		return
+	}
+
+	// Fetch and cache provider models
+	if err := fetchProviders(ctx); err != nil {
+		return
+	}
+
+	// Prompt for provider and API key
+	provider, apiKey, err := promptProviderAndKey(ctx, db)
+	if err != nil {
+		return
+	}
+
+	// Store provider entry
+	isUpdate, err := storeProviderEntry(ctx, db, masterKey, provider, apiKey)
+	if err != nil {
+		tap.Cancel(fmt.Sprintf("Error: %v", err))
+		return
+	}
+
+	// Report success
+	reportStoredEntry(provider, isUpdate)
 	tap.Outro("API key stored securely")
 }

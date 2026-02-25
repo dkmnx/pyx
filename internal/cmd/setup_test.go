@@ -249,3 +249,72 @@ func TestProviderList(t *testing.T) {
 		}
 	}
 }
+
+func TestFetchProviders(t *testing.T) {
+	ctx := context.Background()
+
+	if err := fetchProviders(ctx); err != nil {
+		t.Errorf("fetchProviders() error = %v", err)
+	}
+}
+
+func TestStoreProviderEntry_New(t *testing.T) {
+	tempDir := t.TempDir()
+	masterKey := make([]byte, 32)
+
+	db := database.New(tempDir)
+	ctx := context.Background()
+	db.Load(ctx)
+
+	isUpdate, err := storeProviderEntry(ctx, db, masterKey, "openai", "sk-test-123")
+	if err != nil {
+		t.Fatalf("storeProviderEntry() error = %v", err)
+	}
+
+	if isUpdate {
+		t.Error("storeProviderEntry() returned isUpdate=true for new entry")
+	}
+
+	// Verify entry was saved
+	entry, err := db.GetEntry("openai")
+	if err != nil {
+		t.Errorf("Entry not saved: %v", err)
+	}
+
+	if entry.Provider != "openai" {
+		t.Errorf("Expected provider 'openai', got %q", entry.Provider)
+	}
+}
+
+func TestStoreProviderEntry_Update(t *testing.T) {
+	tempDir := t.TempDir()
+	masterKey := make([]byte, 32)
+
+	db := database.New(tempDir)
+	ctx := context.Background()
+	db.Load(ctx)
+
+	// Create initial entry
+	cipher, nonce, _ := crypto.Encrypt(masterKey, "sk-old-key")
+	entry := database.NewEntry("openai", cipher, nonce)
+	db.AddEntry(entry)
+	db.Save(ctx)
+
+	// Update => entry
+	isUpdate, err := storeProviderEntry(ctx, db, masterKey, "openai", "sk-new-key")
+	if err != nil {
+		t.Fatalf("storeProviderEntry() error = %v", err)
+	}
+
+	if !isUpdate {
+		t.Error("storeProviderEntry() returned isUpdate=false for existing entry")
+	}
+
+	// Verify entry was updated
+	updatedEntry, _ := db.GetEntry("openai")
+	// Cipher should be different (new encryption)
+	if updatedEntry.Cipher == cipher {
+		t.Error("Entry was not updated with new cipher")
+	}
+}
+
