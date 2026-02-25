@@ -179,10 +179,7 @@ func parseArgs(args []string) (providerArg string, piArgs []string, skipModelsFi
 // validateProvider checks if a provider name is valid against pi's model list.
 // Returns a helpful error message if validation fails.
 func validateProvider(provider string) error {
-	if err := providers.Validate(provider); err != nil {
-		return err
-	}
-	return nil
+	return providers.Validate(provider)
 }
 
 func resolveEntries(db *database.Database, providerArg string) ([]database.Entry, error) {
