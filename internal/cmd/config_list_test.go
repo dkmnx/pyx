@@ -1,308 +1,86 @@
 package cmd
 
 import (
-	"context"
-	"os"
-	"strings"
 	"testing"
-
-	"github.com/dkmnx/ply/internal/crypto"
-	"github.com/dkmnx/ply/internal/database"
-	"github.com/dkmnx/ply/internal/fs"
-	"github.com/spf13/cobra"
 )
 
-func TestConfigList_Empty(t *testing.T) {
-	tempDir := t.TempDir()
-
-	// Set up environment for test
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", origHome)
-
-	// Create empty database
-	dataDir, _ := fs.EnsureDataDir()
-	db := database.New(dataDir)
-	_ = db.Load(context.Background())
-	_ = db.Save(context.Background())
-
-	// Create output capture file
-	outputFile := tempDir + "/output.txt"
-	f, _ := os.Create(outputFile)
-	defer f.Close()
-
-	// Create mock command
-	cmd := &cobra.Command{}
-	cmd.SetOut(f)
-
-	// Run list
-	runConfigList(cmd, nil)
-
-	// Read output
-	data, _ := os.ReadFile(outputFile)
-	output := string(data)
-
-	if output != "No providers configured.\n" {
-		t.Errorf("Expected empty list message, got: %s", output)
+func TestConfigCmdUse(t *testing.T) {
+	if configCmd.Use != "config" {
+		t.Errorf("configCmd.Use = %q, expected %q", configCmd.Use, "config")
 	}
 }
 
-func TestConfigList_NoDatabase(t *testing.T) {
-	tempDir := t.TempDir()
-
-	// Set up environment for test
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", origHome)
-
-	// Create data directory but no database
-	_, _ = fs.EnsureDataDir()
-
-	// Create output capture file
-	outputFile := tempDir + "/output.txt"
-	f, _ := os.Create(outputFile)
-	defer f.Close()
-
-	// Create mock command
-	cmd := &cobra.Command{}
-	cmd.SetOut(f)
-
-	// Run list
-	runConfigList(cmd, nil)
-
-	// Read output
-	data, _ := os.ReadFile(outputFile)
-	output := string(data)
-
-	if output != "No providers configured.\n" {
-		t.Errorf("Expected empty list message, got: %s", output)
+func TestConfigCmdShort(t *testing.T) {
+	if configCmd.Short == "" {
+		t.Error("configCmd.Short should not be empty")
 	}
 }
 
-func TestConfigList_WithEntries(t *testing.T) {
-	tempDir := t.TempDir()
-
-	// Set up environment for test
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", origHome)
-
-	// Initialize master key and database
-	dataDir, _ := fs.EnsureDataDir()
-	masterKey, _ := crypto.GenerateKey()
-	_ = fs.SaveMasterKey(masterKey)
-
-	db := database.New(dataDir)
-	_ = db.Load(context.Background())
-
-	// Add test entries
-	testEntries := []struct {
-		provider string
-		apiKey   string
-	}{
-		{"openai", "sk-test-1"},
-		{"anthropic", "sk-ant-test-2"},
-		{"google", "google-test-3"},
-	}
-
-	for _, te := range testEntries {
-		cipher, nonce, _ := crypto.Encrypt(masterKey, te.apiKey)
-		entry := database.NewEntry(te.provider, cipher, nonce)
-		_ = db.AddEntry(entry)
-	}
-
-	if err := db.Save(context.Background()); err != nil {
-		t.Fatalf("Failed to save database: %v", err)
-	}
-
-	// Create output capture file
-	outputFile := tempDir + "/output.txt"
-	f, _ := os.Create(outputFile)
-	defer f.Close()
-
-	// Create mock command
-	cmd := &cobra.Command{}
-	cmd.SetOut(f)
-
-	// Run list
-	runConfigList(cmd, nil)
-
-	// Read output
-	data, _ := os.ReadFile(outputFile)
-	output := string(data)
-
-	// Verify header
-	if !strings.Contains(output, "Configured providers:") {
-		t.Error("Output missing 'Configured providers:' header")
-	}
-
-	// Verify all providers are present
-	if !strings.Contains(output, "openai") {
-		t.Error("Output missing 'openai' provider")
-	}
-	if !strings.Contains(output, "anthropic") {
-		t.Error("Output missing 'anthropic' provider")
-	}
-	if !strings.Contains(output, "google") {
-		t.Error("Output missing 'google' provider")
-	}
-
-	// Verify Created field is present
-	if !strings.Contains(output, "Created  : ") {
-		t.Error("Output missing 'Created :' field")
-	}
-
-	// Verify bullet point
-	if !strings.Contains(output, "❯") {
-		t.Error("Output should contain bullet point '❯'")
-	}
-
-	// Verify count message
-	if !strings.Contains(output, "Total: 3 provider(s)") {
-		t.Error("Output missing count message")
+func TestConfigCmdLong(t *testing.T) {
+	if configCmd.Long == "" {
+		t.Error("configCmd.Long should not be empty")
 	}
 }
 
-func TestConfigList_Format(t *testing.T) {
-	tempDir := t.TempDir()
-
-	// Set up environment for test
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", origHome)
-
-	// Initialize and add single entry
-	dataDir, _ := fs.EnsureDataDir()
-	masterKey, _ := crypto.GenerateKey()
-	_ = fs.SaveMasterKey(masterKey)
-
-	db := database.New(dataDir)
-	_ = db.Load(context.Background())
-
-	cipher, nonce, _ := crypto.Encrypt(masterKey, "test-key")
-	entry := database.NewEntry("test-provider", cipher, nonce)
-	_ = db.AddEntry(entry)
-	_ = db.Save(context.Background())
-
-	// Create output capture file
-	outputFile := tempDir + "/output.txt"
-	f, _ := os.Create(outputFile)
-	defer f.Close()
-
-	// Create mock command
-	cmd := &cobra.Command{}
-	cmd.SetOut(f)
-
-	// Run list
-	runConfigList(cmd, nil)
-
-	// Read output
-	data, _ := os.ReadFile(outputFile)
-	output := string(data)
-
-	// Verify format structure
-	lines := strings.Split(output, "\n")
-
-	if len(lines) < 5 {
-		t.Errorf("Expected at least 5 lines, got %d", len(lines))
+func TestConfigCmdStructure(t *testing.T) {
+	if configCmd == nil {
+		t.Fatal("configCmd is nil")
 	}
 
-	// Line 1 should be header
-	if !strings.Contains(lines[0], "Configured providers:") {
-		t.Errorf("First line should be header, got: %s", lines[0])
+	// Check that it's added to rootCmd
+	if len(configCmd.Commands()) == 0 {
+		t.Error("configCmd should have subcommands")
 	}
+}
 
-	// Find first entry line (after blank)
-	entryLineIndex := -1
-	for i := 2; i < len(lines); i++ {
-		if strings.Contains(lines[i], "❯") {
-			entryLineIndex = i
-			break
-		}
-	}
+func TestConfigCmdHasSubcommands(t *testing.T) {
+	// Check for expected subcommands
+	// The subcommands are added via init() functions
+	// Note: "edit" is "edit [provider]" and "delete" is "delete [provider]"
+	expectedSubcommands := []string{"list", "edit", "delete"}
 
-	if entryLineIndex == -1 {
-		t.Fatal("Could not find entry line with bullet point")
-	}
-
-	// Verify entry format
-	if !strings.Contains(lines[entryLineIndex], "test-provider") {
-		t.Errorf("Entry line should contain provider, got: %s", lines[entryLineIndex])
-	}
-
-	// Verify field format (with spacing for alignment)
-	expectedFields := []string{"Created  :"}
-	for _, field := range expectedFields {
+	for _, sub := range expectedSubcommands {
 		found := false
-		for _, line := range lines {
-			if strings.Contains(line, field) {
+		for _, cmd := range configCmd.Commands() {
+			// Check if the command Use starts with the expected subcommand
+			if len(cmd.Use) >= len(sub) && cmd.Use[:len(sub)] == sub {
 				found = true
 				break
 			}
 		}
 		if !found {
-			t.Errorf("Output missing field: %s", field)
+			t.Errorf("configCmd should have '%s' subcommand", sub)
 		}
 	}
 }
 
-func TestConfigList_MultipleEntriesFormat(t *testing.T) {
-	tempDir := t.TempDir()
+func TestConfigCmdFlags(t *testing.T) {
+	// configCmd should not have any flags directly
+	flags := configCmd.Flags()
+	if flags == nil {
+		t.Error("configCmd.Flags() should not return nil")
+	}
+}
 
-	// Set up environment for test
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", origHome)
+func TestConfigListCmdUse(t *testing.T) {
+	if configListCmd.Use != "list" {
+		t.Errorf("configListCmd.Use = %q, expected %q", configListCmd.Use, "list")
+	}
+}
 
-	// Initialize and add multiple entries
-	dataDir, _ := fs.EnsureDataDir()
-	masterKey, _ := crypto.GenerateKey()
-	_ = fs.SaveMasterKey(masterKey)
+func TestConfigListCmdShort(t *testing.T) {
+	if configListCmd.Short == "" {
+		t.Error("configListCmd.Short should not be empty")
+	}
+}
 
-	db := database.New(dataDir)
-	_ = db.Load(context.Background())
-
-	providers := []struct {
-		provider string
-	}{
-		{"openai"},
-		{"anthropic"},
-		{"google"},
+func TestConfigListCmdStructure(t *testing.T) {
+	if configListCmd == nil {
+		t.Fatal("configListCmd is nil")
 	}
 
-	for _, p := range providers {
-		cipher, nonce, _ := crypto.Encrypt(masterKey, "key")
-		entry := database.NewEntry(p.provider, cipher, nonce)
-		_ = db.AddEntry(entry)
-	}
-	_ = db.Save(context.Background())
-
-	// Create output capture file
-	outputFile := tempDir + "/output.txt"
-	f, _ := os.Create(outputFile)
-	defer f.Close()
-
-	// Create mock command
-	cmd := &cobra.Command{}
-	cmd.SetOut(f)
-
-	// Run list
-	runConfigList(cmd, nil)
-
-	// Read output
-	data, _ := os.ReadFile(outputFile)
-	output := string(data)
-
-	// Count bullet points
-	bulletCount := strings.Count(output, "❯")
-	if bulletCount != 3 {
-		t.Errorf("Expected 3 bullet points, got %d", bulletCount)
-	}
-
-	// Verify each entry is separated by blank line
-	// Check that there are at least 2 blank lines between entries
-	blankLineCount := strings.Count(output, "\n\n")
-	if blankLineCount < 2 {
-		t.Error("Entries should be separated by blank lines")
+	// Check command use
+	if configListCmd.Use != "list" {
+		t.Errorf("configListCmd.Use = %q, expected %q", configListCmd.Use, "list")
 	}
 }

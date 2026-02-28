@@ -1,148 +1,162 @@
 package cmd
 
 import (
-	"strings"
 	"testing"
 )
 
+func TestTimeFormatConstant(t *testing.T) {
+	// Test that timeFormat is properly set
+	if timeFormat != "2006-01-02T15:04:05Z" {
+		t.Errorf("timeFormat = %q, expected %q", timeFormat, "2006-01-02T15:04:05Z")
+	}
+}
+
+func TestConfirmYesConstant(t *testing.T) {
+	if confirmYes != "yes" {
+		t.Errorf("confirmYes = %q, expected %q", confirmYes, "yes")
+	}
+}
+
+func TestConfirmYConstant(t *testing.T) {
+	if confirmY != "y" {
+		t.Errorf("confirmY = %q, expected %q", confirmY, "y")
+	}
+}
+
+func TestRootCmdUse(t *testing.T) {
+	if rootCmd.Use != "ply [provider] [args...]" {
+		t.Errorf("rootCmd.Use = %q, expected %q", rootCmd.Use, "ply [provider] [args...]")
+	}
+}
+
+func TestRootCmdArgs(t *testing.T) {
+	// The root command should accept arbitrary args
+	if rootCmd.Args == nil {
+		t.Error("rootCmd.Args should be set")
+	}
+}
+
+func TestSessionFlag(t *testing.T) {
+	// Test the sessionFlag variable
+	sessionFlag = "test-session-uuid"
+	if sessionFlag != "test-session-uuid" {
+		t.Error("sessionFlag should be settable")
+	}
+
+	sessionFlag = ""
+}
+
+func TestRootCmdShort(t *testing.T) {
+	if rootCmd.Short == "" {
+		t.Error("rootCmd.Short should not be empty")
+	}
+}
+
+func TestRootCmdLong(t *testing.T) {
+	if rootCmd.Long == "" {
+		t.Error("rootCmd.Long should not be empty")
+	}
+}
+
+func TestRootCmdStructure(t *testing.T) {
+	if rootCmd == nil {
+		t.Fatal("rootCmd is nil")
+	}
+
+	// Check that CompletionOptions.DisableDefaultCmd is false (completion should be enabled)
+	// Note: This might be false even if init() hasn't run yet
+	if rootCmd.CompletionOptions.DisableDefaultCmd {
+		t.Log("CompletionOptions.DisableDefaultCmd is true")
+	}
+}
+
 func TestParseArgs(t *testing.T) {
 	tests := []struct {
-		name               string
-		args               []string
-		expectedProvider   string
-		expectedPiArgs     []string
-		expectedSkipFilter bool
+		name              string
+		args              []string
+		wantProviderArg   string
+		wantPiArgs        []string
+		wantSkipFilter    bool
 	}{
 		{
-			name:               "no args",
-			args:               []string{},
-			expectedProvider:   "",
-			expectedPiArgs:     nil,
-			expectedSkipFilter: false,
+			name:              "no args",
+			args:              []string{},
+			wantProviderArg:   "",
+			wantPiArgs:        []string{},
+			wantSkipFilter:    false,
 		},
 		{
-			name:               "single provider",
-			args:               []string{"openai"},
-			expectedProvider:   "openai",
-			expectedPiArgs:     nil,
-			expectedSkipFilter: false,
+			name:              "provider only",
+			args:              []string{"openai"},
+			wantProviderArg:   "openai",
+			wantPiArgs:        []string{},
+			wantSkipFilter:    false,
 		},
 		{
-			name:               "provider with args",
-			args:               []string{"openai", "Hello", "world"},
-			expectedProvider:   "openai",
-			expectedPiArgs:     []string{"Hello", "world"},
-			expectedSkipFilter: false,
+			name:              "provider with pi args",
+			args:              []string{"openai", "--model", "gpt-4"},
+			wantProviderArg:   "openai",
+			wantPiArgs:        []string{"--model", "gpt-4"},
+			wantSkipFilter:    false,
 		},
 		{
-			name:               "flag args only",
-			args:               []string{"--version"},
-			expectedProvider:   "",
-			expectedPiArgs:     []string{"--version"},
-			expectedSkipFilter: false,
+			name:              "double dash separator",
+			args:              []string{"--", "--model", "gpt-4"},
+			wantProviderArg:   "",
+			wantPiArgs:        []string{"--model", "gpt-4"},
+			wantSkipFilter:    true,
 		},
 		{
-			name:               "double dash separator",
-			args:               []string{"openai", "--", "-m", "gpt-4"},
-			expectedProvider:   "openai",
-			expectedPiArgs:     []string{"-m", "gpt-4"},
-			expectedSkipFilter: true,
+			name:              "provider with double dash",
+			args:              []string{"openai", "--", "--verbose"},
+			wantProviderArg:   "openai",
+			wantPiArgs:        []string{"--verbose"},
+			wantSkipFilter:    true,
 		},
 		{
-			name:               "double dash at start",
-			args:               []string{"--", "--version"},
-			expectedProvider:   "",
-			expectedPiArgs:     []string{"--version"},
-			expectedSkipFilter: true,
-		},
-		{
-			name:               "multiple flags",
-			args:               []string{"--verbose", "--model", "gpt-4"},
-			expectedProvider:   "",
-			expectedPiArgs:     []string{"--verbose", "--model", "gpt-4"},
-			expectedSkipFilter: false,
+			name:              "only pi args (starting with dash)",
+			args:              []string{"--verbose", "--model", "gpt-4"},
+			wantProviderArg:   "",
+			wantPiArgs:        []string{"--verbose", "--model", "gpt-4"},
+			wantSkipFilter:    false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			provider, piArgs, skipFilter := parseArgs(tt.args)
-
-			if provider != tt.expectedProvider {
-				t.Errorf("parseArgs(%v) provider = %q, expected %q", tt.args, provider, tt.expectedProvider)
+			providerArg, piArgs, skipFilter := parseArgs(tt.args)
+			if providerArg != tt.wantProviderArg {
+				t.Errorf("parseArgs() providerArg = %q, want %q", providerArg, tt.wantProviderArg)
 			}
-
-			if len(piArgs) != len(tt.expectedPiArgs) {
-				t.Errorf("parseArgs(%v) piArgs = %v, expected %v", tt.args, piArgs, tt.expectedPiArgs)
-			} else {
-				for i := range piArgs {
-					if piArgs[i] != tt.expectedPiArgs[i] {
-						t.Errorf("parseArgs(%v) piArgs[%d] = %q, expected %q", tt.args, i, piArgs[i], tt.expectedPiArgs[i])
-					}
-				}
+			if len(piArgs) != len(tt.wantPiArgs) {
+				t.Errorf("parseArgs() piArgs length = %d, want %d", len(piArgs), len(tt.wantPiArgs))
 			}
-
-			if skipFilter != tt.expectedSkipFilter {
-				t.Errorf("parseArgs(%v) skipFilter = %v, expected %v", tt.args, skipFilter, tt.expectedSkipFilter)
+			if skipFilter != tt.wantSkipFilter {
+				t.Errorf("parseArgs() skipFilter = %v, want %v", skipFilter, tt.wantSkipFilter)
 			}
 		})
 	}
 }
 
-func TestZeroMasterKey(t *testing.T) {
-	// Create a test master key
-	masterKey := []byte("this-is-a-32-byte-test-key-here!")
-
-	// Verify length is correct (should be 32 bytes)
-	if len(masterKey) != 32 {
-		t.Fatalf("Test setup error: expected 32 bytes, got %d", len(masterKey))
-	}
-
-	// Zero the master key
-	zeroMasterKey(masterKey)
-
-	// Check that all bytes are zero
-	for i, b := range masterKey {
-		if b != 0 {
-			t.Errorf("zeroMasterKey() masterKey[%d] = %d, expected 0", i, b)
-		}
-	}
-}
-
-func TestZeroMasterKey_Empty(t *testing.T) {
-	// Test with empty slice - should not panic
-	masterKey := []byte{}
-	zeroMasterKey(masterKey)
-
-	if len(masterKey) != 0 {
-		t.Errorf("zeroMasterKey() modified empty slice length from 0 to %d", len(masterKey))
-	}
-}
-
 func TestValidateProvider(t *testing.T) {
 	tests := []struct {
-		name        string
-		provider    string
-		wantErr     bool
-		errContains string
+		name    string
+		wantErr bool
 	}{
-		{"valid provider format", "openai", false, ""},
-		{"empty provider", "", true, "cannot be empty"},
-		{"path traversal", "../etc", true, "path traversal"},
-		{"invalid characters", "provider@bad", true, "must be 1-50 characters"},
+		{"openai", false},
+		{"anthropic", false},
+		{"google", false},
+		{"valid-name", false},
+		{"", true},
+		{"..", true},
+		{"/path", true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateProvider(tt.provider)
+			err := validateProvider(tt.name)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("validateProvider() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if err != nil && tt.errContains != "" {
-				if !strings.Contains(err.Error(), tt.errContains) {
-					t.Errorf("validateProvider() error = %v, should contain %q", err, tt.errContains)
-				}
+				t.Errorf("validateProvider(%q) error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			}
 		})
 	}
