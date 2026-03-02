@@ -72,67 +72,57 @@ func TestRootCmdStructure(t *testing.T) {
 
 func TestParseArgs(t *testing.T) {
 	tests := []struct {
-		name              string
-		args              []string
-		wantProviderArg   string
-		wantPiArgs        []string
-		wantSkipFilter    bool
+		name            string
+		args            []string
+		wantProviderArg string
+		wantPiArgs      []string
 	}{
 		{
-			name:              "no args",
-			args:              []string{},
-			wantProviderArg:   "",
-			wantPiArgs:        []string{},
-			wantSkipFilter:    false,
+			name:            "no args",
+			args:            []string{},
+			wantProviderArg: "",
+			wantPiArgs:      []string{},
 		},
 		{
-			name:              "provider only",
-			args:              []string{"openai"},
-			wantProviderArg:   "openai",
-			wantPiArgs:        []string{},
-			wantSkipFilter:    false,
+			name:            "provider only",
+			args:            []string{"openai"},
+			wantProviderArg: "openai",
+			wantPiArgs:      []string{},
 		},
 		{
-			name:              "provider with pi args",
-			args:              []string{"openai", "--model", "gpt-4"},
-			wantProviderArg:   "openai",
-			wantPiArgs:        []string{"--model", "gpt-4"},
-			wantSkipFilter:    false,
+			name:            "provider with pi args",
+			args:            []string{"openai", "--model", "gpt-4"},
+			wantProviderArg: "openai",
+			wantPiArgs:      []string{"--model", "gpt-4"},
 		},
 		{
-			name:              "double dash separator",
-			args:              []string{"--", "--model", "gpt-4"},
-			wantProviderArg:   "",
-			wantPiArgs:        []string{"--model", "gpt-4"},
-			wantSkipFilter:    true,
+			name:            "double dash separator",
+			args:            []string{"--", "--model", "gpt-4"},
+			wantProviderArg: "",
+			wantPiArgs:      []string{"--model", "gpt-4"},
 		},
 		{
-			name:              "provider with double dash",
-			args:              []string{"openai", "--", "--verbose"},
-			wantProviderArg:   "openai",
-			wantPiArgs:        []string{"--verbose"},
-			wantSkipFilter:    true,
+			name:            "provider with double dash",
+			args:            []string{"openai", "--", "--verbose"},
+			wantProviderArg: "openai",
+			wantPiArgs:      []string{"--verbose"},
 		},
 		{
-			name:              "only pi args (starting with dash)",
-			args:              []string{"--verbose", "--model", "gpt-4"},
-			wantProviderArg:   "",
-			wantPiArgs:        []string{"--verbose", "--model", "gpt-4"},
-			wantSkipFilter:    false,
+			name:            "only pi args (starting with dash)",
+			args:            []string{"--verbose", "--model", "gpt-4"},
+			wantProviderArg: "",
+			wantPiArgs:      []string{"--verbose", "--model", "gpt-4"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			providerArg, piArgs, skipFilter := parseArgs(tt.args)
+			providerArg, piArgs := parseArgs(tt.args)
 			if providerArg != tt.wantProviderArg {
 				t.Errorf("parseArgs() providerArg = %q, want %q", providerArg, tt.wantProviderArg)
 			}
 			if len(piArgs) != len(tt.wantPiArgs) {
 				t.Errorf("parseArgs() piArgs length = %d, want %d", len(piArgs), len(tt.wantPiArgs))
-			}
-			if skipFilter != tt.wantSkipFilter {
-				t.Errorf("parseArgs() skipFilter = %v, want %v", skipFilter, tt.wantSkipFilter)
 			}
 		})
 	}

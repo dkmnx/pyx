@@ -96,9 +96,8 @@ sequenceDiagram
     Crypto-->>Ply: Plaintext API keys
 
     Ply->>Ply: Set ENV_VARs from entries
-    Ply->>Ply: Build --models filter
 
-    Ply->>PI: Execute pi --models "provider/*"
+    Ply->>PI: Execute pi with user arguments
     PI-->>User: AI coding assistant
 ```
 

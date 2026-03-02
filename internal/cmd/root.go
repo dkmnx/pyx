@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"sort"
-	"strings"
 
 	"github.com/dkmnx/ply/internal/crypto"
 	"github.com/dkmnx/ply/internal/database"
@@ -62,7 +61,7 @@ func runRoot(cmd *cobra.Command, args []string) {
 	}
 
 	// Parse arguments and resolve entries
-	providerArg, piArgs, skipModelsFilter := parseArgs(args)
+	providerArg, piArgs := parseArgs(args)
 
 	entries, err := resolveEntries(db, providerArg)
 	if err != nil {
@@ -87,7 +86,7 @@ func runRoot(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	executePi(entries, piArgs, skipModelsFilter, providerEnv, sessionFlag)
+	executePi(entries, piArgs, providerEnv, sessionFlag)
 }
 
 // initializeKeyManager creates the key manager, database, handles migration, and verifies master key exists.
@@ -153,10 +152,9 @@ func zeroMasterKey(masterKey []byte) {
 	}
 }
 
-func parseArgs(args []string) (providerArg string, piArgs []string, skipModelsFilter bool) {
+func parseArgs(args []string) (providerArg string, piArgs []string) {
 	for i, arg := range args {
 		if arg == "--" {
-			skipModelsFilter = true
 			if i > 0 {
 				providerArg = args[0]
 			}
@@ -208,7 +206,7 @@ func resolveEntries(db *database.Database, providerArg string) ([]database.Entry
 	return entries, nil
 }
 
-func executePi(entries []database.Entry, piArgs []string, skipModelsFilter bool, providerEnv []string, sessionFlag string) {
+func executePi(entries []database.Entry, piArgs []string, providerEnv []string, sessionFlag string) {
 	// Check if pi is installed, auto-install if not
 	wasInstalled, err := pi.EnsureInstalled(context.Background())
 	if err != nil {
@@ -233,16 +231,7 @@ func executePi(entries []database.Entry, piArgs []string, skipModelsFilter bool,
 	}
 
 	var finalPiArgs []string
-	if skipModelsFilter {
-		finalPiArgs = piArgs
-	} else {
-		providersList := make([]string, 0, len(entries))
-		for _, entry := range entries {
-			providersList = append(providersList, fmt.Sprintf("%s/*", entry.Provider))
-		}
-		finalPiArgs = []string{"--models", strings.Join(providersList, ",")}
-		finalPiArgs = append(finalPiArgs, piArgs...)
-	}
+	finalPiArgs = piArgs
 
 	// Add session flag if provided
 	if sessionFlag != "" {

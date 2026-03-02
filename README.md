@@ -57,7 +57,6 @@ ply
 - **Secure Storage**: AES-256-GCM encryption for all API keys
 - **Multiple Providers**: Support for Anthropic, OpenAI, Google, Groq, and more
 - **Multi-Provider**: Run pi with all configured providers simultaneously
-- **Model Filtering**: Automatically filters models by provider
 - **Shell Completion**: Full bash, zsh, fish, and PowerShell support
 
 ## Project Structure

@@ -137,18 +137,6 @@ which pi
 pi --help
 ```
 
-### Models not filtering correctly
-
-Model filtering uses the provider's model prefix:
-
-```bash
-# This filters to Anthropic models only
-ply anthropic
-
-# Skip filtering entirely
-ply -- --model gpt-4
-```
-
 ## File Permissions
 
 ### Permission issues on Linux

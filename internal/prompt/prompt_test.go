@@ -108,9 +108,9 @@ func TestAllErrorMessages(t *testing.T) {
 	// Comprehensive test of all error messages
 	expectedMessages := map[string]string{
 		"ErrEmptyAPIKey":           "API key cannot be empty",
-		"ErrEmptyPassword":        "password cannot be empty",
-		"ErrCancelled":            "operation cancelled",
-		"ErrInvalidProvider":      "invalid provider selection",
+		"ErrEmptyPassword":         "password cannot be empty",
+		"ErrCancelled":             "operation cancelled",
+		"ErrInvalidProvider":       "invalid provider selection",
 		"ErrInvalidPackageManager": "invalid package manager selection",
 	}
 

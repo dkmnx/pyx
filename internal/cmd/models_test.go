@@ -18,7 +18,7 @@ func TestOutputTable(t *testing.T) {
 
 	// Create test data
 	testData := models.Models{
-		"openai": {"gpt-4", "gpt-3.5-turbo"},
+		"openai":    {"gpt-4", "gpt-3.5-turbo"},
 		"anthropic": {"claude-3-opus", "claude-3-sonnet"},
 	}
 
