@@ -3,6 +3,8 @@ package providers
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -44,6 +46,7 @@ var envVarMapping = map[string]string{
 	"opencode":               "OPENCODE_API_KEY",
 	"opencode-zen":           "OPENCODE_API_KEY",
 	"openrouter":             "OPENROUTER_API_KEY",
+	"qwen":                   "QWEN_API_KEY",
 	"vercel-ai-gateway":      "AI_GATEWAY_API_KEY",
 	"xai":                    "XAI_API_KEY",
 	"zai":                    "ZAI_API_KEY",
@@ -57,6 +60,12 @@ func Names() []string {
 	for provider := range all {
 		names = append(names, provider)
 	}
+
+	// Add qwen if extension exists
+	if hasQwenExtension() {
+		names = append(names, "qwen")
+	}
+
 	return names
 }
 
@@ -126,11 +135,31 @@ func deriveEnvVar(name string) (string, bool) {
 	}
 }
 
+// hasQwenExtension checks if the qwen-coding-plan-provider extension exists.
+func hasQwenExtension() bool {
+	homeDir := os.Getenv("HOME")
+	if homeDir == "" {
+		homeDir = os.Getenv("USERPROFILE") // Windows fallback
+	}
+	if homeDir == "" {
+		return false
+	}
+	extPath := filepath.Join(homeDir, ".pi", "agent", "extensions", "qwen-coding-plan-provider")
+	info, err := os.Stat(extPath)
+	return err == nil && info.IsDir()
+}
+
 // IsValid returns true if the given provider name is recognized.
 // This checks against the providers fetched from models cache.
 func IsValid(name string) bool {
 	all := models.GetAll()
 	_, exists := all[name]
+
+	// Also check for qwen extension
+	if name == "qwen" && hasQwenExtension() {
+		return true
+	}
+
 	return exists
 }
 
@@ -190,6 +219,12 @@ func GetAll(ctx context.Context) ([]Provider, error) {
 			continue
 		}
 		providers = append(providers, Provider{Name: name, EnvVar: envVar})
+	}
+
+	// Add qwen if extension exists
+	if hasQwenExtension() {
+		envVar, _ := EnvVar("qwen") // We just added it to mapping, so this will succeed
+		providers = append(providers, Provider{Name: "qwen", EnvVar: envVar})
 	}
 
 	return providers, nil
