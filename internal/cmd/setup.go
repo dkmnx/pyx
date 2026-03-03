@@ -257,18 +257,7 @@ func runRecovery(ctx context.Context, keyMgr *keys.Manager, db *database.Databas
 		return
 	}
 
-	providerNames := make([]string, len(entries))
-	for i, e := range entries {
-		providerNames[i] = e.Provider
-	}
-
-	tap.Message(fmt.Sprintf("Provider(s) found: %s", strings.Join(providerNames, ", ")))
-
-	if !prompt.Confirm(ctx, "Re-enter API keys for these providers?") {
-		tap.Cancel("Recovery cancelled")
-		return
-	}
-
+	// Create new master key first before re-entering provider API keys
 	if err := keyMgr.Delete(); err != nil {
 		tap.Cancel("Error removing old configuration")
 		return
@@ -280,6 +269,18 @@ func runRecovery(ctx context.Context, keyMgr *keys.Manager, db *database.Databas
 		return
 	}
 	defer zeroMasterKey(masterKey)
+
+	providerNames := make([]string, len(entries))
+	for i, e := range entries {
+		providerNames[i] = e.Provider
+	}
+
+	tap.Message(fmt.Sprintf("Provider(s) found: %s", strings.Join(providerNames, ", ")))
+
+	if !prompt.Confirm(ctx, "Re-enter API keys for these providers?") {
+		tap.Cancel("Recovery cancelled")
+		return
+	}
 
 	for _, entry := range entries {
 		apiKey, err := prompt.PromptAPIKey(ctx, entry.Provider)
