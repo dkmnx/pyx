@@ -63,7 +63,7 @@ func runConfigEdit(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	newAPIKey, err := prompt.PromptAPIKey(ctx)
+	newAPIKey, err := prompt.PromptAPIKey(ctx, entry.Provider)
 	if err != nil {
 		tap.Cancel(fmt.Sprintf("Error: %v", err))
 		return

@@ -67,8 +67,6 @@ func loadExistingMasterKey(ctx context.Context, keyMgr *keys.Manager) ([]byte, e
 }
 
 func createMasterKey(ctx context.Context, keyMgr *keys.Manager) ([]byte, error) {
-	tap.Message("Initializing ply for the first time...")
-
 	// Check if password already exists in keyring
 	hasPassword, err := keyMgr.PasswordExists()
 	if err != nil {
@@ -77,9 +75,6 @@ func createMasterKey(ctx context.Context, keyMgr *keys.Manager) ([]byte, error) 
 
 	// If no password, prompt user to create one
 	if !hasPassword {
-		tap.Message("Setting up password to encrypt your master key.")
-		tap.Message("This password will be stored securely in your OS keyring.")
-
 		pwStr, err := prompt.PromptNewPassword(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("error: %w", err)
@@ -190,11 +185,12 @@ func promptProviderAndKey(ctx context.Context, db *database.Database) (string, s
 	// Check if provider already configured
 	if _, err := db.GetEntry(provider); err == nil {
 		if !confirmProviderOverride(ctx, provider) {
+			tap.Cancel("Setup cancelled!")
 			return "", "", fmt.Errorf("setup cancelled")
 		}
 	}
 
-	apiKey, err := prompt.PromptAPIKey(ctx)
+	apiKey, err := prompt.PromptAPIKey(ctx, provider)
 	if err != nil {
 		return "", "", fmt.Errorf("error: %w", err)
 	}

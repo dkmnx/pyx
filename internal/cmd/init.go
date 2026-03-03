@@ -139,8 +139,7 @@ func runRecovery(ctx context.Context, keyMgr *keys.Manager, db *database.Databas
 	defer zeroMasterKey(masterKey)
 
 	for _, entry := range entries {
-		tap.Message(fmt.Sprintf("Enter API key for %s:", entry.Provider))
-		apiKey, err := prompt.PromptAPIKey(ctx)
+		apiKey, err := prompt.PromptAPIKey(ctx, entry.Provider)
 		if err != nil {
 			tap.Cancel(fmt.Sprintf("Error reading API key for %s", entry.Provider))
 			return

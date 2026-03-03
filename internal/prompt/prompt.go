@@ -2,6 +2,7 @@ package prompt
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 
@@ -51,9 +52,9 @@ func PromptProvider(ctx context.Context) (string, error) {
 	return "", ErrInvalidProvider
 }
 
-func PromptAPIKey(ctx context.Context) (string, error) {
+func PromptAPIKey(ctx context.Context, provider string) (string, error) {
 	result := tap.Password(ctx, tap.PasswordOptions{
-		Message: "Enter API key:",
+		Message: fmt.Sprintf("Enter API key for %s:", provider),
 	})
 
 	if result == "" {
@@ -76,8 +77,9 @@ func PromptPassword(ctx context.Context, message string) (string, error) {
 }
 
 func PromptNewPassword(ctx context.Context) (string, error) {
-	tap.Message("Choose a password to encrypt your master key.")
-	tap.Message("This password will be required each time you use ply.")
+	tap.Message("Choose a password to encrypt your master key.", tap.MessageOptions{
+		Hint: "This password will be required each time you use ply.",
+	})
 
 	for {
 		password := tap.Password(ctx, tap.PasswordOptions{
