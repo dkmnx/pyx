@@ -26,6 +26,14 @@ func init() {
 	rootCmd.AddCommand(initCmd)
 }
 
+func databaseExists(ctx context.Context, db *database.Database) (bool, error) {
+	if err := db.Load(ctx); err != nil {
+		return false, err
+	}
+	entries := db.ListEntries()
+	return len(entries) > 0, nil
+}
+
 func runInit(cmd *cobra.Command, args []string) {
 	ctx := context.Background()
 
@@ -48,6 +56,12 @@ func runInit(cmd *cobra.Command, args []string) {
 		return
 	}
 
+	hasDatabase, err := databaseExists(ctx, db)
+	if err != nil {
+		tap.Cancel("Error checking database")
+		return
+	}
+
 	if keyExists && keyMgr.CanLoad() {
 		tap.Message("Master key already initialized!")
 		tap.Outro("Run 'ply setup' to add a provider.")
@@ -55,6 +69,11 @@ func runInit(cmd *cobra.Command, args []string) {
 	}
 
 	if keyExists && !keyMgr.CanLoad() {
+		runRecovery(ctx, keyMgr, db)
+		return
+	}
+
+	if !keyExists && hasDatabase {
 		runRecovery(ctx, keyMgr, db)
 		return
 	}
