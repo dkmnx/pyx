@@ -24,7 +24,15 @@ var (
 
 // envVarMapping provides the environment variable name for known providers.
 // This is needed because the env var is not in the fetched models file.
-// When new providers are added to pi-mono, they should be added here.
+//
+// Maintenance: When new providers are added to pi-mono, they should be added here.
+// However, the deriveEnvVar() function provides a fallback for unknown providers,
+// so manual updates are not strictly required for basic functionality.
+//
+// To add a new provider:
+// 1. Add entry: "provider-name": "PROVIDER_API_KEY",
+// 2. Run tests to ensure mapping is correct
+// 3. Update docs if needed
 var envVarMapping = map[string]string{
 	"amazon-bedrock":         "AWS_BEARER_TOKEN_BEDROCK",
 	"anthropic":              "ANTHROPIC_API_KEY",
@@ -96,46 +104,79 @@ func EnvVar(name string) (string, bool) {
 	return "", false
 }
 
+// providerEnvVarPattern maps provider name patterns to environment variable names.
+// Keys are prefixes or special patterns, values are the corresponding env var.
+var providerEnvVarPattern = map[string]string{
+	"amazon":      "AWS_BEARER_TOKEN_BEDROCK",
+	"aws":         "AWS_BEARER_TOKEN_BEDROCK",
+	"azure":       "AZURE_OPENAI_API_KEY",
+	"anthropic":   "ANTHROPIC_API_KEY",
+	"openai":      "OPENAI_API_KEY",
+	"github":      "GITHUB_TOKEN",
+	"huggingface": "HF_TOKEN",
+	"hugging":     "HF_TOKEN",
+	"cohere":      "COHERE_API_KEY",
+	"deepseek":    "DEEPSEEK_API_KEY",
+	"meta":        "META_API_KEY",
+	"nvidia":      "NVIDIA_API_KEY",
+	"moonshot":    "MOONSHOT_API_KEY",
+	"qwen":        "QWEN_API_KEY",
+	"writer":      "WRITER_API_KEY",
+	"mistral":     "MISTRAL_API_KEY",
+	"groq":        "GROQ_API_KEY",
+	"openrouter":  "OPENROUTER_API_KEY",
+	"cerebras":    "CEREBRAS_API_KEY",
+	"kimi":        "KIMI_API_KEY",
+	"opencode":    "OPENCODE_API_KEY",
+	"xai":         "XAI_API_KEY",
+	"zai":         "ZAI_API_KEY",
+}
+
 // deriveEnvVar attempts to derive the environment variable name from the provider name.
 // This handles cases where a new provider was added to pi-mono but not yet to our mapping.
+// The function uses common naming patterns to make an educated guess.
+//
+// Priority order:
+// 1. Special cases (google-vertex, minimax-cn, vercel)
+// 2. Known provider prefixes from providerEnvVarPattern
+// 3. Pattern-based derivation (-ai suffix)
+// 4. Generic pattern: PROVIDER_NAME_API_KEY
 func deriveEnvVar(name string) (string, bool) {
-	nameUpper := strings.ToUpper(name)
-
-	// Common patterns
-	switch {
-	case strings.HasPrefix(name, "amazon"):
-		return "AWS_BEARER_TOKEN_BEDROCK", true
-	case strings.HasPrefix(name, "anthropic"):
-		return "ANTHROPIC_API_KEY", true
-	case strings.HasPrefix(name, "azure"):
-		return "AZURE_OPENAI_API_KEY", true
-	case strings.HasPrefix(name, "cohere"):
-		return "COHERE_API_KEY", true
-	case strings.HasPrefix(name, "deepseek"):
-		return "DEEPSEEK_API_KEY", true
-	case strings.HasPrefix(name, "github"):
-		return "GITHUB_TOKEN", true
-	case strings.HasPrefix(name, "google"):
-		if strings.Contains(name, "vertex") {
-			return "GOOGLE_APPLICATION_CREDENTIALS", true
-		}
-		return "GEMINI_API_KEY", true
-	case strings.HasPrefix(name, "meta"):
-		return "META_API_KEY", true
-	case strings.HasPrefix(name, "nvidia"):
-		return "NVIDIA_API_KEY", true
-	case strings.HasPrefix(name, "moonshot"):
-		return "MOONSHOT_API_KEY", true
-	case strings.HasPrefix(name, "qwen"):
-		return "QWEN_API_KEY", true
-	case strings.HasPrefix(name, "writer"):
-		return "WRITER_API_KEY", true
-	case strings.HasSuffix(name, "-ai"):
-		base := strings.TrimSuffix(name, "-ai")
-		return strings.ToUpper(base) + "_API_KEY", true
-	default:
-		return nameUpper + "_API_KEY", true
+	// Special cases that need custom handling
+	if strings.HasPrefix(name, "google") && strings.Contains(name, "vertex") {
+		return "GOOGLE_APPLICATION_CREDENTIALS", true
 	}
+	if strings.HasPrefix(name, "google") {
+		return "GEMINI_API_KEY", true
+	}
+	if name == "minimax-cn" || strings.HasSuffix(name, "-cn") {
+		return "MINIMAX_CN_API_KEY", true
+	}
+	if strings.HasPrefix(name, "minimax") {
+		return "MINIMAX_API_KEY", true
+	}
+	if strings.HasPrefix(name, "vercel") {
+		return "AI_GATEWAY_API_KEY", true
+	}
+
+	// Check known provider patterns
+	for prefix, envVar := range providerEnvVarPattern {
+		if strings.HasPrefix(name, prefix) {
+			return envVar, true
+		}
+	}
+
+	// Pattern-based derivation for -ai or _ai suffix
+	if strings.HasSuffix(name, "-ai") || strings.HasSuffix(name, "_ai") {
+		base := strings.TrimSuffix(name, "-ai")
+		base = strings.TrimSuffix(base, "_ai")
+		base = strings.ToUpper(strings.ReplaceAll(base, "-", "_"))
+		return base + "_API_KEY", true
+	}
+
+	// Default fallback: convert provider name to uppercase and append _API_KEY
+	nameUpper := strings.ToUpper(strings.ReplaceAll(name, "-", "_"))
+	return nameUpper + "_API_KEY", true
 }
 
 // hasQwenExtension checks if the qwen-coding-plan-provider extension exists.

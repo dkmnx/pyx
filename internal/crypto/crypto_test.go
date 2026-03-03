@@ -139,6 +139,7 @@ func TestSecureStringEqual(t *testing.T) {
 		{"nil and nil", nil, nil, true},
 		{"nil and non-nil", nil, ss1, false},
 		{"non-nil and nil", ss1, nil, false},
+		{"self comparison", ss1, ss1, true},
 	}
 
 	for _, tt := range tests {

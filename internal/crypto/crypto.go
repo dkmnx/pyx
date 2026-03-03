@@ -106,15 +106,20 @@ func (ss *SecureString) IsZeroed() bool {
 }
 
 // Equal securely compares two SecureString values in constant time.
-// Note: When both SecureStrings are non-nil, this method acquires locks in a consistent
-// order (ss first, then other) to prevent deadlocks. This is safe even if the same
-// SecureString is passed as both arguments (idempotent).
+// Returns true if both SecureStrings contain the same value, false otherwise.
+// Handles nil values and self-comparison safely.
 func (ss *SecureString) Equal(other *SecureString) bool {
+	// Handle nil cases
 	if ss == nil && other == nil {
 		return true
 	}
 	if ss == nil || other == nil {
 		return false
+	}
+
+	// Fast path: self-comparison
+	if ss == other {
+		return true
 	}
 
 	ss.mu.RLock()

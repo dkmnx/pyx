@@ -43,23 +43,61 @@ func TestDeriveEnvVar(t *testing.T) {
 		provider string
 		want     string
 	}{
-		{"cohere provider", "cohere", "COHERE_API_KEY"},
-		{"deepseek provider", "deepseek", "DEEPSEEK_API_KEY"},
-		{"meta provider", "meta", "META_API_KEY"},
-		{"nvidia provider", "nvidia", "NVIDIA_API_KEY"},
-		{"moonshot provider", "moonshot", "MOONSHOT_API_KEY"},
-		{"qwen provider", "qwen", "QWEN_API_KEY"},
-		{"writer provider", "writer", "WRITER_API_KEY"},
+		// Cloud providers
+		{"amazon bedrock", "amazon-bedrock", "AWS_BEARER_TOKEN_BEDROCK"},
+		{"aws provider", "aws-provider", "AWS_BEARER_TOKEN_BEDROCK"},
+		{"azure openai", "azure-openai", "AZURE_OPENAI_API_KEY"},
 		{"google vertex", "google-vertex", "GOOGLE_APPLICATION_CREDENTIALS"},
+
+		// Major AI providers
+		{"anthropic", "anthropic", "ANTHROPIC_API_KEY"},
+		{"openai", "openai", "OPENAI_API_KEY"},
+		{"google", "google", "GEMINI_API_KEY"},
+		{"google gemini", "google-gemini", "GEMINI_API_KEY"},
+
+		// GitHub and HuggingFace
+		{"github", "github", "GITHUB_TOKEN"},
+		{"github copilot", "github-copilot", "GITHUB_TOKEN"},
+		{"huggingface", "huggingface", "HF_TOKEN"},
+		{"hugging", "hugging", "HF_TOKEN"},
+
+		// Standard API_KEY pattern providers
+		{"cohere", "cohere", "COHERE_API_KEY"},
+		{"deepseek", "deepseek", "DEEPSEEK_API_KEY"},
+		{"meta", "meta", "META_API_KEY"},
+		{"nvidia", "nvidia", "NVIDIA_API_KEY"},
+		{"moonshot", "moonshot", "MOONSHOT_API_KEY"},
+		{"qwen", "qwen", "QWEN_API_KEY"},
+		{"writer", "writer", "WRITER_API_KEY"},
+		{"mistral", "mistral", "MISTRAL_API_KEY"},
+		{"groq", "groq", "GROQ_API_KEY"},
+		{"openrouter", "openrouter", "OPENROUTER_API_KEY"},
+		{"cerebras", "cerebras", "CEREBRAS_API_KEY"},
+		{"kimi", "kimi", "KIMI_API_KEY"},
+		{"minimax", "minimax", "MINIMAX_API_KEY"},
+		{"minimax cn", "minimax-cn", "MINIMAX_CN_API_KEY"},
+		{"opencode", "opencode", "OPENCODE_API_KEY"},
+		{"vercel", "vercel-ai-gateway", "AI_GATEWAY_API_KEY"},
+		{"xai", "xai", "XAI_API_KEY"},
+		{"zai", "zai", "ZAI_API_KEY"},
+
+		// Pattern-based derivation
 		{"custom -ai suffix", "custom-ai", "CUSTOM_API_KEY"},
-		{"unknown provider", "unknown-provider", "UNKNOWN-PROVIDER_API_KEY"},
+		{"custom _ai suffix", "custom_ai", "CUSTOM_API_KEY"},
+
+		// Unknown providers (default fallback)
+		{"unknown provider", "unknown-provider", "UNKNOWN_PROVIDER_API_KEY"},
+		{"new provider", "new-provider", "NEW_PROVIDER_API_KEY"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, _ := deriveEnvVar(tt.provider)
+			got, ok := deriveEnvVar(tt.provider)
+			if !ok {
+				t.Errorf("deriveEnvVar() returned ok=false for %q", tt.provider)
+			}
 			if got != tt.want {
-				t.Errorf("deriveEnvVar() = %v, want %v", got, tt.want)
+				t.Errorf("deriveEnvVar(%q) = %v, want %v", tt.provider, got, tt.want)
 			}
 		})
 	}

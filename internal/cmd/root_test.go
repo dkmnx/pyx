@@ -156,7 +156,7 @@ func TestProviderEnvVar(t *testing.T) {
 		{
 			name:          "unknown provider",
 			provider:      "unknown-provider",
-			expectedEnv:   "UNKNOWN-PROVIDER_API_KEY",
+			expectedEnv:   "UNKNOWN_PROVIDER_API_KEY",
 			expectedFound: true,
 		},
 		{
