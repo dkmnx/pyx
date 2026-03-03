@@ -54,8 +54,11 @@ var envVarMapping = map[string]string{
 
 // Names returns a list of all supported provider names fetched from models cache.
 // If cache is unavailable or stale, returns an empty list.
-func Names() []string {
-	all := models.GetAll()
+func Names(ctx context.Context) []string {
+	all, err := models.GetModels(ctx)
+	if err != nil {
+		return []string{}
+	}
 	names := make([]string, 0, len(all))
 	for provider := range all {
 		names = append(names, provider)
@@ -151,8 +154,26 @@ func hasQwenExtension() bool {
 
 // IsValid returns true if the given provider name is recognized.
 // This checks against the providers fetched from models cache.
+// Deprecated: Use Validate() instead which provides better error messages.
 func IsValid(name string) bool {
 	all := models.GetAll()
+	_, exists := all[name]
+
+	// Also check for qwen extension
+	if name == "qwen" && hasQwenExtension() {
+		return true
+	}
+
+	return exists
+}
+
+// IsValidWithContext returns true if the given provider name is recognized.
+// This checks against the providers fetched from models cache using the provided context.
+func IsValidWithContext(ctx context.Context, name string) bool {
+	all, err := models.GetModels(ctx)
+	if err != nil {
+		return false
+	}
 	_, exists := all[name]
 
 	// Also check for qwen extension

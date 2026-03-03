@@ -11,7 +11,7 @@ import (
 )
 
 func PromptProvider(ctx context.Context) (string, error) {
-	providerNames := providers.Names()
+	providerNames := providers.Names(ctx)
 	sort.Strings(providerNames)
 
 	suggest := func(input string) []string {

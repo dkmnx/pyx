@@ -1,6 +1,7 @@
 package providers
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
@@ -136,7 +137,7 @@ func TestValidate(t *testing.T) {
 }
 
 func TestNames(t *testing.T) {
-	names := Names()
+	names := Names(context.Background())
 
 	// Note: This test may return empty if cache is not available
 	// That's expected behavior

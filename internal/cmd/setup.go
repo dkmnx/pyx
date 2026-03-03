@@ -313,7 +313,10 @@ func runRecovery(ctx context.Context, keyMgr *keys.Manager, db *database.Databas
 }
 
 func runSetup(cmd *cobra.Command, args []string) {
-	ctx := context.Background()
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
 	fmt.Println()
 

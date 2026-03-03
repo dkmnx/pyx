@@ -46,6 +46,11 @@ func init() {
 }
 
 func runRoot(cmd *cobra.Command, args []string) {
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	// Initialize key manager, database, and ensure master key exists
 	keyMgr, db, err := initializeKeyManager()
 	if err != nil {
@@ -54,7 +59,7 @@ func runRoot(cmd *cobra.Command, args []string) {
 	}
 
 	// Load database
-	if err := db.Load(context.Background()); err != nil {
+	if err := db.Load(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "Error loading database: %v\n", err)
 		os.Exit(1)
 	}
@@ -85,7 +90,7 @@ func runRoot(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	executePi(entries, piArgs, providerEnv, sessionFlag)
+	executePi(ctx, entries, piArgs, providerEnv, sessionFlag)
 }
 
 // initializeKeyManager creates the key manager and database, and verifies master key exists.
@@ -180,9 +185,9 @@ func resolveEntries(db *database.Database, providerArg string) ([]database.Entry
 	return entries, nil
 }
 
-func executePi(entries []database.Entry, piArgs []string, providerEnv []string, sessionFlag string) {
+func executePi(ctx context.Context, entries []database.Entry, piArgs []string, providerEnv []string, sessionFlag string) {
 	// Check if pi is installed, auto-install if not
-	wasInstalled, err := pi.EnsureInstalled(context.Background())
+	wasInstalled, err := pi.EnsureInstalled(ctx)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error checking pi installation: %v\n", err)
 		fmt.Fprintln(os.Stderr, "Please install pi manually:")

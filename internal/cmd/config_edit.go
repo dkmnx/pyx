@@ -28,7 +28,10 @@ func init() {
 }
 
 func runConfigEdit(cmd *cobra.Command, args []string) {
-	ctx := context.Background()
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	target := args[0]
 
 	dataDir, err := fs.DataDir()

@@ -24,6 +24,11 @@ func init() {
 // Reads the database, retrieves all provider entries, and displays them
 // in a formatted list. Shows total count of configured providers at the end.
 func runConfigList(cmd *cobra.Command, args []string) {
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	// Get data directory
 	dataDir, err := fs.DataDir()
 	if err != nil {
@@ -33,7 +38,7 @@ func runConfigList(cmd *cobra.Command, args []string) {
 
 	// Load database
 	db := database.New(dataDir)
-	if err := db.Load(context.Background()); err != nil {
+	if err := db.Load(ctx); err != nil {
 		cmd.Printf("Error loading database: %v\n", err)
 		return
 	}

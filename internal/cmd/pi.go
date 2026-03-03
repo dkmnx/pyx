@@ -34,7 +34,10 @@ func init() {
 }
 
 func runPiInstall(cmd *cobra.Command, args []string) {
-	ctx := context.Background()
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
 	// Check if pi is already installed
 	installed, err := pi.CheckInstalled()

@@ -25,7 +25,10 @@ func init() {
 }
 
 func runConfigDelete(cmd *cobra.Command, args []string) {
-	ctx := context.Background()
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	target := args[0]
 
 	// Validate provider name before checking database

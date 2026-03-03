@@ -39,7 +39,11 @@ func init() {
 }
 
 func runModels(cmd *cobra.Command, args []string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
 	modelsData, err := models.GetModels(ctx)
@@ -57,7 +61,11 @@ func runModels(cmd *cobra.Command, args []string) {
 }
 
 func runModelsUpdate(cmd *cobra.Command, args []string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
 
 	fmt.Println("Fetching latest models from pi-mono repository...")
