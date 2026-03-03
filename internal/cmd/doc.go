@@ -16,6 +16,24 @@
 //   - CLI commands have no recovery point above them - os.Exit() is appropriate
 //   - Avoids error propagation through multiple layers in CLI context
 //
+// # Command Structure and Global State
+//
+// This package uses package-level variables for command definitions and flags:
+//
+//	var rootCmd = &cobra.Command{...}
+//	var sessionFlag string
+//
+// This is the standard and recommended pattern for Cobra-based CLIs:
+//   - Commands are registered in init() functions
+//   - Flag variables are bound to commands via Flags() methods
+//   - This pattern is used by most Cobra applications (kubectl, hugo, etc.)
+//
+// While this introduces global state, it's acceptable because:
+//   - Commands are stateless - they don't maintain mutable state between calls
+//   - Each command execution is independent
+//   - The pattern enables Cobra's reflection-based flag binding
+//   - Testing is still possible via direct function calls (runRoot, runSetup, etc.)
+//
 // # Using RunE vs Run
 //
 // Most command functions use `Run` (not `RunE`) and handle errors
