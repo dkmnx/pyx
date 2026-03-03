@@ -31,6 +31,11 @@ integration with pi by setting appropriate environment variables.
 - `make install` - Install to `$GOPATH/bin/ply`
 - `make run ARGS="..."` - Run directly
 
+**Running**:
+
+- Run ply in tmux (interactive CLI requires terminal)
+- If tmux not installed, ask user to install it first
+
 **Test**:
 
 - `make test` - Run all tests with race detection
