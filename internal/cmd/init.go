@@ -63,7 +63,15 @@ func runInit(cmd *cobra.Command, args []string) {
 	}
 
 	if keyExists && keyMgr.CanLoad() {
-		tap.Message("Master key already initialized!")
+		masterKey, err := loadExistingMasterKey(ctx, keyMgr)
+		if err != nil {
+			tap.Cancel(fmt.Sprintf("Error loading master key: %v", err))
+			return
+		}
+		for i := range masterKey {
+			masterKey[i] = 0
+		}
+		tap.Message("Master key loaded successfully!")
 		tap.Outro("Run 'ply setup' to add a provider.")
 		return
 	}
