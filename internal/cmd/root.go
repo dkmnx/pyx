@@ -71,7 +71,7 @@ func runRoot(cmd *cobra.Command, args []string) {
 	// Load master key (prompting for password if needed)
 	masterKey, err := loadMasterKey(keyMgr)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Could not decrypt your API keys. Run 'ply init' to recreate your configuration.")
+		fmt.Fprintln(os.Stderr, "Could not decrypt your API keys. Run 'ply setup' to recreate your configuration.")
 		os.Exit(1)
 	}
 
@@ -105,7 +105,7 @@ func initializeKeyManager() (*keys.Manager, *database.Database, error) {
 	}
 
 	if !keyExists {
-		return nil, nil, errors.New("master key not found, run 'ply init' to initialize")
+		return nil, nil, errors.New("master key not found, run 'ply setup' to initialize")
 	}
 
 	return keyMgr, db, nil

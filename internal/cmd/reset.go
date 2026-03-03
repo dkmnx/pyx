@@ -113,7 +113,6 @@ func runReset(cmd *cobra.Command, args []string) {
 	fmt.Println("✓ Reset complete!")
 	fmt.Println()
 	fmt.Println("Next steps:")
-	fmt.Println("  1. Run: ply init")
-	fmt.Println("  2. Run: ply setup")
-	fmt.Println("  3. Re-add your providers")
+	fmt.Println("  1. Run: ply setup")
+	fmt.Println("  2. Re-add your providers")
 }
