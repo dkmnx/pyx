@@ -4,21 +4,6 @@ Complete reference for all ply commands and options.
 
 ## Commands
 
-### init
-
-Initialize the master encryption key.
-
-```bash
-ply init
-```
-
-This command:
-- Creates the data directory if it doesn't exist
-- Migrates from legacy master.key file if present
-- Creates a new 32-byte encryption key
-- Stores the key securely in OS keyring (or encrypted with password if keyring unavailable)
-- Automatically installs pi if not found
-
 ### setup
 
 Initialize ply configuration and add a new provider.
@@ -26,6 +11,13 @@ Initialize ply configuration and add a new provider.
 ```bash
 ply setup
 ```
+
+This command:
+- Creates the data directory if it doesn't exist
+- Creates a new 32-byte encryption key if one doesn't exist
+- Stores the key securely in OS keyring (or encrypted with password if keyring unavailable)
+- Recovers configuration if database exists but master key is corrupted
+- Prompts for provider and API key
 
 Prompts for:
 
@@ -49,9 +41,7 @@ This command removes:
 
 **Warning:** This action cannot be undone and requires explicit "yes" confirmation.
 
-After reset, you must:
-1. Run `ply init` to create a new master key
-2. Run `ply setup` to re-add your providers
+After reset, run `ply setup` to re-add your providers.
 
 ### config list
 

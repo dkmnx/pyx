@@ -38,8 +38,7 @@ ply
 
 | Command | Description |
 |---------|-------------|
-| `ply init` | Initialize master encryption key |
-| `ply setup` | Add a new provider configuration |
+| `ply setup` | Initialize and configure ply with providers |
 | `ply config list` | List all configured providers |
 | `ply config edit <provider>` | Edit a provider's API key |
 | `ply config delete <provider>` | Delete a provider |
