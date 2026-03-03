@@ -146,7 +146,7 @@ func fetchProviders(ctx context.Context) error {
 		return fmt.Errorf("error fetching providers: %w", err)
 	}
 
-	spinner.Stop("Done", 0)
+	spinner.Stop("Fetch complete!", 0)
 	return nil
 }
 
@@ -212,7 +212,7 @@ func promptProviderAndKey(ctx context.Context, db *database.Database) (string, s
 	// Check if provider already configured
 	if _, err := db.GetEntry(provider); err == nil {
 		if !confirmProviderOverride(ctx, provider) {
-			tap.Cancel("Setup cancelled!")
+			tap.Outro("Provider already configured!")
 			return "", "", fmt.Errorf("setup cancelled")
 		}
 	}
