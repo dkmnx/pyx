@@ -44,12 +44,12 @@ func TestProviderValidationIntegration(t *testing.T) {
 	// Add a valid provider
 	validProvider := "anthropic"
 	apiKey := "sk-test-key-12345"
-	cipher, nonce, err := crypto.Encrypt(masterKey, apiKey)
+	cipher, err := crypto.Encrypt(string(masterKey), apiKey)
 	if err != nil {
 		t.Fatalf("Failed to encrypt API key: %v", err)
 	}
 
-	entry := database.NewEntry(validProvider, cipher, nonce)
+	entry := database.NewEntry(validProvider, cipher)
 	if err := db.AddEntry(entry); err != nil {
 		t.Fatalf("Failed to add entry: %v", err)
 	}

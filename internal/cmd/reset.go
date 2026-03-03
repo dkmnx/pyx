@@ -10,12 +10,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// File names for ply configuration files (shared with keys package)
+// File names for ply configuration files
 const (
 	dbFileName       = "database.json"
 	dbBackupFileName = "database.json.bak"
 	passwordFileName = "password.bin"
-	// Use keys.LegacyKeyFileName for legacy key file path
+	legacyKeyFileName = "master.key" // Legacy key file for cleanup
 )
 
 var resetCmd = &cobra.Command{
@@ -90,7 +90,7 @@ func runReset(cmd *cobra.Command, args []string) {
 	fmt.Println("✓ Master key deleted")
 
 	// Remove legacy key file
-	legacyKeyPath := filepath.Join(dataDir, keys.LegacyKeyFileName)
+	legacyKeyPath := filepath.Join(dataDir, legacyKeyFileName)
 	if _, err := os.Stat(legacyKeyPath); err == nil {
 		if err := os.Remove(legacyKeyPath); err != nil {
 			cmd.Printf("Error removing legacy key file: %v\n", err)

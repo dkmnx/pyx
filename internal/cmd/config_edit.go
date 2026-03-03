@@ -69,14 +69,13 @@ func runConfigEdit(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	cipher, nonce, err := crypto.Encrypt(masterKey, newAPIKey)
+	cipher, err := crypto.Encrypt(string(masterKey), newAPIKey)
 	if err != nil {
 		tap.Cancel(fmt.Sprintf("Error encrypting API key: %v", err))
 		return
 	}
 
 	entry.Cipher = cipher
-	entry.Nonce = nonce
 	entry.UpdatedAt = time.Now().UTC()
 
 	if updateErr := db.UpdateEntry(entry); updateErr != nil {

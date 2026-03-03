@@ -1,27 +1,25 @@
-// Package crypto provides encryption and decryption utilities for securing API keys.
+// Package crypto provides encryption and decryption utilities for securing API keys
+// using the age encryption format (filippo.io/age).
 package crypto
 
 import (
-	"crypto/aes"
-	"crypto/cipher"
+	"bytes"
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"io"
 	"sync"
+
+	"filippo.io/age"
 )
 
-const (
-	keySize   = 32 // 256 bits
-	nonceSize = 12 // 96 bits for GCM
-)
+const keySize = 32 // 256 bits
 
 var (
-	ErrInvalidKey         = errors.New("invalid key size: must be 32 bytes")
-	ErrInvalidNonce       = errors.New("invalid nonce size: must be 12 bytes")
-	ErrInvalidCiphertext  = errors.New("invalid ciphertext format")
+	ErrInvalidPassphrase  = errors.New("invalid passphrase")
+	ErrEncryptionFailed   = errors.New("encryption failed")
+	ErrDecryptionFailed   = errors.New("decryption failed")
 	ErrZeroed             = errors.New("secure bytes have been zeroed")
 	ErrSecureStringZeroed = errors.New("secure string has been zeroed")
 )
@@ -131,81 +129,62 @@ func (ss *SecureString) Equal(other *SecureString) bool {
 	return subtle.ConstantTimeCompare(ss.bytes, other.bytes) == 1
 }
 
-// Encrypt encrypts plaintext using AES-GCM with the provided key.
-// Returns base64-encoded ciphertext and nonce.
-func Encrypt(key []byte, plaintext string) (string, string, error) {
-	if len(key) != keySize {
-		return "", "", fmt.Errorf("%w: got %d bytes", ErrInvalidKey, len(key))
-	}
-
-	block, err := aes.NewCipher(key)
+// Encrypt encrypts plaintext using age with the provided passphrase.
+// Returns a base64-encoded age ciphertext.
+func Encrypt(passphrase string, plaintext string) (string, error) {
+	recipient, err := age.NewScryptRecipient(passphrase)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to create cipher: %w", err)
+		return "", ErrEncryptionFailed
 	}
 
-	gcm, err := cipher.NewGCM(block)
+	var buf bytes.Buffer
+	w, err := age.Encrypt(&buf, recipient)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to create GCM: %w", err)
+		return "", ErrEncryptionFailed
 	}
 
-	nonce := make([]byte, nonceSize)
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return "", "", fmt.Errorf("failed to generate nonce: %w", err)
+	if _, err := io.WriteString(w, plaintext); err != nil {
+		return "", ErrEncryptionFailed
 	}
 
-	ciphertext := gcm.Seal(nil, nonce, []byte(plaintext), nil)
+	if err := w.Close(); err != nil {
+		return "", ErrEncryptionFailed
+	}
 
-	cipherB64 := base64.StdEncoding.EncodeToString(ciphertext)
-	nonceB64 := base64.StdEncoding.EncodeToString(nonce)
-
-	return cipherB64, nonceB64, nil
+	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
 }
 
-// Decrypt decrypts ciphertext using AES-GCM with the provided key.
-// Expects base64-encoded ciphertext and nonce. Returns SecureBytes
-// that should be zeroed after use via defer.
-func Decrypt(key []byte, cipherB64, nonceB64 string) (SecureBytes, error) {
-	if len(key) != keySize {
-		return nil, fmt.Errorf("%w: got %d bytes", ErrInvalidKey, len(key))
-	}
-
-	ciphertext, err := base64.StdEncoding.DecodeString(cipherB64)
+// Decrypt decrypts a base64-encoded age ciphertext using the provided passphrase.
+// Returns SecureBytes that should be zeroed after use via defer.
+func Decrypt(passphrase string, ciphertext string) (SecureBytes, error) {
+	identity, err := age.NewScryptIdentity(passphrase)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode ciphertext: %w", err)
+		return nil, ErrInvalidPassphrase
 	}
 
-	nonce, err := base64.StdEncoding.DecodeString(nonceB64)
+	cipherBytes, err := base64.StdEncoding.DecodeString(ciphertext)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode nonce: %w", err)
+		return nil, ErrDecryptionFailed
 	}
 
-	if len(nonce) != nonceSize {
-		return nil, fmt.Errorf("%w: got %d bytes", ErrInvalidNonce, len(nonce))
-	}
-
-	block, err := aes.NewCipher(key)
+	r, err := age.Decrypt(bytes.NewReader(cipherBytes), identity)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create cipher: %w", err)
+		return nil, ErrInvalidPassphrase
 	}
 
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create GCM: %w", err)
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		return nil, ErrDecryptionFailed
 	}
 
-	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt: %w", err)
-	}
-
-	return SecureBytes(plaintext), nil
+	return SecureBytes(buf.Bytes()), nil
 }
 
-// GenerateKey generates a new random 32-byte encryption key.
+// GenerateKey generates a new random 32-byte key.
 func GenerateKey() ([]byte, error) {
 	key := make([]byte, keySize)
-	if _, err := io.ReadFull(rand.Reader, key); err != nil {
-		return nil, fmt.Errorf("failed to generate key: %w", err)
+	if _, err := rand.Read(key); err != nil {
+		return nil, ErrEncryptionFailed
 	}
 	return key, nil
 }

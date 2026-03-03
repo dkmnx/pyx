@@ -96,7 +96,8 @@ func createMasterKey(ctx context.Context, keyMgr *keys.Manager) ([]byte, error) 
 		}
 	}
 
-	tap.Message("Master key initialized")
+	tap.Message("Master key initialized!")
+
 	return masterKey, nil
 }
 
@@ -127,7 +128,7 @@ func storeProviderEntry(
 	provider string,
 	apiKey string,
 ) (bool, error) {
-	cipher, nonce, err := crypto.Encrypt(masterKey, apiKey)
+	cipher, err := crypto.Encrypt(string(masterKey), apiKey)
 	if err != nil {
 		return false, fmt.Errorf("error encrypting API key: %w", err)
 	}
@@ -137,14 +138,13 @@ func storeProviderEntry(
 	if existing, err := db.GetEntry(provider); err == nil {
 		isUpdate = true
 		existing.Cipher = cipher
-		existing.Nonce = nonce
 		existing.UpdatedAt = time.Now().UTC()
 		entry = existing
 		if updateEntryErr := db.UpdateEntry(entry); updateEntryErr != nil {
 			return false, fmt.Errorf("error updating entry: %w", updateEntryErr)
 		}
 	} else {
-		entry = database.NewEntry(provider, cipher, nonce)
+		entry = database.NewEntry(provider, cipher)
 		if addErr := db.AddEntry(entry); addErr != nil {
 			return false, fmt.Errorf("error adding entry: %w", addErr)
 		}
@@ -155,17 +155,6 @@ func storeProviderEntry(
 	}
 
 	return isUpdate, nil
-}
-
-// handleLegacyMigration handles legacy key migration if needed.
-func handleLegacyMigration(ctx context.Context, keyMgr *keys.Manager, db *database.Database) error {
-	_, err := keyMgr.MigrateFromLegacy(db)
-	if err != nil {
-		tap.Cancel(fmt.Sprintf("Error migrating master key: %v", err))
-		tap.Message("Run 'ply init' to initialize ply.")
-		return err
-	}
-	return nil
 }
 
 // loadOrCreateMasterKey loads existing master key or creates a new one.
@@ -212,7 +201,9 @@ func reportStoredEntry(provider string, isUpdate bool) {
 func runSetup(cmd *cobra.Command, args []string) {
 	ctx := context.Background()
 
-	tap.Intro("ply setup")
+	fmt.Println()
+
+	tap.Intro("Ply Provider Setup")
 
 	// Initialize data directory and key manager
 	dataDir, err := fs.EnsureDataDir()
@@ -223,11 +214,6 @@ func runSetup(cmd *cobra.Command, args []string) {
 
 	keyMgr := keys.New(dataDir)
 	db := database.New(dataDir)
-
-	// Handle legacy migration
-	if err := handleLegacyMigration(ctx, keyMgr, db); err != nil {
-		return
-	}
 
 	// Load or create master key
 	masterKey, err := loadOrCreateMasterKey(ctx, keyMgr)
@@ -262,5 +248,6 @@ func runSetup(cmd *cobra.Command, args []string) {
 
 	// Report success
 	reportStoredEntry(provider, isUpdate)
-	tap.Outro("API key stored securely")
+
+	tap.Outro("Provider setup complete!")
 }

@@ -184,12 +184,12 @@ func TestDecryptProviderKeys(t *testing.T) {
 	masterKey := make([]byte, 32)
 
 	// Create test entries
-	cipher1, nonce1, _ := crypto.Encrypt(masterKey, "key1")
-	cipher2, nonce2, _ := crypto.Encrypt(masterKey, "key2")
+	cipher1, _ := crypto.Encrypt(string(masterKey), "key1")
+	cipher2, _ := crypto.Encrypt(string(masterKey), "key2")
 
 	entries := []database.Entry{
-		{Provider: "openai", Cipher: cipher1, Nonce: nonce1},
-		{Provider: "anthropic", Cipher: cipher2, Nonce: nonce2},
+		{Provider: "openai", Cipher: cipher1},
+		{Provider: "anthropic", Cipher: cipher2},
 	}
 
 	keys, err := decryptProviderKeys(masterKey, entries)

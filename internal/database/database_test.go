@@ -36,7 +36,7 @@ func TestSaveLoad(t *testing.T) {
 	dataDir := t.TempDir()
 	db := New(dataDir)
 
-	entry := NewEntry("openai", "cipher", "nonce")
+	entry := NewEntry("openai", "cipher")
 	if err := db.AddEntry(entry); err != nil {
 		t.Fatalf("AddEntry() error = %v", err)
 	}
@@ -81,7 +81,7 @@ func TestAddEntry(t *testing.T) {
 	dataDir := t.TempDir()
 	db := New(dataDir)
 
-	entry1 := NewEntry("openai", "cipher1", "nonce1")
+	entry1 := NewEntry("openai", "cipher1")
 	if err := db.AddEntry(entry1); err != nil {
 		t.Fatalf("AddEntry() error = %v", err)
 	}
@@ -91,7 +91,7 @@ func TestAddEntry(t *testing.T) {
 		t.Errorf("AddEntry() entries count = %d, want 1", len(entries))
 	}
 
-	entry2 := NewEntry("anthropic", "cipher2", "nonce2")
+	entry2 := NewEntry("anthropic", "cipher2")
 	if err := db.AddEntry(entry2); err != nil {
 		t.Fatalf("AddEntry() error = %v", err)
 	}
@@ -106,12 +106,12 @@ func TestAddEntryDuplicateProvider(t *testing.T) {
 	dataDir := t.TempDir()
 	db := New(dataDir)
 
-	entry1 := NewEntry("openai", "cipher1", "nonce1")
+	entry1 := NewEntry("openai", "cipher1")
 	if err := db.AddEntry(entry1); err != nil {
 		t.Fatalf("AddEntry() error = %v", err)
 	}
 
-	entry2 := NewEntry("openai", "cipher2", "nonce2")
+	entry2 := NewEntry("openai", "cipher2")
 	err := db.AddEntry(entry2)
 	if err != ErrDuplicateProvider {
 		t.Errorf("AddEntry() error = %v, want %v", err, ErrDuplicateProvider)
@@ -122,7 +122,7 @@ func TestGetEntry(t *testing.T) {
 	dataDir := t.TempDir()
 	db := New(dataDir)
 
-	entry := NewEntry("openai", "cipher", "nonce")
+	entry := NewEntry("openai", "cipher")
 	if err := db.AddEntry(entry); err != nil {
 		t.Fatalf("AddEntry() error = %v", err)
 	}
@@ -146,7 +146,7 @@ func TestDeleteEntry(t *testing.T) {
 	dataDir := t.TempDir()
 	db := New(dataDir)
 
-	entry := NewEntry("openai", "cipher", "nonce")
+	entry := NewEntry("openai", "cipher")
 	if err := db.AddEntry(entry); err != nil {
 		t.Fatalf("AddEntry() error = %v", err)
 	}
@@ -167,7 +167,7 @@ func TestDeleteEntry(t *testing.T) {
 }
 
 func TestNewEntry(t *testing.T) {
-	entry := NewEntry("provider", "cipher", "nonce")
+	entry := NewEntry("provider", "cipher")
 
 	if entry.Provider != "provider" {
 		t.Errorf("NewEntry() Provider = %v, want provider", entry.Provider)
@@ -175,10 +175,6 @@ func TestNewEntry(t *testing.T) {
 
 	if entry.Cipher != "cipher" {
 		t.Errorf("NewEntry() Cipher = %v, want cipher", entry.Cipher)
-	}
-
-	if entry.Nonce != "nonce" {
-		t.Errorf("NewEntry() Nonce = %v, want nonce", entry.Nonce)
 	}
 
 	if entry.CreatedAt.IsZero() {

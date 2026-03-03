@@ -99,13 +99,13 @@ func TestSetupCreatesDatabaseEntry(t *testing.T) {
 	apiKey := "sk-test-api-key-12345"
 
 	// Encrypt API key
-	cipher, nonce, err := crypto.Encrypt(masterKey, apiKey)
+	cipher, err := crypto.Encrypt(string(masterKey), apiKey)
 	if err != nil {
 		t.Fatalf("Encrypt() error = %v", err)
 	}
 
 	// Create entry
-	entry := database.NewEntry(provider, cipher, nonce)
+	entry := database.NewEntry(provider, cipher)
 
 	// Add to database
 	if err := db.AddEntry(entry); err != nil {
@@ -156,16 +156,12 @@ func TestSetupCreatesDatabaseEntry(t *testing.T) {
 		t.Error("Entry cipher does not match")
 	}
 
-	if entries[0].Nonce != nonce {
-		t.Error("Entry nonce does not match")
-	}
-
 	if entries[0].CreatedAt.IsZero() {
 		t.Error("Entry created_at is zero")
 	}
 
 	// Verify decryption
-	decryptedKey, err := crypto.Decrypt(masterKey, entries[0].Cipher, entries[0].Nonce)
+	decryptedKey, err := crypto.Decrypt(string(masterKey), entries[0].Cipher)
 	if err != nil {
 		t.Fatalf("Decrypt() error = %v", err)
 	}
@@ -295,8 +291,8 @@ func TestStoreProviderEntry_Update(t *testing.T) {
 	db.Load(ctx)
 
 	// Create initial entry
-	cipher, nonce, _ := crypto.Encrypt(masterKey, "sk-old-key")
-	entry := database.NewEntry("openai", cipher, nonce)
+	cipher, _ := crypto.Encrypt(string(masterKey), "sk-old-key")
+	entry := database.NewEntry("openai", cipher)
 	db.AddEntry(entry)
 	db.Save(ctx)
 

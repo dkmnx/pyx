@@ -23,7 +23,6 @@ var (
 type Entry struct {
 	Provider  string    `json:"provider"`
 	Cipher    string    `json:"cipher"`
-	Nonce     string    `json:"nonce"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at,omitempty"`
 }
@@ -333,12 +332,11 @@ func normalizeEntries(filePath string, entries *[]Entry) []string {
 }
 
 // NewEntry creates a new Entry with generated timestamps.
-func NewEntry(provider, cipher, nonce string) Entry {
+func NewEntry(provider, cipher string) Entry {
 	now := time.Now().UTC()
 	return Entry{
 		Provider:  provider,
 		Cipher:    cipher,
-		Nonce:     nonce,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}

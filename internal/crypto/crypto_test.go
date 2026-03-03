@@ -1,32 +1,23 @@
 package crypto
 
 import (
-	"errors"
 	"testing"
 )
 
 func TestEncryptDecrypt(t *testing.T) {
-	key := make([]byte, 32)
-	for i := range key {
-		key[i] = byte(i)
-	}
-
+	passphrase := "test-passphrase-123"
 	plaintext := "test-api-key-12345"
 
-	cipher, nonce, err := Encrypt(key, plaintext)
+	ciphertext, err := Encrypt(passphrase, plaintext)
 	if err != nil {
 		t.Fatalf("Encrypt() error = %v", err)
 	}
 
-	if cipher == "" {
-		t.Error("Encrypt() returned empty cipher")
+	if ciphertext == "" {
+		t.Error("Encrypt() returned empty ciphertext")
 	}
 
-	if nonce == "" {
-		t.Error("Encrypt() returned empty nonce")
-	}
-
-	decrypted, err := Decrypt(key, cipher, nonce)
+	decrypted, err := Decrypt(passphrase, ciphertext)
 	if err != nil {
 		t.Fatalf("Decrypt() error = %v", err)
 	}
@@ -37,37 +28,41 @@ func TestEncryptDecrypt(t *testing.T) {
 	}
 }
 
-func TestEncryptInvalidKey(t *testing.T) {
-	key := make([]byte, 16) // Wrong size
+func TestDecryptWrongPassphrase(t *testing.T) {
+	passphrase := "correct-passphrase"
+	wrongPassphrase := "wrong-passphrase"
 
-	_, _, err := Encrypt(key, "plaintext")
-	if err == nil {
-		t.Error("Encrypt() expected error for invalid key size")
+	ciphertext, err := Encrypt(passphrase, "secret-data")
+	if err != nil {
+		t.Fatalf("Encrypt() error = %v", err)
 	}
 
-	if !errors.Is(err, ErrInvalidKey) {
-		t.Errorf("Encrypt() error = %v, want %v", err, ErrInvalidKey)
+	_, err = Decrypt(wrongPassphrase, ciphertext)
+	if err == nil {
+		t.Error("Decrypt() expected error for wrong passphrase")
+	}
+
+	if err != ErrInvalidPassphrase {
+		t.Errorf("Decrypt() error = %v, want %v", err, ErrInvalidPassphrase)
 	}
 }
 
-func TestDecryptInvalidKey(t *testing.T) {
-	key := make([]byte, 16) // Wrong size
-
-	_, err := Decrypt(key, "ciphertext", "nonce")
+func TestDecryptInvalidBase64(t *testing.T) {
+	_, err := Decrypt("passphrase", "not-valid-base64!!!")
 	if err == nil {
-		t.Error("Decrypt() expected error for invalid key size")
+		t.Error("Decrypt() expected error for invalid base64")
 	}
 
-	if !errors.Is(err, ErrInvalidKey) {
-		t.Errorf("Decrypt() error = %v, want %v", err, ErrInvalidKey)
+	if err != ErrDecryptionFailed {
+		t.Errorf("Decrypt() error = %v, want %v", err, ErrDecryptionFailed)
 	}
 }
 
 func TestSecureBytesZero(t *testing.T) {
-	key, _ := GenerateKey()
-	cipher, nonce, _ := Encrypt(key, "secret-data")
+	passphrase := "test-pass"
+	ciphertext, _ := Encrypt(passphrase, "secret-data")
 
-	secureBytes, err := Decrypt(key, cipher, nonce)
+	secureBytes, err := Decrypt(passphrase, ciphertext)
 	if err != nil {
 		t.Fatalf("Decrypt() error = %v", err)
 	}
@@ -80,36 +75,6 @@ func TestSecureBytesZero(t *testing.T) {
 
 	if secureBytes != nil {
 		t.Error("SecureBytes should be nil after Zero()")
-	}
-}
-
-func TestGenerateKey(t *testing.T) {
-	key1, err := GenerateKey()
-	if err != nil {
-		t.Fatalf("GenerateKey() error = %v", err)
-	}
-
-	if len(key1) != 32 {
-		t.Errorf("GenerateKey() key length = %d, want 32", len(key1))
-	}
-
-	// Generate another key to ensure they're different
-	key2, err := GenerateKey()
-	if err != nil {
-		t.Fatalf("GenerateKey() error = %v", err)
-	}
-
-	// Check that keys are different (not all bytes identical)
-	identical := true
-	for i := range key1 {
-		if key1[i] != key2[i] {
-			identical = false
-			break
-		}
-	}
-
-	if identical {
-		t.Error("GenerateKey() generated identical keys (statistically impossible)")
 	}
 }
 
@@ -205,5 +170,27 @@ func TestSecureStringNil(t *testing.T) {
 
 	if other.Equal(ss) {
 		t.Error("Non-nil SecureString should not equal nil SecureString")
+	}
+}
+
+func TestDifferentPassphrasesProduceDifferentCiphertext(t *testing.T) {
+	plaintext := "same-plaintext"
+	cipher1, _ := Encrypt("passphrase1", plaintext)
+	cipher2, _ := Encrypt("passphrase2", plaintext)
+
+	if cipher1 == cipher2 {
+		t.Error("Different passphrases should produce different ciphertexts")
+	}
+}
+
+func TestSamePassphraseDifferentCiphertext(t *testing.T) {
+	plaintext := "same-plaintext"
+	cipher1, _ := Encrypt("passphrase", plaintext)
+	cipher2, _ := Encrypt("passphrase", plaintext)
+
+	// Age generates a random salt, so same passphrase + same plaintext
+	// should produce different ciphertexts
+	if cipher1 == cipher2 {
+		t.Error("Same passphrase should produce different ciphertexts due to random salt")
 	}
 }

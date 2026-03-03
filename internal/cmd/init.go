@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 
-	"github.com/dkmnx/ply/internal/database"
 	"github.com/dkmnx/ply/internal/fs"
 	"github.com/dkmnx/ply/internal/keys"
 	"github.com/spf13/cobra"
@@ -24,7 +24,9 @@ func init() {
 func runInit(cmd *cobra.Command, args []string) {
 	ctx := context.Background()
 
-	tap.Intro("ply init")
+	fmt.Println()
+
+	tap.Intro("Ply Initialization")
 
 	dataDir, err := fs.EnsureDataDir()
 	if err != nil {
@@ -33,13 +35,6 @@ func runInit(cmd *cobra.Command, args []string) {
 	}
 
 	keyMgr := keys.New(dataDir)
-	db := database.New(dataDir)
-
-	_, err = keyMgr.MigrateFromLegacy(db)
-	if err != nil {
-		tap.Cancel("Error migrating master key")
-		return
-	}
 
 	keyExists, err := keyMgr.Exists()
 	if err != nil {
@@ -48,8 +43,8 @@ func runInit(cmd *cobra.Command, args []string) {
 	}
 
 	if keyExists {
-		tap.Message("Master key already initialized.")
-		tap.Message("Run 'ply setup' to add a provider.")
+		tap.Message("Master key already initialized!")
+		tap.Outro("Run 'ply setup' to add a provider.")
 		return
 	}
 
@@ -63,6 +58,5 @@ func runInit(cmd *cobra.Command, args []string) {
 		masterKey[i] = 0
 	}
 
-	tap.Outro("Ply initialized successfully")
-	tap.Message("Run 'ply setup' to add a provider.")
+	tap.Outro("Run 'ply setup' to add a provider.")
 }

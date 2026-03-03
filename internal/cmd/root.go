@@ -89,7 +89,7 @@ func runRoot(cmd *cobra.Command, args []string) {
 	executePi(entries, piArgs, providerEnv, sessionFlag)
 }
 
-// initializeKeyManager creates the key manager, database, handles migration, and verifies master key exists.
+// initializeKeyManager creates the key manager and database, and verifies master key exists.
 func initializeKeyManager() (*keys.Manager, *database.Database, error) {
 	dataDir, err := fs.DataDir()
 	if err != nil {
@@ -98,12 +98,6 @@ func initializeKeyManager() (*keys.Manager, *database.Database, error) {
 
 	keyMgr := keys.New(dataDir)
 	db := database.New(dataDir)
-
-	// Attempt to migrate from legacy master key file if it exists
-	_, err = keyMgr.MigrateFromLegacy(db)
-	if err != nil {
-		return nil, nil, fmt.Errorf("migrating master key: %w", err)
-	}
 
 	// Check if master key exists
 	keyExists, err := keyMgr.Exists()
@@ -293,7 +287,7 @@ func decryptProviderKeys(masterKey []byte, entries []database.Entry) (map[string
 	envValues := make(map[string]*crypto.SecureString)
 
 	for _, entry := range entries {
-		apiKey, err := crypto.Decrypt(masterKey, entry.Cipher, entry.Nonce)
+		apiKey, err := crypto.Decrypt(string(masterKey), entry.Cipher)
 		if err != nil {
 			// Zero any already-decrypted keys before returning
 			for _, v := range envValues {
