@@ -58,3 +58,6 @@ temp/
 *.tmp
 *.bak
 *.log
+
+# Editor
+.zed/
