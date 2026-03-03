@@ -27,7 +27,7 @@ func PromptProvider(ctx context.Context) (string, error) {
 		return filtered
 	}
 
-	result := tap.Autocomplete(ctx, tap.AutocompleteOptions{
+	result := defaultClient.Autocomplete(ctx, tap.AutocompleteOptions{
 		Message:     "Select a provider:",
 		Placeholder: "Start typing...",
 		Suggest:     suggest,
@@ -53,7 +53,7 @@ func PromptProvider(ctx context.Context) (string, error) {
 }
 
 func PromptAPIKey(ctx context.Context, provider string) (string, error) {
-	result := tap.Password(ctx, tap.PasswordOptions{
+	result := defaultClient.Password(ctx, tap.PasswordOptions{
 		Message: fmt.Sprintf("Enter API key for %s:", provider),
 	})
 
@@ -65,7 +65,7 @@ func PromptAPIKey(ctx context.Context, provider string) (string, error) {
 }
 
 func PromptPassword(ctx context.Context, message string) (string, error) {
-	result := tap.Password(ctx, tap.PasswordOptions{
+	result := defaultClient.Password(ctx, tap.PasswordOptions{
 		Message: message,
 	})
 
@@ -77,12 +77,12 @@ func PromptPassword(ctx context.Context, message string) (string, error) {
 }
 
 func PromptNewPassword(ctx context.Context) (string, error) {
-	tap.Message("Choose a password to encrypt your master key.", tap.MessageOptions{
+	defaultClient.Message("Choose a password to encrypt your master key.", tap.MessageOptions{
 		Hint: "This password will be required each time you use ply.",
 	})
 
 	for {
-		password := tap.Password(ctx, tap.PasswordOptions{
+		password := defaultClient.Password(ctx, tap.PasswordOptions{
 			Message: "Enter password:",
 		})
 
@@ -90,7 +90,7 @@ func PromptNewPassword(ctx context.Context) (string, error) {
 			continue
 		}
 
-		confirm := tap.Password(ctx, tap.PasswordOptions{
+		confirm := defaultClient.Password(ctx, tap.PasswordOptions{
 			Message: "Confirm password:",
 		})
 
@@ -98,12 +98,12 @@ func PromptNewPassword(ctx context.Context) (string, error) {
 			return password, nil
 		}
 
-		tap.Message("Passwords do not match. Please try again.")
+		defaultClient.Message("Passwords do not match. Please try again.", tap.MessageOptions{})
 	}
 }
 
 func PromptPackageManager(ctx context.Context) (string, error) {
-	result := tap.Select(ctx, tap.SelectOptions[string]{
+	result := defaultClient.Select(ctx, tap.SelectOptions[string]{
 		Message: "Select a package manager:",
 		Options: []tap.SelectOption[string]{
 			{Value: "npm", Label: "npm"},
@@ -129,7 +129,7 @@ func PromptPackageManager(ctx context.Context) (string, error) {
 }
 
 func Confirm(ctx context.Context, message string) bool {
-	return tap.Confirm(ctx, tap.ConfirmOptions{
+	return defaultClient.Confirm(ctx, tap.ConfirmOptions{
 		Message: message,
 	})
 }
