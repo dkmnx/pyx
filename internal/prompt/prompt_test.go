@@ -90,15 +90,8 @@ func TestInputErrorError(t *testing.T) {
 }
 
 func TestInputErrorType(t *testing.T) {
-	// Test that InputError implements error interface
-	var err error = ErrEmptyAPIKey
-	if err == nil {
-		t.Error("ErrEmptyAPIKey should implement error interface")
-	}
-
 	// Test error type assertion
-	var inputErr *InputError
-	inputErr = ErrEmptyAPIKey
+	inputErr := ErrEmptyAPIKey
 	if inputErr == nil {
 		t.Error("ErrEmptyAPIKey should be *InputError type")
 	}

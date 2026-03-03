@@ -12,9 +12,9 @@ import (
 
 // File names for ply configuration files
 const (
-	dbFileName       = "database.json"
-	dbBackupFileName = "database.json.bak"
-	passwordFileName = "password.bin"
+	dbFileName        = "database.json"
+	dbBackupFileName  = "database.json.bak"
+	passwordFileName  = "password.bin"
 	legacyKeyFileName = "master.key" // Legacy key file for cleanup
 )
 

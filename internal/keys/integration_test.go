@@ -21,6 +21,12 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 	m := New(dir)
 	db := database.New(dir)
 
+	// Set up password in keyring
+	testPassword := "test-password-integration"
+	if err := m.SetPassword([]byte(testPassword)); err != nil {
+		t.Skip("Keyring not available, skipping test")
+	}
+
 	// Step 1: Generate master key
 	masterKey, err := GenerateKey()
 	if err != nil {
@@ -92,6 +98,12 @@ func TestIntegration_MultipleProviders(t *testing.T) {
 	dir := tempDir(t)
 	m := New(dir)
 	db := database.New(dir)
+
+	// Set up password in keyring
+	testPassword := "test-password-multiple"
+	if err := m.SetPassword([]byte(testPassword)); err != nil {
+		t.Skip("Keyring not available, skipping test")
+	}
 
 	// Generate master key
 	masterKey, err := GenerateKey()

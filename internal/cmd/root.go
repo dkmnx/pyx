@@ -13,7 +13,6 @@ import (
 	"github.com/dkmnx/ply/internal/fs"
 	"github.com/dkmnx/ply/internal/keys"
 	"github.com/dkmnx/ply/internal/pi"
-	"github.com/dkmnx/ply/internal/prompt"
 	"github.com/dkmnx/ply/internal/providers"
 	"github.com/dkmnx/ply/internal/session"
 	"github.com/spf13/cobra"
@@ -72,7 +71,7 @@ func runRoot(cmd *cobra.Command, args []string) {
 	// Load master key (prompting for password if needed)
 	masterKey, err := loadMasterKey(keyMgr)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, "Could not decrypt your API keys. Run 'ply init' to recreate your configuration.")
 		os.Exit(1)
 	}
 
@@ -112,30 +111,11 @@ func initializeKeyManager() (*keys.Manager, *database.Database, error) {
 	return keyMgr, db, nil
 }
 
-// loadMasterKey prompts for password if needed and loads the master key.
 func loadMasterKey(keyMgr *keys.Manager) ([]byte, error) {
-	requiresPassword, err := keyMgr.RequiresPassword()
+	masterKey, err := keyMgr.Load(nil)
 	if err != nil {
-		return nil, fmt.Errorf("Error checking password requirement: %w", err)
+		return nil, err
 	}
-
-	var password []byte
-	if requiresPassword {
-		pwStr, err := prompt.PromptPassword(context.Background(), "Enter password to unlock your API keys")
-		if err != nil {
-			return nil, fmt.Errorf("Error reading password: %w", err)
-		}
-		password = []byte(pwStr)
-	}
-
-	masterKey, err := keyMgr.Load(password)
-	if err != nil {
-		if err == keys.ErrInvalidPassword {
-			return nil, errors.New("password incorrect")
-		}
-		return nil, fmt.Errorf("loading master key: %w", err)
-	}
-
 	return masterKey, nil
 }
 

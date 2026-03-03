@@ -295,7 +295,7 @@ func findPackageManager() (string, string, error) {
 	// Check yarn
 	if _, err := exec.LookPath("yarn"); err == nil {
 		// yarn uses 'global add' instead of 'install -g'
-		return packageManagerYarn, "yarn", nil
+		return packageManagerYarn, packageManagerYarn, nil
 	}
 
 	// Check bun

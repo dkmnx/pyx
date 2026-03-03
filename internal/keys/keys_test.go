@@ -1,7 +1,6 @@
 package keys
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -46,6 +45,12 @@ func TestManagerSaveLoad(t *testing.T) {
 	dir := tempDir(t)
 	m := New(dir)
 
+	// Set up password in keyring for testing
+	testPassword := "test-password-123"
+	if err := m.SetPassword([]byte(testPassword)); err != nil {
+		t.Skip("Keyring not available, skipping test")
+	}
+
 	key, err := GenerateKey()
 	if err != nil {
 		t.Fatalf("GenerateKey() error = %v", err)
@@ -65,7 +70,7 @@ func TestManagerSaveLoad(t *testing.T) {
 		t.Error("Exists() returned false after saving key")
 	}
 
-	// Load key
+	// Load key (password will be retrieved from keyring)
 	loadedKey, err := m.Load(nil)
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
@@ -94,11 +99,13 @@ func TestManagerLoadNotFound(t *testing.T) {
 	dir := tempDir(t)
 	m := New(dir)
 
+	// Without a password set and no key file, should return ErrKeyNotFound
 	_, err := m.Load(nil)
 	if err == nil {
 		t.Error("Load() should return error when key doesn't exist")
 	}
-	if !errors.Is(err, ErrKeyNotFound) {
+	// Should return ErrKeyNotFound because there's no key file and no password
+	if err != ErrKeyNotFound {
 		t.Errorf("Load() error = %v, want ErrKeyNotFound", err)
 	}
 }
@@ -106,6 +113,12 @@ func TestManagerLoadNotFound(t *testing.T) {
 func TestManagerDelete(t *testing.T) {
 	dir := tempDir(t)
 	m := New(dir)
+
+	// Set up password in keyring for testing
+	testPassword := "test-password-123"
+	if err := m.SetPassword([]byte(testPassword)); err != nil {
+		t.Skip("Keyring not available, skipping test")
+	}
 
 	key, err := GenerateKey()
 	if err != nil {
@@ -136,13 +149,32 @@ func TestManagerRequiresPassword(t *testing.T) {
 	dir := tempDir(t)
 	m := New(dir)
 
+	// Without password, RequiresPassword should return false
 	requires, err := m.RequiresPassword()
 	if err != nil {
 		t.Fatalf("RequiresPassword() error = %v", err)
 	}
 	if requires {
-		t.Error("RequiresPassword() should return false for file-based storage")
+		t.Error("RequiresPassword() should return false when no password is set")
 	}
+
+	// Try to set a password in keyring
+	testPassword := "test-password-123"
+	if err := m.SetPassword([]byte(testPassword)); err != nil {
+		t.Skip("Keyring not available, skipping test")
+	}
+
+	// With password set, RequiresPassword should return true
+	requires, err = m.RequiresPassword()
+	if err != nil {
+		t.Fatalf("RequiresPassword() error = %v", err)
+	}
+	if !requires {
+		t.Error("RequiresPassword() should return true when password is set")
+	}
+
+	// Clean up
+	_ = m.DeletePassword()
 }
 
 func TestEqual(t *testing.T) {

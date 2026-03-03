@@ -69,14 +69,16 @@ func loadExistingMasterKey(ctx context.Context, keyMgr *keys.Manager) ([]byte, e
 func createMasterKey(ctx context.Context, keyMgr *keys.Manager) ([]byte, error) {
 	tap.Message("Initializing ply for the first time...")
 
-	masterKey, err := keys.GenerateKey()
+	// Check if password already exists in keyring
+	hasPassword, err := keyMgr.PasswordExists()
 	if err != nil {
-		return nil, fmt.Errorf("error generating master key: %w", err)
+		return nil, fmt.Errorf("error checking keyring: %w", err)
 	}
 
-	if err := keyMgr.Save(masterKey); err != nil {
-		tap.Message("OS keyring unavailable. A password will be used to encrypt your master key.")
-		tap.Message("You will need to enter this password each time you run ply.")
+	// If no password, prompt user to create one
+	if !hasPassword {
+		tap.Message("Setting up password to encrypt your master key.")
+		tap.Message("This password will be stored securely in your OS keyring.")
 
 		pwStr, err := prompt.PromptNewPassword(ctx)
 		if err != nil {
@@ -85,15 +87,26 @@ func createMasterKey(ctx context.Context, keyMgr *keys.Manager) ([]byte, error) 
 
 		password := []byte(pwStr)
 		if err := keyMgr.SetPassword(password); err != nil {
+			// Zero password before returning
+			for i := range password {
+				password[i] = 0
+			}
 			return nil, fmt.Errorf("error saving password: %w", err)
 		}
+		// Zero password after use
 		for i := range password {
 			password[i] = 0
 		}
+	}
 
-		if err := keyMgr.Save(masterKey); err != nil {
-			return nil, fmt.Errorf("error saving master key: %w", err)
-		}
+	// Now generate and save the master key
+	masterKey, err := keys.GenerateKey()
+	if err != nil {
+		return nil, fmt.Errorf("error generating master key: %w", err)
+	}
+
+	if err := keyMgr.Save(masterKey); err != nil {
+		return nil, fmt.Errorf("error saving master key: %w", err)
 	}
 
 	tap.Message("Master key initialized!")

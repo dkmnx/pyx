@@ -21,6 +21,12 @@ func TestProviderValidationIntegration(t *testing.T) {
 	keyMgr := keys.New(dataDir)
 	db := database.New(dataDir)
 
+	// Set up password in keyring for testing
+	testPassword := "test-password-validation"
+	if err := keyMgr.SetPassword([]byte(testPassword)); err != nil {
+		t.Skip("Keyring not available, skipping test")
+	}
+
 	// Initialize master key
 	masterKey, err := keys.GenerateKey()
 	if err != nil {
