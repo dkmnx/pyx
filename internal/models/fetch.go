@@ -8,66 +8,9 @@ import (
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/dkmnx/ply/internal/settings"
 )
-
-const (
-	// DefaultGitHub configuration - can be overridden via environment variables
-	defaultGitHubAPIURL   = "https://api.github.com"
-	defaultGitHubRawURL   = "https://raw.githubusercontent.com"
-	defaultOwner          = "badlogic"
-	defaultRepo           = "pi-mono"
-	defaultModelsFilePath = "packages/ai/src/models.generated.ts"
-
-	// Environment variables for configuration
-	envGitHubAPIURL   = "PLY_GITHUB_API_URL"
-	envGitHubRawURL   = "PLY_GITHUB_RAW_URL"
-	envOwner          = "PLY_PI_MONO_OWNER"
-	envRepo           = "PLY_PI_MONO_REPO"
-	envModelsFilePath = "PLY_MODELS_FILE_PATH"
-)
-
-// GitHubConfig holds the configuration for fetching models from GitHub.
-// This allows decoupling from the hardcoded pi-mono repository.
-type GitHubConfig struct {
-	APIURL     string
-	RawURL     string
-	Owner      string
-	Repo       string
-	ModelsPath string
-	UserAgent  string
-}
-
-// DefaultGitHubConfig returns a GitHubConfig with default values.
-// Environment variables can override defaults.
-func DefaultGitHubConfig() *GitHubConfig {
-	cfg := &GitHubConfig{
-		APIURL:     defaultGitHubAPIURL,
-		RawURL:     defaultGitHubRawURL,
-		Owner:      defaultOwner,
-		Repo:       defaultRepo,
-		ModelsPath: defaultModelsFilePath,
-		UserAgent:  "ply-cli",
-	}
-
-	// Override with environment variables if set
-	if v := os.Getenv(envGitHubAPIURL); v != "" {
-		cfg.APIURL = v
-	}
-	if v := os.Getenv(envGitHubRawURL); v != "" {
-		cfg.RawURL = v
-	}
-	if v := os.Getenv(envOwner); v != "" {
-		cfg.Owner = v
-	}
-	if v := os.Getenv(envRepo); v != "" {
-		cfg.Repo = v
-	}
-	if v := os.Getenv(envModelsFilePath); v != "" {
-		cfg.ModelsPath = v
-	}
-
-	return cfg
-}
 
 // Shared HTTP client with reasonable timeouts
 var httpClient = &http.Client{
@@ -80,18 +23,21 @@ type ReleaseResponse struct {
 
 // FetchLatestReleaseTag fetches the latest release tag from the configured GitHub repository.
 func FetchLatestReleaseTag(ctx context.Context) (string, error) {
-	cfg := DefaultGitHubConfig()
+	cfg, err := loadGitHubConfig()
+	if err != nil {
+		return "", err
+	}
 	return fetchLatestReleaseTagWithConfig(ctx, cfg)
 }
 
-func fetchLatestReleaseTagWithConfig(ctx context.Context, cfg *GitHubConfig) (string, error) {
+func fetchLatestReleaseTagWithConfig(ctx context.Context, cfg *settings.GitHubSettings) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/repos/%s/%s/releases/latest", cfg.APIURL, cfg.Owner, cfg.Repo), nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", cfg.UserAgent)
+	req.Header.Set("User-Agent", "ply-cli")
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
@@ -113,11 +59,14 @@ func fetchLatestReleaseTagWithConfig(ctx context.Context, cfg *GitHubConfig) (st
 
 // FetchModelsFile fetches the models file from the configured GitHub repository.
 func FetchModelsFile(ctx context.Context, tag string) (string, error) {
-	cfg := DefaultGitHubConfig()
+	cfg, err := loadGitHubConfig()
+	if err != nil {
+		return "", err
+	}
 	return fetchModelsFileWithConfig(ctx, cfg, tag)
 }
 
-func fetchModelsFileWithConfig(ctx context.Context, cfg *GitHubConfig, tag string) (string, error) {
+func fetchModelsFileWithConfig(ctx context.Context, cfg *settings.GitHubSettings, tag string) (string, error) {
 	url := fmt.Sprintf("%s/%s/%s/%s/%s", cfg.RawURL, cfg.Owner, cfg.Repo, tag, cfg.ModelsPath)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -126,7 +75,7 @@ func fetchModelsFileWithConfig(ctx context.Context, cfg *GitHubConfig, tag strin
 	}
 
 	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", cfg.UserAgent)
+	req.Header.Set("User-Agent", "ply-cli")
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
@@ -148,11 +97,14 @@ func fetchModelsFileWithConfig(ctx context.Context, cfg *GitHubConfig, tag strin
 
 // FetchLatest fetches the latest models from the configured GitHub repository.
 func FetchLatest(ctx context.Context) (Models, string, error) {
-	cfg := DefaultGitHubConfig()
+	cfg, err := loadGitHubConfig()
+	if err != nil {
+		return nil, "", err
+	}
 	return fetchLatestWithConfig(ctx, cfg)
 }
 
-func fetchLatestWithConfig(ctx context.Context, cfg *GitHubConfig) (Models, string, error) {
+func fetchLatestWithConfig(ctx context.Context, cfg *settings.GitHubSettings) (Models, string, error) {
 	tag, err := fetchLatestReleaseTagWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to get latest release: %w", err)
@@ -172,7 +124,11 @@ func fetchLatestWithConfig(ctx context.Context, cfg *GitHubConfig) (Models, stri
 }
 
 func FetchAndCache(ctx context.Context) error {
-	cfg := DefaultGitHubConfig()
+	cfg, err := loadGitHubConfig()
+	if err != nil {
+		return err
+	}
+
 	models, tag, err := fetchLatestWithConfig(ctx, cfg)
 	if err != nil {
 		// Fall back to cached models if available
@@ -196,7 +152,11 @@ func GetModels(ctx context.Context) (Models, error) {
 		return cache.Models, nil
 	}
 
-	cfg := DefaultGitHubConfig()
+	cfg, err := loadGitHubConfig()
+	if err != nil {
+		return nil, err
+	}
+
 	models, _, err := fetchLatestWithConfig(ctx, cfg)
 	if err != nil {
 		if cache != nil {
@@ -210,4 +170,13 @@ func GetModels(ctx context.Context) (Models, error) {
 	}
 
 	return models, nil
+}
+
+// loadGitHubConfig loads the GitHub configuration from settings.
+func loadGitHubConfig() (*settings.GitHubSettings, error) {
+	s, err := settings.Load()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load settings: %w", err)
+	}
+	return s.GitHub, nil
 }

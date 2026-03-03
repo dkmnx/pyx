@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/dkmnx/ply/internal/models"
+	"github.com/dkmnx/ply/internal/settings"
 )
 
 type Provider struct {
@@ -83,11 +84,24 @@ func Names(ctx context.Context) []string {
 // EnvVar returns the environment variable name required for the given provider.
 // Returns the env var name and true if the provider is found.
 // Returns empty string and false if the provider is not recognized.
+//
+// Priority:
+// 1. Custom mappings from settings (~/.local/share/ply/settings.json)
+// 2. Hardcoded envVarMapping
+// 3. Derived from provider name using deriveEnvVar()
 func EnvVar(name string) (string, bool) {
 	if name == "" {
 		return "", false
 	}
 
+	// First, check custom mappings from settings
+	if customEnvVars, err := loadCustomProviderEnvVars(); err == nil && len(customEnvVars) > 0 {
+		if envVar, ok := customEnvVars[name]; ok {
+			return envVar, true
+		}
+	}
+
+	// Check hardcoded mapping
 	envVar, ok := envVarMapping[name]
 	if ok {
 		return envVar, true
@@ -102,6 +116,15 @@ func EnvVar(name string) (string, bool) {
 	}
 
 	return "", false
+}
+
+// loadCustomProviderEnvVars loads custom provider environment variable mappings from settings.
+func loadCustomProviderEnvVars() (map[string]string, error) {
+	s, err := settings.Load()
+	if err != nil {
+		return nil, err
+	}
+	return s.CustomProviderEnvVars, nil
 }
 
 // providerEnvVarPattern maps provider name patterns to environment variable names.

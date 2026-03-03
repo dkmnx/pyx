@@ -2,6 +2,8 @@ package providers
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -266,5 +268,48 @@ func TestValidateErrorMessage(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestEnvVar_CustomProviderMapping(t *testing.T) {
+	// Save original home
+	origHome := os.Getenv("HOME")
+	tmpDir := t.TempDir()
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", origHome)
+
+	// Create settings file with custom mapping
+	settingsDir := filepath.Join(tmpDir, ".local", "share", "ply")
+	if err := os.MkdirAll(settingsDir, 0700); err != nil {
+		t.Fatalf("Failed to create settings dir: %v", err)
+	}
+
+	settingsContent := `{
+		"customProviderEnvVars": {
+			"custom-provider": "CUSTOM_API_KEY",
+			"my-provider": "MY_SPECIAL_KEY"
+		}
+	}`
+
+	settingsPath := filepath.Join(settingsDir, "settings.json")
+	if err := os.WriteFile(settingsPath, []byte(settingsContent), 0600); err != nil {
+		t.Fatalf("Failed to write settings file: %v", err)
+	}
+
+	// Test custom mapping takes priority
+	envVar, ok := EnvVar("custom-provider")
+	if !ok {
+		t.Fatal("EnvVar(custom-provider) returned ok=false")
+	}
+	if envVar != "CUSTOM_API_KEY" {
+		t.Errorf("EnvVar(custom-provider) = %q, want %q", envVar, "CUSTOM_API_KEY")
+	}
+
+	envVar, ok = EnvVar("my-provider")
+	if !ok {
+		t.Fatal("EnvVar(my-provider) returned ok=false")
+	}
+	if envVar != "MY_SPECIAL_KEY" {
+		t.Errorf("EnvVar(my-provider) = %q, want %q", envVar, "MY_SPECIAL_KEY")
 	}
 }
