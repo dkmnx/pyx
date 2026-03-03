@@ -167,7 +167,7 @@ func TestPromptProvider_SingleMatch(t *testing.T) {
 func TestPromptAPIKey_Success(t *testing.T) {
 	ctx := context.Background()
 	provider := "anthropic"
-	expectedKey := "sk-test-key-123"
+	expectedKey := "sk-test-key-1234" // Must be at least 16 characters
 
 	mock := &MockTapClient{
 		PasswordFunc: func(ctx context.Context, opts tap.PasswordOptions) string {
@@ -215,7 +215,7 @@ func TestPromptAPIKey_MessageContainsProvider(t *testing.T) {
 	mock := &MockTapClient{
 		PasswordFunc: func(ctx context.Context, opts tap.PasswordOptions) string {
 			capturedMessage = opts.Message
-			return "test-key"
+			return "test-key-valid-123" // Must be at least 16 characters
 		},
 	}
 	cleanup := setupMockClient(mock)
@@ -282,7 +282,7 @@ func TestPromptPassword_CorrectMessage(t *testing.T) {
 	mock := &MockTapClient{
 		PasswordFunc: func(ctx context.Context, opts tap.PasswordOptions) string {
 			capturedMessage = opts.Message
-			return "test"
+			return "Test123!@#"
 		},
 	}
 	cleanup := setupMockClient(mock)
@@ -297,7 +297,7 @@ func TestPromptPassword_CorrectMessage(t *testing.T) {
 
 func TestPromptNewPassword_Success(t *testing.T) {
 	ctx := context.Background()
-	expectedPassword := "new-secure-password"
+	expectedPassword := "NewSecure123"
 	callCount := 0
 
 	mock := &MockTapClient{
@@ -327,7 +327,7 @@ func TestPromptNewPassword_Success(t *testing.T) {
 
 func TestPromptNewPassword_RetryOnMismatch(t *testing.T) {
 	ctx := context.Background()
-	expectedPassword := "final-password"
+	expectedPassword := "FinalPass456"
 	callCount := 0
 	messageCount := 0
 
@@ -365,7 +365,7 @@ func TestPromptNewPassword_RetryOnMismatch(t *testing.T) {
 
 func TestPromptNewPassword_RetryOnEmpty(t *testing.T) {
 	ctx := context.Background()
-	expectedPassword := "valid-password"
+	expectedPassword := "ValidPwd789"
 	callCount := 0
 
 	mock := &MockTapClient{
@@ -611,7 +611,7 @@ func TestPromptNewPassword_MessageCalls(t *testing.T) {
 	mock := &MockTapClient{
 		PasswordFunc: func(ctx context.Context, opts tap.PasswordOptions) string {
 			// Always return matching password
-			return "password123"
+			return "Password123!"
 		},
 		MessageFunc: func(text string, opts tap.MessageOptions) {
 			if text == "Choose a password to encrypt your master key." {

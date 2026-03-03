@@ -5,9 +5,15 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"unicode"
 
 	"github.com/dkmnx/ply/internal/providers"
 	"github.com/yarlson/tap"
+)
+
+// Minimum password requirements
+const (
+	MinPasswordLength = 8
 )
 
 func PromptProvider(ctx context.Context) (string, error) {
@@ -53,15 +59,22 @@ func PromptProvider(ctx context.Context) (string, error) {
 }
 
 func PromptAPIKey(ctx context.Context, provider string) (string, error) {
-	result := defaultClient.Password(ctx, tap.PasswordOptions{
-		Message: fmt.Sprintf("Enter API key for %s:", provider),
-	})
+	for {
+		result := defaultClient.Password(ctx, tap.PasswordOptions{
+			Message: fmt.Sprintf("Enter API key for %s:", provider),
+		})
 
-	if result == "" {
-		return "", ErrEmptyAPIKey
+		if result == "" {
+			return "", ErrEmptyAPIKey
+		}
+
+		if err := validateAPIKey(result, provider); err != nil {
+			defaultClient.Message(fmt.Sprintf("Invalid API key: %v. Please try again.", err), tap.MessageOptions{})
+			continue
+		}
+
+		return result, nil
 	}
-
-	return result, nil
 }
 
 func PromptPassword(ctx context.Context, message string) (string, error) {
@@ -87,6 +100,12 @@ func PromptNewPassword(ctx context.Context) (string, error) {
 		})
 
 		if password == "" {
+			continue
+		}
+
+		// Validate password strength
+		if err := validatePassword(password); err != nil {
+			defaultClient.Message(fmt.Sprintf("Weak password: %v", err), tap.MessageOptions{})
 			continue
 		}
 
@@ -134,12 +153,102 @@ func Confirm(ctx context.Context, message string) bool {
 	})
 }
 
+// validatePassword checks password strength requirements.
+// Returns nil if valid, or an error describing the validation failure.
+func validatePassword(password string) error {
+	if len(password) < MinPasswordLength {
+		return ErrPasswordTooShort
+	}
+
+	// Check for character diversity
+	hasUpper := false
+	hasLower := false
+	hasDigit := false
+	hasSpecial := false
+
+	for _, r := range password {
+		switch {
+		case unicode.IsUpper(r):
+			hasUpper = true
+		case unicode.IsLower(r):
+			hasLower = true
+		case unicode.IsDigit(r):
+			hasDigit = true
+		case unicode.IsPunct(r) || unicode.IsSymbol(r):
+			hasSpecial = true
+		}
+	}
+
+	// Require at least 3 of 4 character types
+	charTypes := 0
+	if hasUpper {
+		charTypes++
+	}
+	if hasLower {
+		charTypes++
+	}
+	if hasDigit {
+		charTypes++
+	}
+	if hasSpecial {
+		charTypes++
+	}
+
+	if charTypes < 3 {
+		return ErrPasswordTooSimple
+	}
+
+	return nil
+}
+
+// validateAPIKey performs basic validation on API key format.
+// Returns nil if valid, or an error describing the validation failure.
+func validateAPIKey(apiKey string, provider string) error {
+	if len(apiKey) < 16 {
+		return ErrAPIKeyTooShort
+	}
+
+	// Check for common invalid patterns
+	if strings.TrimSpace(apiKey) != apiKey {
+		return ErrAPIKeyHasWhitespace
+	}
+
+	// Check for placeholder patterns
+	placeholders := []string{
+		"your_api_key",
+		"your-api-key",
+		"YOUR_API_KEY",
+		"YOUR_API_KEY_HERE",
+		"insert_key_here",
+		"xxx",
+		"placeholder",
+	}
+
+	lowerKey := strings.ToLower(apiKey)
+	for _, placeholder := range placeholders {
+		if strings.Contains(lowerKey, placeholder) {
+			return ErrAPIKeyLooksLikePlaceholder
+		}
+	}
+
+	// Note: We don't enforce strict format validation as different providers
+	// use different API key formats. The length and placeholder checks above
+	// catch the most common mistakes.
+
+	return nil
+}
+
 var (
-	ErrEmptyAPIKey           = &InputError{Message: "API key cannot be empty"}
-	ErrEmptyPassword         = &InputError{Message: "password cannot be empty"}
-	ErrCancelled             = &InputError{Message: "operation cancelled"}
-	ErrInvalidProvider       = &InputError{Message: "invalid provider selection"}
-	ErrInvalidPackageManager = &InputError{Message: "invalid package manager selection"}
+	ErrEmptyAPIKey                = &InputError{Message: "API key cannot be empty"}
+	ErrEmptyPassword              = &InputError{Message: "password cannot be empty"}
+	ErrCancelled                  = &InputError{Message: "operation cancelled"}
+	ErrInvalidProvider            = &InputError{Message: "invalid provider selection"}
+	ErrInvalidPackageManager      = &InputError{Message: "invalid package manager selection"}
+	ErrPasswordTooShort           = &InputError{Message: fmt.Sprintf("password must be at least %d characters", MinPasswordLength)}
+	ErrPasswordTooSimple          = &InputError{Message: "password must contain at least 3 of: uppercase, lowercase, numbers, special characters"}
+	ErrAPIKeyTooShort             = &InputError{Message: "API key must be at least 16 characters"}
+	ErrAPIKeyHasWhitespace        = &InputError{Message: "API key cannot contain leading or trailing whitespace"}
+	ErrAPIKeyLooksLikePlaceholder = &InputError{Message: "API key appears to be a placeholder value"}
 )
 
 type InputError struct {
