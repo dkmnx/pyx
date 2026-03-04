@@ -103,7 +103,7 @@ func findEntry(db *database.Database, target string) (database.Entry, error) {
 	entry, err := db.GetEntry(target)
 	if err != nil {
 		tap.Cancel(fmt.Sprintf("Provider '%s' not found", target))
-		tap.Message("Use 'ply config list' to see all configured providers.")
+		tap.Message("Use 'ply list' to see all configured providers.")
 		return database.Entry{}, err
 	}
 	return entry, nil

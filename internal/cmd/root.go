@@ -168,7 +168,7 @@ func resolveEntries(db *database.Database, selectedProvider string) ([]database.
 
 		entry, err := db.GetEntry(selectedProvider)
 		if err != nil {
-			return nil, fmt.Errorf("provider '%s' not found. Use 'ply config list' to see all configured providers", selectedProvider)
+			return nil, fmt.Errorf("provider '%s' not found. Use 'ply list' to see all configured providers", selectedProvider)
 		}
 		return []database.Entry{entry}, nil
 	}
