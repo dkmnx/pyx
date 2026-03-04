@@ -14,6 +14,9 @@ type MockTapClient struct {
 	SelectFunc       func(ctx context.Context, opts tap.SelectOptions[string]) string
 	ConfirmFunc      func(ctx context.Context, opts tap.ConfirmOptions) bool
 	MessageFunc      func(text string, opts tap.MessageOptions)
+	CancelFunc       func(text string)
+	IntroFunc        func(text string)
+	OutroFunc        func(text string)
 }
 
 func (m *MockTapClient) Autocomplete(ctx context.Context, opts tap.AutocompleteOptions) string {
@@ -47,6 +50,24 @@ func (m *MockTapClient) Confirm(ctx context.Context, opts tap.ConfirmOptions) bo
 func (m *MockTapClient) Message(text string, opts tap.MessageOptions) {
 	if m.MessageFunc != nil {
 		m.MessageFunc(text, opts)
+	}
+}
+
+func (m *MockTapClient) Cancel(text string) {
+	if m.CancelFunc != nil {
+		m.CancelFunc(text)
+	}
+}
+
+func (m *MockTapClient) Intro(text string) {
+	if m.IntroFunc != nil {
+		m.IntroFunc(text)
+	}
+}
+
+func (m *MockTapClient) Outro(text string) {
+	if m.OutroFunc != nil {
+		m.OutroFunc(text)
 	}
 }
 
@@ -535,7 +556,8 @@ func TestSetTapClient(t *testing.T) {
 	customClient := &MockTapClient{}
 	SetTapClient(customClient)
 
-	if defaultClient != customClient {
+	// Verify the client was set by checking if it's the same pointer
+	if defaultClient != TapClient(customClient) {
 		t.Error("SetTapClient() did not set the client")
 	}
 

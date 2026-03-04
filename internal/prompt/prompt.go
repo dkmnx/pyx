@@ -18,7 +18,8 @@ var (
 
 // Minimum password requirements
 const (
-	MinPasswordLength = 8
+	MinPasswordLength  = 8
+	MaxPasswordRetries = 3
 )
 
 func PromptProvider(ctx context.Context) (string, error) {
@@ -46,6 +47,7 @@ func PromptProvider(ctx context.Context) (string, error) {
 	})
 
 	if result == "" {
+		tap.Cancel("Setup cancelled!")
 		return "", ErrCancelled
 	}
 
@@ -99,18 +101,30 @@ func PromptNewPassword(ctx context.Context) (string, error) {
 		Hint: "This password will be required each time you use ply.",
 	})
 
+	retries := 0
 	for {
 		password := defaultClient.Password(ctx, tap.PasswordOptions{
 			Message: "Enter password:",
 		})
 
 		if password == "" {
+			retries++
+			if retries >= MaxPasswordRetries {
+				tap.Message("Too many failed attempts. Password cannot be empty.")
+				return "", ErrCancelled
+			}
+			defaultClient.Message("Password cannot be empty. Please try again.", tap.MessageOptions{})
 			continue
 		}
 
 		// Validate password strength
 		if err := validatePassword(password); err != nil {
-			defaultClient.Message(fmt.Sprintf("Weak password: %v", err), tap.MessageOptions{})
+			retries++
+			if retries >= MaxPasswordRetries {
+				tap.Message(fmt.Sprintf("Too many failed attempts. %v", err))
+				return "", ErrCancelled
+			}
+			defaultClient.Message(fmt.Sprintf("Weak password: %v. Please try again.", err), tap.MessageOptions{})
 			continue
 		}
 
@@ -171,6 +185,31 @@ func SetConfirmForTesting(value bool) {
 // ResetConfirmForTesting resets the mock value (testing only)
 func ResetConfirmForTesting() {
 	mockConfirm = nil
+}
+
+// Cancel shows a cancellation message.
+func Cancel(text string) {
+	defaultClient.Cancel(text)
+}
+
+// Select shows a selection prompt and returns the selected value.
+func Select(ctx context.Context, opts tap.SelectOptions[string]) string {
+	return defaultClient.Select(ctx, opts)
+}
+
+// Intro shows an intro message.
+func Intro(text string) {
+	defaultClient.Intro(text)
+}
+
+// Outro shows an outro message.
+func Outro(text string) {
+	defaultClient.Outro(text)
+}
+
+// Message shows an informational message.
+func Message(text string, opts tap.MessageOptions) {
+	defaultClient.Message(text, opts)
 }
 
 // validatePassword checks password strength requirements.

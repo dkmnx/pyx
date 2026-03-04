@@ -32,23 +32,23 @@ func runDelete(cmd *cobra.Command, args []string) {
 
 	dataDir, err := fs.DataDir()
 	if err != nil {
-		tap.Cancel(fmt.Sprintf("Error getting data directory: %v", err))
+		prompt.Cancel(fmt.Sprintf("Error getting data directory: %v", err))
 		return
 	}
 
 	db := database.New(dataDir)
 	if err := db.Load(ctx); err != nil {
-		tap.Cancel(fmt.Sprintf("Error loading database: %v", err))
+		prompt.Cancel(fmt.Sprintf("Error loading database: %v", err))
 		return
 	}
 
 	fmt.Println()
 
-	tap.Intro("Delete Provider")
+	prompt.Intro("Delete Provider")
 
 	entries := db.ListEntries()
 	if len(entries) == 0 {
-		tap.Message("No providers configured.")
+		prompt.Outro("No providers configured.")
 		return
 	}
 
@@ -57,7 +57,7 @@ func runDelete(cmd *cobra.Command, args []string) {
 		target = args[0]
 		// Validate provider name before checking database
 		if err := providers.Validate(target); err != nil {
-			tap.Cancel(fmt.Sprintf("%v", err))
+			prompt.Cancel(fmt.Sprintf("%v", err))
 			return
 		}
 	} else {
@@ -70,40 +70,40 @@ func runDelete(cmd *cobra.Command, args []string) {
 			}
 		}
 
-		target = tap.Select(ctx, tap.SelectOptions[string]{
+		target = prompt.Select(ctx, tap.SelectOptions[string]{
 			Message: "Select a provider to delete:",
 			Options: options,
 		})
 
 		if target == "" {
-			tap.Cancel("Delete cancelled.")
+			prompt.Cancel("Delete cancelled.")
 			return
 		}
 	}
 
 	entry, err := db.GetEntry(target)
 	if err != nil {
-		tap.Cancel(fmt.Sprintf("Provider '%s' not found", target))
-		tap.Message("Use 'ply list' to see all configured providers.")
+		prompt.Cancel(fmt.Sprintf("Provider '%s' not found", target))
+		prompt.Message("Use 'ply list' to see all configured providers.", tap.MessageOptions{})
 		return
 	}
 
-	tap.Message(fmt.Sprintf("Provider '%s'", entry.Provider))
+	prompt.Message(fmt.Sprintf("Provider '%s'", entry.Provider), tap.MessageOptions{})
 
 	if !prompt.Confirm(ctx, "Are you sure you want to delete this provider?") {
-		tap.Cancel("Delete cancelled.")
+		prompt.Cancel("Delete cancelled.")
 		return
 	}
 
 	if err := db.DeleteEntry(entry.Provider); err != nil {
-		tap.Cancel(fmt.Sprintf("Error deleting entry: %v", err))
+		prompt.Cancel(fmt.Sprintf("Error deleting entry: %v", err))
 		return
 	}
 
 	if err := db.Save(ctx); err != nil {
-		tap.Cancel(fmt.Sprintf("Error saving database: %v", err))
+		prompt.Cancel(fmt.Sprintf("Error saving database: %v", err))
 		return
 	}
 
-	tap.Message(fmt.Sprintf("Provider '%s' deleted", entry.Provider))
+	prompt.Message(fmt.Sprintf("Provider '%s' deleted", entry.Provider), tap.MessageOptions{})
 }

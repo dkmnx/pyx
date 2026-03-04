@@ -21,6 +21,12 @@ type TapClient interface {
 	Confirm(ctx context.Context, opts tap.ConfirmOptions) bool
 	// Message shows an informational message
 	Message(text string, opts tap.MessageOptions)
+	// Cancel shows a cancellation message
+	Cancel(text string)
+	// Intro shows an intro message
+	Intro(text string)
+	// Outro shows an outro message
+	Outro(text string)
 }
 
 // RealTapClient is the real implementation using the tap library.
@@ -49,6 +55,21 @@ func (c *RealTapClient) Confirm(ctx context.Context, opts tap.ConfirmOptions) bo
 // Message shows an informational message using tap.
 func (c *RealTapClient) Message(text string, opts tap.MessageOptions) {
 	tap.Message(text, opts)
+}
+
+// Cancel shows a cancellation message using tap.
+func (c *RealTapClient) Cancel(text string) {
+	tap.Cancel(text)
+}
+
+// Intro shows an intro message using tap.
+func (c *RealTapClient) Intro(text string) {
+	tap.Intro(text)
+}
+
+// Outro shows an outro message using tap.
+func (c *RealTapClient) Outro(text string) {
+	tap.Outro(text)
 }
 
 // defaultClient is the default tap client used by prompt functions.
