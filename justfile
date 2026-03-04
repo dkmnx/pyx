@@ -1,6 +1,10 @@
 # Cross-platform justfile for ply
 # Works on Windows, macOS, and Linux
 
+# Set shell for Windows (PowerShell) and Unix systems
+set windows-shell := ["pwsh", "-NoProfile", "-Command"]
+set shell := ["pwsh", "-NoProfile", "-Command"]
+
 # Variables
 app_name := "ply"
 cmd_dir := "./cmd/ply"
@@ -8,16 +12,16 @@ build_dir := "./bin"
 main_cmd := "cmd/ply/main.go"
 
 # Version info - cross-platform git commands with fallbacks
-version := `git describe --tags --always 2>nul 2>/dev/null || echo "dev"`
-commit := `git rev-parse --short HEAD 2>nul 2>/dev/null || echo "none"`
-date := `date -u +"%Y-%m-%dT%H:%M:%SZ" 2>nul 2>/dev/null || echo "unknown"`
+version := `git describe --tags --always 2>$null || echo "dev"`
+commit := `git rev-parse --short HEAD 2>$null || echo "none"`
+date := `Get-Date -AsUTC -Format "yyyy-MM-ddTHH:mm:ssZ"`
 
 ldflags := "-X github.com/dkmnx/ply/internal/cmd.version={{version}} -X github.com/dkmnx/ply/internal/cmd.commit={{commit}} -X github.com/dkmnx/ply/internal/cmd.date={{date}}"
 
 # Build the application
 build:
     @echo "Building {{app_name}}..."
-    @mkdir -p {{build_dir}}
+    @if (!(Test-Path {{build_dir}})) { New-Item -ItemType Directory -Path {{build_dir}} | Out-Null }
     @go build -ldflags "{{ldflags}}" -o {{build_dir}}/{{app_name}} {{main_cmd}}
     @echo "Built: {{build_dir}}/{{app_name}}"
 
@@ -26,14 +30,14 @@ build:
 [macos]
 build-prod:
     @echo "Building {{app_name}} (production)..."
-    @mkdir -p {{build_dir}}
-    @go build -ldflags "-s -w {{ldflags}}" -o {{build_dir}}/{{app_name}} {{main_cmd}}
-    @echo "Built: {{build_dir}}/{{app_name}}"
+    mkdir -p {{build_dir}}
+    go build -ldflags "-s -w {{ldflags}}" -o {{build_dir}}/{{app_name}} {{main_cmd}}
+    echo "Built: {{build_dir}}/{{app_name}}"
 
 [windows]
 build-prod:
     @echo "Building {{app_name}} (production)..."
-    @mkdir -p {{build_dir}}
+    @if (!(Test-Path {{build_dir}})) { New-Item -ItemType Directory -Path {{build_dir}} | Out-Null }
     @go build -ldflags "-s -w {{ldflags}}" -o {{build_dir}}/{{app_name}}.exe {{main_cmd}}
     @echo "Built: {{build_dir}}/{{app_name}}.exe"
 
