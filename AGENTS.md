@@ -26,33 +26,27 @@ integration with pi by setting appropriate environment variables.
 ## How
 
 **Build/Install**:
-
-- `make build` - Build to `bin/ply`
-- `make install` - Install to `$GOPATH/bin/ply`
-- `make run ARGS="..."` - Run directly
-
-**Running**:
-
-- Run ply in tmux (interactive CLI requires terminal)
-- If tmux not installed, ask user to install it first
+- `just build` - Build to `bin/ply`
+- `just build-prod` - Production build (stripped binary)
+- `just install` - Install to `$GOPATH/bin/ply`
+- `just run ARGS` - Run directly
 
 **Test**:
-
-- `make test` - Run all tests with race detection
-- `make test-v` - Verbose test output
-- `make test-run RUN=TestName` - Specific test
+- `just test` - Run all tests with race detection
+- `just test-v` - Verbose test output
+- `just test-run RUN=TestName` - Specific test
 
 **Lint/Format**:
+- `just fmt` - Format code
+- `just vet` - Run go vet
+- `just lint` - Run golangci-lint
+- `just check` - All checks (fmt, vet, lint, test)
 
-- `make fmt` - Format code
-- `make lint` - Run golangci-lint
-- `make vet` - Run go vet
-- `make check` - All checks (fmt, vet, lint, test)
-
-**Maintenance**:
-
-- `make mod-tidy` - Tidy go modules
-- `make clean` - Remove build artifacts
+**Security/Maintenance**:
+- `just security` - Run gosec and govulncheck
+- `just mod-tidy` - Tidy go modules
+- `just clean` - Remove build artifacts
+- `just deps` - Install dependencies
 
 ## Docs
 
