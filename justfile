@@ -12,14 +12,13 @@ main_cmd := "cmd/ply/main.go"
 gopath := `go env GOPATH`
 
 # Version info - cross-platform
-# Simple git commands work in both bash and PowerShell. 
-# The || operator works in bash and PowerShell 7+
-version := `git describe --tags --always 2>&1 || echo dev`
-commit := `git rev-parse --short HEAD 2>&1 || echo none`
-# Use date command (available on Linux/macOS and git-bash on Windows)
-date := `date -u "+%Y-%m-%dT%H:%M:%SZ" 2>&1 || echo 1970-01-01T00:00:00Z`
+# These commands work in both bash and PowerShell (git is an external command)
+version := `git describe --tags --always 2>&1`
+commit := `git rev-parse --short HEAD 2>&1`
+# Use git log for date in ISO 8601 format - works consistently across all platforms
+date := `git log -1 --format=%aI 2>&1`
 
-# Build ldflags with proper variable interpolation (use {} for variables in variable definitions)
+# Single ldflags used by all platforms
 ldflags := "-X github.com/dkmnx/ply/internal/cmd.version=" + version + " -X github.com/dkmnx/ply/internal/cmd.commit=" + commit + " -X github.com/dkmnx/ply/internal/cmd.date=" + date
 
 # Build the application
@@ -113,6 +112,13 @@ install:
     @echo "Installed to {{gopath}}/bin/{{app_name}}.exe"
 
 # Run the application
+[linux]
+[macos]
+run ARGS="":
+    @echo "Running {{app_name}}..."
+    @go run -ldflags "{{ldflags}}" {{main_cmd}} {{ARGS}}
+
+[windows]
 run ARGS="":
     @echo "Running {{app_name}}..."
     @go run -ldflags "{{ldflags}}" {{main_cmd}} {{ARGS}}
