@@ -105,5 +105,5 @@ func runDelete(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	prompt.Message(fmt.Sprintf("Provider '%s' deleted", entry.Provider), tap.MessageOptions{})
+	prompt.Outro(fmt.Sprintf("Provider '%s' deleted", entry.Provider))
 }
