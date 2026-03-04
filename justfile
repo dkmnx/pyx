@@ -1,9 +1,8 @@
 # Cross-platform justfile for ply
 # Works on Windows, macOS, and Linux
 
-# Set shell for Windows (PowerShell) and Unix systems
+# Set shell for Windows (PowerShell) only
 set windows-shell := ["pwsh", "-NoProfile", "-Command"]
-set shell := ["pwsh", "-NoProfile", "-Command"]
 
 # Variables
 app_name := "ply"
@@ -12,21 +11,25 @@ build_dir := "./bin"
 main_cmd := "cmd/ply/main.go"
 gopath := `go env GOPATH`
 
-# Version info - cross-platform git commands with fallbacks
-version := `git describe --tags --always 2>$null || echo "dev"`
-commit := `git rev-parse --short HEAD 2>$null || echo "none"`
-date := `Get-Date -AsUTC -Format "yyyy-MM-ddTHH:mm:ssZ"`
+# Version info - cross-platform
+# Simple git commands work in both bash and PowerShell. 
+# The || operator works in bash and PowerShell 7+
+version := `git describe --tags --always 2>&1 || echo dev`
+commit := `git rev-parse --short HEAD 2>&1 || echo none`
+# Use date command (available on Linux/macOS and git-bash on Windows)
+date := `date -u "+%Y-%m-%dT%H:%M:%SZ" 2>&1 || echo 1970-01-01T00:00:00Z`
 
-ldflags := "-X github.com/dkmnx/ply/internal/cmd.version={{version}} -X github.com/dkmnx/ply/internal/cmd.commit={{commit}} -X github.com/dkmnx/ply/internal/cmd.date={{date}}"
+# Build ldflags with proper variable interpolation (use {} for variables in variable definitions)
+ldflags := "-X github.com/dkmnx/ply/internal/cmd.version=" + version + " -X github.com/dkmnx/ply/internal/cmd.commit=" + commit + " -X github.com/dkmnx/ply/internal/cmd.date=" + date
 
 # Build the application
 [linux]
 [macos]
 build:
     @echo "Building {{app_name}}..."
-    mkdir -p {{build_dir}}
-    go build -ldflags "{{ldflags}}" -o {{build_dir}}/{{app_name}} {{main_cmd}}
-    echo "Built: {{build_dir}}/{{app_name}}"
+    @mkdir -p {{build_dir}}
+    @go build -ldflags "{{ldflags}}" -o {{build_dir}}/{{app_name}} {{main_cmd}}
+    @echo "Built: {{build_dir}}/{{app_name}}"
 
 [windows]
 build:
@@ -40,9 +43,9 @@ build:
 [macos]
 build-prod:
     @echo "Building {{app_name}} (production)..."
-    mkdir -p {{build_dir}}
-    go build -ldflags "-s -w {{ldflags}}" -o {{build_dir}}/{{app_name}} {{main_cmd}}
-    echo "Built: {{build_dir}}/{{app_name}}"
+    @mkdir -p {{build_dir}}
+    @go build -ldflags "-s -w {{ldflags}}" -o {{build_dir}}/{{app_name}} {{main_cmd}}
+    @echo "Built: {{build_dir}}/{{app_name}}"
 
 [windows]
 build-prod:
