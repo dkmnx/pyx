@@ -15,8 +15,8 @@ import (
 var deleteCmd = &cobra.Command{
 	Use:   "delete [provider]",
 	Short: "Delete a provider configuration",
-	Long:  `Delete removes a provider configuration by provider name.`,
-	Args:  cobra.ExactArgs(1),
+	Long:  `Delete removes a provider configuration. If no provider is specified, shows an interactive selection.`,
+	Args:  cobra.MaximumNArgs(1),
 	Run:   runDelete,
 }
 
@@ -28,13 +28,6 @@ func runDelete(cmd *cobra.Command, args []string) {
 	ctx := cmd.Context()
 	if ctx == nil {
 		ctx = context.Background()
-	}
-	target := args[0]
-
-	// Validate provider name before checking database
-	if err := providers.Validate(target); err != nil {
-		tap.Cancel(fmt.Sprintf("%v", err))
-		return
 	}
 
 	dataDir, err := fs.DataDir()
@@ -49,6 +42,45 @@ func runDelete(cmd *cobra.Command, args []string) {
 		return
 	}
 
+	fmt.Println()
+
+	tap.Intro("Delete Provider")
+
+	entries := db.ListEntries()
+	if len(entries) == 0 {
+		tap.Message("No providers configured.")
+		return
+	}
+
+	var target string
+	if len(args) > 0 {
+		target = args[0]
+		// Validate provider name before checking database
+		if err := providers.Validate(target); err != nil {
+			tap.Cancel(fmt.Sprintf("%v", err))
+			return
+		}
+	} else {
+		// Interactive selection
+		options := make([]tap.SelectOption[string], len(entries))
+		for i, entry := range entries {
+			options[i] = tap.SelectOption[string]{
+				Value: entry.Provider,
+				Label: entry.Provider,
+			}
+		}
+
+		target = tap.Select(ctx, tap.SelectOptions[string]{
+			Message: "Select a provider to delete:",
+			Options: options,
+		})
+
+		if target == "" {
+			tap.Cancel("Delete cancelled.")
+			return
+		}
+	}
+
 	entry, err := db.GetEntry(target)
 	if err != nil {
 		tap.Cancel(fmt.Sprintf("Provider '%s' not found", target))
@@ -59,7 +91,7 @@ func runDelete(cmd *cobra.Command, args []string) {
 	tap.Message(fmt.Sprintf("Provider '%s'", entry.Provider))
 
 	if !prompt.Confirm(ctx, "Are you sure you want to delete this provider?") {
-		tap.Message("Delete cancelled.")
+		tap.Cancel("Delete cancelled.")
 		return
 	}
 
