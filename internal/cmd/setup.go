@@ -157,12 +157,15 @@ func storeProviderEntry(
 	db *database.Database,
 	masterKey []byte,
 	provider string,
-	apiKey string,
+	apiKey *crypto.SecureString,
 ) (bool, error) {
-	cipher, err := crypto.Encrypt(string(masterKey), apiKey)
+	cipher, err := crypto.Encrypt(string(masterKey), string(apiKey.Bytes()))
 	if err != nil {
 		return false, fmt.Errorf("error encrypting API key: %w", err)
 	}
+
+	// Zero the API key after encryption
+	apiKey.Zero()
 
 	var entry database.Entry
 	isUpdate := false
@@ -356,8 +359,11 @@ func runSetup(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	// Store provider entry
-	isUpdate, err := storeProviderEntry(ctx, db, masterKey, provider, apiKey)
+	// Wrap API key in SecureString for secure handling
+	secureAPIKey := crypto.NewSecureString(apiKey)
+
+	// Store provider entry (secureAPIKey will be zeroed inside)
+	isUpdate, err := storeProviderEntry(ctx, db, masterKey, provider, secureAPIKey)
 	if err != nil {
 		tap.Cancel(fmt.Sprintf("Error: %v", err))
 		return

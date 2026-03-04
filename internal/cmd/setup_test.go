@@ -267,7 +267,8 @@ func TestStoreProviderEntry_New(t *testing.T) {
 	ctx := context.Background()
 	db.Load(ctx)
 
-	isUpdate, err := storeProviderEntry(ctx, db, masterKey, "openai", "sk-test-123")
+	apiKey := crypto.NewSecureString("sk-test-123")
+	isUpdate, err := storeProviderEntry(ctx, db, masterKey, "openai", apiKey)
 	if err != nil {
 		t.Fatalf("storeProviderEntry() error = %v", err)
 	}
@@ -302,7 +303,8 @@ func TestStoreProviderEntry_Update(t *testing.T) {
 	db.Save(ctx)
 
 	// Update => entry
-	isUpdate, err := storeProviderEntry(ctx, db, masterKey, "openai", "sk-new-key")
+	apiKey := crypto.NewSecureString("sk-new-key")
+	isUpdate, err := storeProviderEntry(ctx, db, masterKey, "openai", apiKey)
 	if err != nil {
 		t.Fatalf("storeProviderEntry() error = %v", err)
 	}
