@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -46,8 +47,9 @@ func DecodeCwd(encoded string) string {
 	decoded = strings.ReplaceAll(decoded, "-", "/")
 	// Convert to local filepath separators
 	decoded = filepath.FromSlash(decoded)
-	// Add leading separator
-	if !strings.HasPrefix(decoded, string(filepath.Separator)) {
+	// Add leading separator only if it looks like a Unix absolute path
+	// Windows drive letters (e.g., "C:") are already handled by FromSlash
+	if runtime.GOOS != "windows" && !strings.HasPrefix(decoded, string(filepath.Separator)) {
 		decoded = string(filepath.Separator) + decoded
 	}
 	return decoded

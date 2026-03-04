@@ -98,14 +98,36 @@ func (db *Database) Save(ctx context.Context) error {
 
 	backupPath := db.filePath + ".bak"
 	if _, err := os.Stat(db.filePath); err == nil {
+		// Check context before creating backup
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
 		if err := copyFile(db.filePath, backupPath); err != nil {
 			return fmt.Errorf("%w: %v", ErrBackupFailed, err)
 		}
 	}
 
+	// Check context before writing temp file
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
 	tempPath := db.filePath + ".tmp"
 	if err := os.WriteFile(tempPath, data, 0600); err != nil {
 		return fmt.Errorf("failed to write temp database file: %w", err)
+	}
+
+	// Check context before rename
+	select {
+	case <-ctx.Done():
+		// Clean up temp file if context was cancelled
+		_ = os.Remove(tempPath)
+		return ctx.Err()
+	default:
 	}
 
 	if err := os.Rename(tempPath, db.filePath); err != nil {
