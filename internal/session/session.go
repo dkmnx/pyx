@@ -27,9 +27,12 @@ func PiSessionsDir() (string, error) {
 
 // EncodeCwd encodes a working directory path for use in session directory names
 func EncodeCwd(cwd string) string {
-	// Remove leading slash, replace /, \, : with -
-	encoded := strings.TrimPrefix(cwd, string(filepath.Separator))
-	encoded = strings.ReplaceAll(encoded, string(filepath.Separator), "-")
+	// Normalize path separators to / first, then replace with -
+	encoded := filepath.ToSlash(cwd)
+	// Remove leading slash
+	encoded = strings.TrimPrefix(encoded, "/")
+	// Replace remaining / and : with -
+	encoded = strings.ReplaceAll(encoded, "/", "-")
 	encoded = strings.ReplaceAll(encoded, ":", "-")
 	return "--" + encoded + "--"
 }
@@ -39,9 +42,15 @@ func DecodeCwd(encoded string) string {
 	// Remove -- prefix and suffix
 	decoded := strings.TrimPrefix(encoded, "--")
 	decoded = strings.TrimSuffix(decoded, "--")
-	// Replace - back to filepath separator (we can't recover : exactly)
-	decoded = strings.ReplaceAll(decoded, "-", string(filepath.Separator))
-	return string(filepath.Separator) + decoded
+	// Replace - back to / first, then convert to local separators
+	decoded = strings.ReplaceAll(decoded, "-", "/")
+	// Convert to local filepath separators
+	decoded = filepath.FromSlash(decoded)
+	// Add leading separator
+	if !strings.HasPrefix(decoded, string(filepath.Separator)) {
+		decoded = string(filepath.Separator) + decoded
+	}
+	return decoded
 }
 
 // DirForCwd returns the session directory for a given working directory

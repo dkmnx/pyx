@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -51,14 +52,16 @@ func TestSaveLoad(t *testing.T) {
 		t.Fatal("Save() did not create database file")
 	}
 
-	// Check file permissions
-	info, err := os.Stat(filePath)
-	if err != nil {
-		t.Fatalf("os.Stat() error = %v", err)
-	}
+	// Check file permissions - skip on Windows as it doesn't support Unix permissions
+	if runtime.GOOS != "windows" {
+		info, err := os.Stat(filePath)
+		if err != nil {
+			t.Fatalf("os.Stat() error = %v", err)
+		}
 
-	if info.Mode().Perm() != 0600 {
-		t.Errorf("Save() file permissions = %v, want 0600", info.Mode().Perm())
+		if info.Mode().Perm() != 0600 {
+			t.Errorf("Save() file permissions = %v, want 0600", info.Mode().Perm())
+		}
 	}
 
 	// Load in new database instance

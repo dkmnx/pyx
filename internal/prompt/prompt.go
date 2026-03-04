@@ -11,6 +11,11 @@ import (
 	"github.com/yarlson/tap"
 )
 
+// Testing mock support
+var (
+	mockConfirm *bool
+)
+
 // Minimum password requirements
 const (
 	MinPasswordLength = 8
@@ -148,9 +153,24 @@ func PromptPackageManager(ctx context.Context) (string, error) {
 }
 
 func Confirm(ctx context.Context, message string) bool {
+	// Use mock value if set for testing
+	if mockConfirm != nil {
+		return *mockConfirm
+	}
+
 	return defaultClient.Confirm(ctx, tap.ConfirmOptions{
 		Message: message,
 	})
+}
+
+// SetConfirmForTesting sets a mock value for Confirm function (testing only)
+func SetConfirmForTesting(value bool) {
+	mockConfirm = &value
+}
+
+// ResetConfirmForTesting resets the mock value (testing only)
+func ResetConfirmForTesting() {
+	mockConfirm = nil
 }
 
 // validatePassword checks password strength requirements.

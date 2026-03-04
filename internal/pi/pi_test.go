@@ -2,6 +2,7 @@ package pi
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -286,22 +287,22 @@ func TestCompletionScriptPathAllShells(t *testing.T) {
 		{
 			name:  "zsh",
 			shell: ShellZsh,
-			want:  home + "/.zshrc",
+			want:  filepath.Join(home, ".zshrc"),
 		},
 		{
 			name:  "fish",
 			shell: ShellFish,
-			want:  home + "/.config/fish/completions/ply.fish",
+			want:  filepath.Join(home, ".config", "fish", "completions", "ply.fish"),
 		},
 		{
 			name:  "powershell",
 			shell: ShellPowerShell,
-			want:  home + "/Documents/PowerShell/ply.ps1",
+			want:  filepath.Join(home, "Documents", "PowerShell", "ply.ps1"),
 		},
 		{
 			name:  "bash",
 			shell: ShellBash,
-			want:  home + "/.bashrc",
+			want:  filepath.Join(home, ".bashrc"),
 		},
 	}
 

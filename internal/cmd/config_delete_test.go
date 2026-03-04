@@ -4,11 +4,13 @@ import (
 	"context"
 	"io"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/dkmnx/ply/internal/crypto"
 	"github.com/dkmnx/ply/internal/database"
 	"github.com/dkmnx/ply/internal/fs"
+	"github.com/dkmnx/ply/internal/prompt"
 	"github.com/spf13/cobra"
 )
 
@@ -96,24 +98,45 @@ func TestConfigDelete_NotFound(t *testing.T) {
 }
 
 func TestConfigDelete_EmptyDatabase(t *testing.T) {
+	// Use a subdirectory in temp dir to avoid any existing files
 	tempDir := t.TempDir()
+	plyDataDir := filepath.Join(tempDir, "ply-data")
 
+	// Backup and set home directory
 	origHome := os.Getenv("HOME")
 	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", origHome)
+	defer func() {
+		os.Setenv("HOME", origHome)
+	}()
 
-	dataDir, _ := fs.EnsureDataDir()
-	masterKey, _ := crypto.GenerateKey()
-	_ = fs.SaveMasterKey(masterKey)
+	// Mock prompt to auto-confirm
+	prompt.SetConfirmForTesting(true)
+	defer prompt.ResetConfirmForTesting()
 
-	db := database.New(dataDir)
-	_ = db.Load(context.Background())
-	_ = db.Save(context.Background())
+	// Create fresh database in a clean subdirectory
+	if err := os.MkdirAll(plyDataDir, 0700); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+
+	db := database.New(plyDataDir)
+
+	// Load should be safe on empty database
+	if err := db.Load(context.Background()); err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	// Ensure database is actually empty
+	entries := db.ListEntries()
+	if len(entries) != 0 {
+		t.Fatalf("Database should be empty at start, got %d entries: %+v", len(entries), entries)
+	}
 
 	cmd := &cobra.Command{}
-	runConfigDelete(cmd, []string{"any"})
+	// Use a valid provider name to avoid validation error
+	runConfigDelete(cmd, []string{"openai"})
 
-	entries := db.ListEntries()
+	// Check database is still empty after delete attempt
+	entries = db.ListEntries()
 	if len(entries) != 0 {
 		t.Errorf("Database should still be empty, got %d entries", len(entries))
 	}

@@ -13,6 +13,8 @@ func TestEncodeCwd(t *testing.T) {
 	}{
 		{"/home/user/project", "--home-user-project--"},
 		{"/Users/user/Documents", "--Users-user-Documents--"},
+		{"C:\\Users\\user\\Documents", "--C--Users-user-Documents--"},
+		{"C:/Users/user/Documents", "--C--Users-user-Documents--"},
 	}
 
 	for _, tt := range tests {
@@ -28,7 +30,7 @@ func TestDecodeCwd(t *testing.T) {
 		input    string
 		expected string
 	}{
-		{"--home-user-project--", string(os.PathSeparator) + "home" + string(os.PathSeparator) + "user" + string(os.PathSeparator) + "project"},
+		{"--home-user-project--", filepath.FromSlash("/home/user/project")},
 	}
 
 	for _, tt := range tests {

@@ -3,6 +3,7 @@ package fs
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -56,9 +57,11 @@ func TestEnsureDataDir(t *testing.T) {
 		t.Error("EnsureDataDir() did not create a directory")
 	}
 
-	// Verify permissions
-	if info.Mode().Perm() != 0700 {
-		t.Errorf("EnsureDataDir() permissions = %v, want 0700", info.Mode().Perm())
+	// Verify permissions - skip on Windows as it doesn't support Unix permissions
+	if runtime.GOOS != "windows" {
+		if info.Mode().Perm() != 0700 {
+			t.Errorf("EnsureDataDir() permissions = %v, want 0700", info.Mode().Perm())
+		}
 	}
 }
 
@@ -89,24 +92,33 @@ func TestSaveAndLoadMasterKey(t *testing.T) {
 		t.Errorf("LoadMasterKey() = %v, want %v", loaded, key)
 	}
 
-	// Check file permissions
-	masterKeyPath, _ := MasterKeyPath()
-	info, err := os.Stat(masterKeyPath)
-	if err != nil {
-		t.Fatalf("os.Stat() error = %v", err)
-	}
+	// Check file permissions - skip on Windows as it doesn't support Unix permissions
+	if runtime.GOOS != "windows" {
+		masterKeyPath, _ := MasterKeyPath()
+		info, err := os.Stat(masterKeyPath)
+		if err != nil {
+			t.Fatalf("os.Stat() error = %v", err)
+		}
 
-	if info.Mode().Perm() != 0600 {
-		t.Errorf("SaveMasterKey() file permissions = %v, want 0600", info.Mode().Perm())
+		if info.Mode().Perm() != 0600 {
+			t.Errorf("SaveMasterKey() file permissions = %v, want 0600", info.Mode().Perm())
+		}
 	}
 }
 
 func TestLoadMasterKeyNotFound(t *testing.T) {
 	// Use a temp directory for testing
 	origHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", origHome)
+
+	// Create a unique temp directory for this test
 	tempHome := t.TempDir()
 	os.Setenv("HOME", tempHome)
-	defer os.Setenv("HOME", origHome)
+
+	// Use XDG_DATA_HOME which is respected on all platforms
+	origXDG := os.Getenv("XDG_DATA_HOME")
+	defer os.Setenv("XDG_DATA_HOME", origXDG)
+	os.Setenv("XDG_DATA_HOME", tempHome)
 
 	_, err := LoadMasterKey()
 	if err != ErrMasterKeyNotFound {
@@ -117,9 +129,16 @@ func TestLoadMasterKeyNotFound(t *testing.T) {
 func TestMasterKeyExists(t *testing.T) {
 	// Use a temp directory for testing
 	origHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", origHome)
+
+	// Create a unique temp directory for this test
 	tempHome := t.TempDir()
 	os.Setenv("HOME", tempHome)
-	defer os.Setenv("HOME", origHome)
+
+	// Use XDG_DATA_HOME which is respected on all platforms
+	origXDG := os.Getenv("XDG_DATA_HOME")
+	defer os.Setenv("XDG_DATA_HOME", origXDG)
+	os.Setenv("XDG_DATA_HOME", tempHome)
 
 	exists, err := MasterKeyExists()
 	if err != nil {
@@ -153,9 +172,16 @@ func TestMasterKeyExists(t *testing.T) {
 func TestDataDirExists(t *testing.T) {
 	// Use a temp directory for testing
 	origHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", origHome)
+
+	// Create a unique temp directory for this test
 	tempHome := t.TempDir()
 	os.Setenv("HOME", tempHome)
-	defer os.Setenv("HOME", origHome)
+
+	// Use XDG_DATA_HOME which is respected on all platforms
+	origXDG := os.Getenv("XDG_DATA_HOME")
+	defer os.Setenv("XDG_DATA_HOME", origXDG)
+	os.Setenv("XDG_DATA_HOME", tempHome)
 
 	exists, err := DataDirExists()
 	if err != nil {

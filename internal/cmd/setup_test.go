@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/dkmnx/ply/internal/crypto"
@@ -55,15 +56,17 @@ func TestSetupCreatesMasterKey(t *testing.T) {
 		t.Errorf("Master key size = %d, want 32", len(loadedKey))
 	}
 
-	// Verify permissions
-	masterKeyPath, _ := fs.MasterKeyPath()
-	info, err := os.Stat(masterKeyPath)
-	if err != nil {
-		t.Fatalf("os.Stat() error = %v", err)
-	}
+	// Verify permissions - skip on Windows as it doesn't support Unix permissions
+	if runtime.GOOS != "windows" {
+		masterKeyPath, _ := fs.MasterKeyPath()
+		info, err := os.Stat(masterKeyPath)
+		if err != nil {
+			t.Fatalf("os.Stat() error = %v", err)
+		}
 
-	if info.Mode().Perm() != 0600 {
-		t.Errorf("Master key permissions = %v, want 0600", info.Mode().Perm())
+		if info.Mode().Perm() != 0600 {
+			t.Errorf("Master key permissions = %v, want 0600", info.Mode().Perm())
+		}
 	}
 
 	_ = dataDirCreated
@@ -123,14 +126,16 @@ func TestSetupCreatesDatabaseEntry(t *testing.T) {
 		t.Fatal("Database file was not created")
 	}
 
-	// Verify database permissions
-	info, err := os.Stat(dbPath)
-	if err != nil {
-		t.Fatalf("os.Stat() error = %v", err)
-	}
+	// Verify database permissions - skip on Windows as it doesn't support Unix permissions
+	if runtime.GOOS != "windows" {
+		info, err := os.Stat(dbPath)
+		if err != nil {
+			t.Fatalf("os.Stat() error = %v", err)
+		}
 
-	if info.Mode().Perm() != 0600 {
-		t.Errorf("Database permissions = %v, want 0600", info.Mode().Perm())
+		if info.Mode().Perm() != 0600 {
+			t.Errorf("Database permissions = %v, want 0600", info.Mode().Perm())
+		}
 	}
 
 	// Verify database content
