@@ -10,6 +10,7 @@ app_name := "ply"
 cmd_dir := "./cmd/ply"
 build_dir := "./bin"
 main_cmd := "cmd/ply/main.go"
+gopath := `go env GOPATH`
 
 # Version info - cross-platform git commands with fallbacks
 version := `git describe --tags --always 2>$null || echo "dev"`
@@ -19,11 +20,20 @@ date := `Get-Date -AsUTC -Format "yyyy-MM-ddTHH:mm:ssZ"`
 ldflags := "-X github.com/dkmnx/ply/internal/cmd.version={{version}} -X github.com/dkmnx/ply/internal/cmd.commit={{commit}} -X github.com/dkmnx/ply/internal/cmd.date={{date}}"
 
 # Build the application
+[linux]
+[macos]
+build:
+    @echo "Building {{app_name}}..."
+    mkdir -p {{build_dir}}
+    go build -ldflags "{{ldflags}}" -o {{build_dir}}/{{app_name}} {{main_cmd}}
+    echo "Built: {{build_dir}}/{{app_name}}"
+
+[windows]
 build:
     @echo "Building {{app_name}}..."
     @if (!(Test-Path {{build_dir}})) { New-Item -ItemType Directory -Path {{build_dir}} | Out-Null }
-    @go build -ldflags "{{ldflags}}" -o {{build_dir}}/{{app_name}} {{main_cmd}}
-    @echo "Built: {{build_dir}}/{{app_name}}"
+    @go build -ldflags "{{ldflags}}" -o {{build_dir}}/{{app_name}}.exe {{main_cmd}}
+    @echo "Built: {{build_dir}}/{{app_name}}.exe"
 
 # Build for production (stripped binary)
 [linux]
@@ -86,10 +96,18 @@ clean:
     @if exist {{build_dir}} rmdir /s /q {{build_dir}}
 
 # Install locally
+[linux]
+[macos]
 install:
     @echo "Installing {{app_name}}..."
-    @go build -ldflags "{{ldflags}}" -o `go env GOPATH`/bin/{{app_name}} {{main_cmd}}
-    @echo "Installed to `go env GOPATH`/bin/{{app_name}}"
+    @go build -ldflags "{{ldflags}}" -o {{gopath}}/bin/{{app_name}} {{main_cmd}}
+    @echo "Installed to {{gopath}}/bin/{{app_name}}"
+
+[windows]
+install:
+    @echo "Installing {{app_name}}..."
+    @go build -ldflags "{{ldflags}}" -o {{gopath}}/bin/{{app_name}}.exe {{main_cmd}}
+    @echo "Installed to {{gopath}}/bin/{{app_name}}.exe"
 
 # Run the application
 run ARGS="":
