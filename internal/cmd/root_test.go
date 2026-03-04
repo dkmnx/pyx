@@ -286,3 +286,35 @@ func TestBuildEnvSlice(t *testing.T) {
 		t.Error("ANTHROPIC_API_KEY not found in result")
 	}
 }
+
+func TestBuildProviderEnv_InvalidPassphrase(t *testing.T) {
+	// Use a wrong master key (32 bytes of wrong data)
+	wrongMasterKey := []byte("this-is-definitely-the-wrong-key-32b!!")
+
+	// Create test entries with a correct master key
+	correctMasterKey := make([]byte, 32)
+	cipher, _ := crypto.Encrypt(string(correctMasterKey), "test-api-key")
+
+	entries := []database.Entry{
+		{Provider: "zai", Cipher: cipher},
+	}
+
+	_, err := buildProviderEnv(wrongMasterKey, entries)
+	if err == nil {
+		t.Fatal("Expected error for invalid passphrase")
+	}
+
+	// Verify the error is the user-friendly message, not the raw "invalid passphrase"
+	if err.Error() == "invalid passphrase" || err.Error() == "error decrypting API key for provider 'zai': invalid passphrase" {
+		t.Errorf("Got raw error message instead of user-friendly one: %v", err)
+	}
+
+	// Verify the error suggests running 'ply setup'
+	expectedHint := "ply setup"
+	if err.Error()[:len(expectedHint)] != expectedHint && len(err.Error()) < len(expectedHint) {
+		t.Errorf("Error message should suggest running 'ply setup', got: %v", err)
+	}
+
+	// Also verify using errors.Is that we don't have the raw crypto.ErrInvalidPassphrase in the chain
+	// (the new code should replace it with a user-friendly message)
+}

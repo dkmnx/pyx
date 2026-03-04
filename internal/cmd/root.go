@@ -329,6 +329,9 @@ func buildProviderEnv(masterKey []byte, providerEntries []database.Entry) ([]str
 	// Decrypt all provider keys
 	decryptedAPIKeys, err := decryptProviderKeys(masterKey, providerEntries)
 	if err != nil {
+		if errors.Is(err, crypto.ErrInvalidPassphrase) {
+			return nil, errors.New("could not decrypt your API keys. Run 'ply setup' to recreate your configuration")
+		}
 		return nil, err
 	}
 
