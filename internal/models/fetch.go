@@ -105,6 +105,11 @@ func FetchLatest(ctx context.Context) (Models, string, error) {
 func FetchAndCache(ctx context.Context) error {
 	models, tag, err := FetchLatest(ctx)
 	if err != nil {
+		// Fall back to cached models if available
+		cache, loadErr := LoadCache()
+		if loadErr == nil && cache.Models != nil {
+			return nil // Use cached models silently
+		}
 		return err
 	}
 

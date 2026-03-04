@@ -210,6 +210,13 @@ func (m *Manager) PasswordExists() (bool, error) {
 	return false, fmt.Errorf("failed to check keyring: %w", err)
 }
 
+// GetStoredPassword retrieves the password from the OS keyring.
+// This is useful for verifying the password is actually retrievable before
+// attempting to use it for encryption.
+func (m *Manager) GetStoredPassword() (string, error) {
+	return m.getStoredPassword()
+}
+
 // SetPassword stores the password in the OS keyring for future use.
 // This enables automatic password retrieval on subsequent runs.
 func (m *Manager) SetPassword(password []byte) error {

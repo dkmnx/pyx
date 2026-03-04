@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -80,7 +81,7 @@ func loadExistingMasterKey(ctx context.Context, keyMgr *keys.Manager) ([]byte, e
 
 	masterKey, err := keyMgr.Load(password)
 	if err != nil {
-		if err == keys.ErrInvalidPassword {
+		if errors.Is(err, keys.ErrInvalidPassword) {
 			tap.Message("Password incorrect.")
 		}
 		return nil, fmt.Errorf("error loading master key: %w", err)
@@ -115,6 +116,16 @@ func createMasterKey(ctx context.Context, keyMgr *keys.Manager) ([]byte, error) 
 		for i := range password {
 			password[i] = 0
 		}
+	}
+
+	// Verify the password is actually retrievable before generating master key
+	// This catches cases where keyring has a stale/empty entry
+	_, err = keyMgr.GetStoredPassword()
+	if err != nil {
+		// Password exists in keyring but can't be retrieved - clear it and prompt again
+		_ = keyMgr.DeletePassword()
+		tap.Message("Keyring password is invalid. Please create a new password.")
+		return createMasterKey(ctx, keyMgr)
 	}
 
 	// Now generate and save the master key
@@ -194,7 +205,7 @@ func storeProviderEntry(
 // loadOrCreateMasterKey loads existing master key or creates a new one.
 func loadOrCreateMasterKey(ctx context.Context, keyMgr *keys.Manager, db *database.Database) ([]byte, error) {
 	masterKey, err := getMasterKey(ctx, keyMgr, db)
-	if err == keys.ErrInvalidPassword {
+	if errors.Is(err, keys.ErrInvalidPassword) || errors.Is(err, keys.ErrNoPassword) {
 		runRecovery(ctx, keyMgr, db)
 		return nil, fmt.Errorf("recovery completed, run 'ply setup' again")
 	}
@@ -245,12 +256,18 @@ func runRecovery(ctx context.Context, keyMgr *keys.Manager, db *database.Databas
 		return
 	}
 
+	// Delete old master key and password before creating fresh one
+	if err := keyMgr.Delete(); err != nil {
+		tap.Cancel("Error removing old configuration")
+		return
+	}
+
 	entries := db.ListEntries()
 	if len(entries) == 0 {
 		tap.Message("No providers configured. Creating fresh master key.")
 		masterKey, err := createMasterKey(ctx, keyMgr)
 		if err != nil {
-			tap.Cancel("Error creating master key")
+			tap.Cancel(fmt.Sprintf("Error creating master key: %v", err))
 			return
 		}
 		for i := range masterKey {
