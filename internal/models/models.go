@@ -14,13 +14,3 @@ func ForProvider(ctx context.Context, provider string) []string {
 	}
 	return all[provider]
 }
-
-// GetAll returns all models from the cache.
-// Deprecated: Use GetModels(ctx) instead to enable proper context propagation.
-func GetAll() Models {
-	all, err := GetModels(context.Background())
-	if err != nil {
-		return Models{}
-	}
-	return all
-}

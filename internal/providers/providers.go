@@ -156,7 +156,10 @@ func hasQwenExtension() bool {
 // This checks against the providers fetched from models cache.
 // Deprecated: Use Validate() instead which provides better error messages.
 func IsValid(name string) bool {
-	all := models.GetAll()
+	all, err := models.GetModels(context.Background())
+	if err != nil {
+		return false
+	}
 	_, exists := all[name]
 
 	// Also check for qwen extension
