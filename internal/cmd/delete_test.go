@@ -18,12 +18,25 @@ func TestDelete_ByProvider(t *testing.T) {
 	tempDir := t.TempDir()
 
 	origHome := os.Getenv("HOME")
+	origXdgDataHome := os.Getenv("XDG_DATA_HOME")
 	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", origHome)
+	os.Setenv("XDG_DATA_HOME", filepath.Join(tempDir, ".local", "share"))
+	defer func() {
+		os.Setenv("HOME", origHome)
+		os.Setenv("XDG_DATA_HOME", origXdgDataHome)
+	}()
 
-	dataDir, _ := fs.EnsureDataDir()
-	masterKey, _ := crypto.GenerateKey()
-	_ = fs.SaveMasterKey(masterKey)
+	dataDir, err := fs.EnsureDataDir()
+	if err != nil {
+		t.Fatalf("Failed to create data dir: %v", err)
+	}
+	masterKey, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatalf("Failed to generate master key: %v", err)
+	}
+	if err := fs.SaveMasterKey(masterKey); err != nil {
+		t.Fatalf("Failed to save master key: %v", err)
+	}
 
 	db := database.New(dataDir)
 	_ = db.Load(context.Background())
@@ -53,7 +66,7 @@ func TestDelete_ByProvider(t *testing.T) {
 	db2 := database.New(dataDir)
 	_ = db2.Load(context.Background())
 
-	_, err := db2.GetEntry("openai")
+	_, err = db2.GetEntry("openai")
 	if err != nil {
 		t.Errorf("OpenAI entry should still exist: %v", err)
 	}
@@ -73,12 +86,25 @@ func TestDelete_NotFound(t *testing.T) {
 	tempDir := t.TempDir()
 
 	origHome := os.Getenv("HOME")
+	origXdgDataHome := os.Getenv("XDG_DATA_HOME")
 	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", origHome)
+	os.Setenv("XDG_DATA_HOME", filepath.Join(tempDir, ".local", "share"))
+	defer func() {
+		os.Setenv("HOME", origHome)
+		os.Setenv("XDG_DATA_HOME", origXdgDataHome)
+	}()
 
-	dataDir, _ := fs.EnsureDataDir()
-	masterKey, _ := crypto.GenerateKey()
-	_ = fs.SaveMasterKey(masterKey)
+	dataDir, err := fs.EnsureDataDir()
+	if err != nil {
+		t.Fatalf("Failed to create data dir: %v", err)
+	}
+	masterKey, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatalf("Failed to generate master key: %v", err)
+	}
+	if err := fs.SaveMasterKey(masterKey); err != nil {
+		t.Fatalf("Failed to save master key: %v", err)
+	}
 
 	db := database.New(dataDir)
 	_ = db.Load(context.Background())
@@ -91,7 +117,7 @@ func TestDelete_NotFound(t *testing.T) {
 	cmd := &cobra.Command{}
 	runDelete(cmd, []string{"non-existent"})
 
-	_, err := db.GetEntry("openai")
+	_, err = db.GetEntry("openai")
 	if err != nil {
 		t.Errorf("Original entry should still exist: %v", err)
 	}
@@ -157,12 +183,25 @@ func TestDelete_InvalidProvider(t *testing.T) {
 			tempDir := t.TempDir()
 
 			origHome := os.Getenv("HOME")
+			origXdgDataHome := os.Getenv("XDG_DATA_HOME")
 			os.Setenv("HOME", tempDir)
-			defer os.Setenv("HOME", origHome)
+			os.Setenv("XDG_DATA_HOME", filepath.Join(tempDir, ".local", "share"))
+			defer func() {
+				os.Setenv("HOME", origHome)
+				os.Setenv("XDG_DATA_HOME", origXdgDataHome)
+			}()
 
-			dataDir, _ := fs.EnsureDataDir()
-			masterKey, _ := crypto.GenerateKey()
-			_ = fs.SaveMasterKey(masterKey)
+			dataDir, err := fs.EnsureDataDir()
+			if err != nil {
+				t.Fatalf("Failed to create data dir: %v", err)
+			}
+			masterKey, err := crypto.GenerateKey()
+			if err != nil {
+				t.Fatalf("Failed to generate master key: %v", err)
+			}
+			if err := fs.SaveMasterKey(masterKey); err != nil {
+				t.Fatalf("Failed to save master key: %v", err)
+			}
 
 			db := database.New(dataDir)
 			_ = db.Load(context.Background())
@@ -191,7 +230,7 @@ func TestDelete_InvalidProvider(t *testing.T) {
 			db2 := database.New(dataDir)
 			_ = db2.Load(context.Background())
 
-			_, err := db2.GetEntry("openai")
+			_, err = db2.GetEntry("openai")
 			if err != nil {
 				t.Errorf("Original entry should still exist after invalid delete attempt: %v", err)
 			}

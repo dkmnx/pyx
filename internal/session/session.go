@@ -27,8 +27,8 @@ func PiSessionsDir() (string, error) {
 
 // EncodeCwd encodes a working directory path for use in session directory names
 func EncodeCwd(cwd string) string {
-	// Normalize path separators to / first, then replace with -
-	encoded := filepath.ToSlash(cwd)
+	// Replace both \ and / with - first (normalize all path separators)
+	encoded := strings.ReplaceAll(cwd, "\\", "/")
 	// Remove leading slash
 	encoded = strings.TrimPrefix(encoded, "/")
 	// Replace remaining / and : with -
