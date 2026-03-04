@@ -14,7 +14,7 @@ import (
 	"filippo.io/age"
 )
 
-const keySize = 32 // 256 bits
+const keySize = 32 // age scrypt identity size (256 bits)
 
 var (
 	ErrInvalidPassphrase  = errors.New("invalid passphrase")
@@ -180,7 +180,7 @@ func Decrypt(passphrase string, ciphertext string) (SecureBytes, error) {
 	return SecureBytes(buf.Bytes()), nil
 }
 
-// GenerateKey generates a new random 32-byte key.
+// GenerateKey generates a new random key for age scrypt-based encryption.
 func GenerateKey() ([]byte, error) {
 	key := make([]byte, keySize)
 	if _, err := rand.Read(key); err != nil {

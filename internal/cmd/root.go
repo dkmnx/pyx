@@ -65,9 +65,9 @@ func runRoot(cmd *cobra.Command, args []string) {
 	}
 
 	// Parse arguments and resolve entries
-	providerArg, piArgs := parseArgs(args)
+	selectedProvider, piCommandArgs := parseArgs(args)
 
-	entries, err := resolveEntries(db, providerArg)
+	providerEntries, err := resolveEntries(db, selectedProvider)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -84,13 +84,13 @@ func runRoot(cmd *cobra.Command, args []string) {
 	defer zeroMasterKey(masterKey)
 
 	// Build provider environment and execute pi
-	providerEnv, err := buildProviderEnv(masterKey, entries)
+	providerEnvVars, err := buildProviderEnv(masterKey, providerEntries)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
-	executePi(ctx, entries, piArgs, providerEnv, sessionFlag)
+	executePi(providerEntries, piCommandArgs, providerEnvVars, sessionFlag)
 }
 
 // initializeKeyManager creates the key manager and database, and verifies master key exists.
@@ -159,35 +159,35 @@ func validateProvider(provider string) error {
 	return providers.Validate(provider)
 }
 
-func resolveEntries(db *database.Database, providerArg string) ([]database.Entry, error) {
-	if providerArg != "" {
+func resolveEntries(db *database.Database, selectedProvider string) ([]database.Entry, error) {
+	if selectedProvider != "" {
 		// Validate provider name before looking up in database
-		if err := validateProvider(providerArg); err != nil {
+		if err := validateProvider(selectedProvider); err != nil {
 			return nil, err
 		}
 
-		entry, err := db.GetEntry(providerArg)
+		entry, err := db.GetEntry(selectedProvider)
 		if err != nil {
-			return nil, fmt.Errorf("provider '%s' not found. Use 'ply config list' to see all configured providers", providerArg)
+			return nil, fmt.Errorf("provider '%s' not found. Use 'ply config list' to see all configured providers", selectedProvider)
 		}
 		return []database.Entry{entry}, nil
 	}
 
-	entries := db.ListEntries()
-	if len(entries) == 0 {
+	providerEntries := db.ListEntries()
+	if len(providerEntries) == 0 {
 		return nil, fmt.Errorf("no providers configured. Run 'ply setup' to add a provider")
 	}
 
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].Provider < entries[j].Provider
+	sort.Slice(providerEntries, func(i, j int) bool {
+		return providerEntries[i].Provider < providerEntries[j].Provider
 	})
 
-	return entries, nil
+	return providerEntries, nil
 }
 
-func executePi(ctx context.Context, entries []database.Entry, piArgs []string, providerEnv []string, sessionFlag string) {
+func executePi(providerEntries []database.Entry, piCommandArgs []string, providerEnvVars []string, sessionFlag string) {
 	// Check if pi is installed, auto-install if not
-	wasInstalled, err := pi.EnsureInstalled(ctx)
+	wasInstalled, err := pi.EnsureInstalled(context.Background())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error checking pi installation: %v\n", err)
 		fmt.Fprintln(os.Stderr, "Please install pi manually:")
@@ -210,7 +210,7 @@ func executePi(ctx context.Context, entries []database.Entry, piArgs []string, p
 	}
 
 	var finalPiArgs []string
-	finalPiArgs = piArgs
+	finalPiArgs = piCommandArgs
 
 	// Add session flag if provided
 	if sessionFlag != "" {
@@ -221,7 +221,7 @@ func executePi(ctx context.Context, entries []database.Entry, piArgs []string, p
 	piCmd.Stdin = os.Stdin
 	piCmd.Stdout = os.Stdout
 	piCmd.Stderr = os.Stderr
-	piCmd.Env = providerEnv
+	piCmd.Env = providerEnvVars
 
 	if err := piCmd.Run(); err != nil {
 		var exitErr *exec.ExitError
@@ -268,76 +268,76 @@ func providerEnvVar(provider string) (string, bool) {
 }
 
 // decryptProviderKeys decrypts API keys for all configured providers.
-func decryptProviderKeys(masterKey []byte, entries []database.Entry) (map[string]*crypto.SecureString, error) {
-	envValues := make(map[string]*crypto.SecureString)
+func decryptProviderKeys(masterKey []byte, providerEntries []database.Entry) (map[string]*crypto.SecureString, error) {
+	decryptedAPIKeys := make(map[string]*crypto.SecureString)
 
-	for _, entry := range entries {
+	for _, entry := range providerEntries {
 		apiKey, err := crypto.Decrypt(string(masterKey), entry.Cipher)
 		if err != nil {
 			// Zero any already-decrypted keys before returning
-			for _, v := range envValues {
+			for _, v := range decryptedAPIKeys {
 				v.Zero()
 			}
 			return nil, fmt.Errorf("error decrypting API key for provider '%s': %w", entry.Provider, err)
 		}
 		decrypted := crypto.NewSecureStringFromBytes(apiKey)
-		envValues[entry.Provider] = decrypted
+		decryptedAPIKeys[entry.Provider] = decrypted
 	}
 
-	return envValues, nil
+	return decryptedAPIKeys, nil
 }
 
 // mapProvidersToEnvVars maps providers to their environment variables.
 // Returns (envVars, error) where envVars is mapping of env var names to values.
-func mapProvidersToEnvVars(envValues map[string]*crypto.SecureString) (map[string]*crypto.SecureString, error) {
-	result := make(map[string]*crypto.SecureString)
+func mapProvidersToEnvVars(decryptedAPIKeys map[string]*crypto.SecureString) (map[string]*crypto.SecureString, error) {
+	envVarToAPIKey := make(map[string]*crypto.SecureString)
 
-	for provider, value := range envValues {
+	for provider, apiKey := range decryptedAPIKeys {
 		envVar, ok := providerEnvVar(provider)
 		if !ok {
-			value.Zero()
+			apiKey.Zero()
 			return nil, fmt.Errorf("unsupported provider '%s'", provider)
 		}
 
-		if existing, ok := result[envVar]; ok {
-			if !existing.Equal(value) {
-				value.Zero()
+		if existing, ok := envVarToAPIKey[envVar]; ok {
+			if !existing.Equal(apiKey) {
+				apiKey.Zero()
 				existing.Zero()
 				return nil, fmt.Errorf("conflicting API keys: provider '%s' has a different key for %s", provider, envVar)
 			}
-			value.Zero()
+			apiKey.Zero()
 			continue
 		}
-		result[envVar] = value
+		envVarToAPIKey[envVar] = apiKey
 	}
 
-	return result, nil
+	return envVarToAPIKey, nil
 }
 
 // buildEnvSlice builds the final environment variable slice.
 // It zeroes all SecureStrings after use.
-func buildEnvSlice(envValues map[string]*crypto.SecureString) []string {
+func buildEnvSlice(envVarToAPIKey map[string]*crypto.SecureString) []string {
 	env := os.Environ()
-	for envVar, value := range envValues {
-		env = append(env, envVar+"="+string(value.Bytes()))
-		value.Zero()
+	for envVar, apiKey := range envVarToAPIKey {
+		env = append(env, envVar+"="+string(apiKey.Bytes()))
+		apiKey.Zero()
 	}
 	return env
 }
 
-func buildProviderEnv(masterKey []byte, entries []database.Entry) ([]string, error) {
+func buildProviderEnv(masterKey []byte, providerEntries []database.Entry) ([]string, error) {
 	// Decrypt all provider keys
-	decryptedKeys, err := decryptProviderKeys(masterKey, entries)
+	decryptedAPIKeys, err := decryptProviderKeys(masterKey, providerEntries)
 	if err != nil {
 		return nil, err
 	}
 
 	// Map providers to environment variables
-	envMap, err := mapProvidersToEnvVars(decryptedKeys)
+	envVarToAPIKey, err := mapProvidersToEnvVars(decryptedAPIKeys)
 	if err != nil {
 		return nil, err
 	}
 
 	// Build final environment slice
-	return buildEnvSlice(envMap), nil
+	return buildEnvSlice(envVarToAPIKey), nil
 }

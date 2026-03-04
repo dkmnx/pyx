@@ -71,11 +71,11 @@ func loadExistingMasterKey(ctx context.Context, keyMgr *keys.Manager) ([]byte, e
 
 	var password []byte
 	if requiresPassword {
-		pwStr, err := prompt.PromptPassword(ctx, "Enter password to unlock your API keys")
+		passwordStr, err := prompt.PromptPassword(ctx, "Enter password to unlock your API keys")
 		if err != nil {
 			return nil, fmt.Errorf("error: %w", err)
 		}
-		password = []byte(pwStr)
+		password = []byte(passwordStr)
 	}
 
 	masterKey, err := keyMgr.Load(password)

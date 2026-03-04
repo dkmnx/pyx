@@ -204,32 +204,32 @@ func CheckInstalled() (bool, error) {
 }
 
 // Install installs pi using the specified package manager.
-// If pm is empty, auto-detects the first available package manager.
-func Install(pm string) error {
+// If packageManager is empty, auto-detects the first available package manager.
+func Install(packageManager string) error {
 	// If no package manager specified, find one
-	if pm == "" {
+	if packageManager == "" {
 		var err error
-		pm, _, err = findPackageManager()
+		packageManager, _, err = findPackageManager()
 		if err != nil {
 			return fmt.Errorf("no compatible package manager found: %w", err)
 		}
 	}
 
 	// Verify the selected package manager is available
-	if _, err := exec.LookPath(pm); err != nil {
-		return fmt.Errorf("package manager '%s' not found: %w", pm, err)
+	if _, err := exec.LookPath(packageManager); err != nil {
+		return fmt.Errorf("package manager '%s' not found: %w", packageManager, err)
 	}
 
 	// Confirm installation
-	fmt.Printf("Installing pi using %s...\n", pm)
+	fmt.Printf("Installing pi using %s...\n", packageManager)
 
 	// Run install command
 	// yarn uses 'global add', others use 'install -g'
 	var installCmd *exec.Cmd
-	if pm == packageManagerYarn {
-		installCmd = exec.Command(pm, "global", "add", NPMPackage)
+	if packageManager == packageManagerYarn {
+		installCmd = exec.Command(packageManager, "global", "add", NPMPackage)
 	} else {
-		installCmd = exec.Command(pm, "install", "-g", NPMPackage)
+		installCmd = exec.Command(packageManager, "install", "-g", NPMPackage)
 	}
 	installCmd.Stdout = os.Stdout
 	installCmd.Stderr = os.Stderr
@@ -262,12 +262,12 @@ func EnsureInstalled(ctx context.Context) (bool, error) {
 	fmt.Println("pi is not installed.")
 
 	// Prompt for package manager selection
-	pm, err := prompt.PromptPackageManager(ctx)
+	packageManager, err := prompt.PromptPackageManager(ctx)
 	if err != nil {
 		return false, fmt.Errorf("failed to select package manager: %w", err)
 	}
 
-	if err := Install(pm); err != nil {
+	if err := Install(packageManager); err != nil {
 		return false, fmt.Errorf("failed to install pi: %w", err)
 	}
 

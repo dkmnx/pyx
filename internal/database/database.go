@@ -129,8 +129,8 @@ func (db *Database) AddEntry(entry Entry) error {
 	defer db.mu.Unlock()
 
 	// Check for duplicate provider
-	for _, e := range db.entries {
-		if e.Provider == entry.Provider {
+	for _, existingEntry := range db.entries {
+		if existingEntry.Provider == entry.Provider {
 			return ErrDuplicateProvider
 		}
 	}
@@ -144,9 +144,9 @@ func (db *Database) GetEntry(id string) (Entry, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
-	for _, e := range db.entries {
-		if e.Provider == id {
-			return e, nil
+	for _, existingEntry := range db.entries {
+		if existingEntry.Provider == id {
+			return existingEntry, nil
 		}
 	}
 
@@ -168,8 +168,8 @@ func (db *Database) DeleteEntry(id string) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	for i, e := range db.entries {
-		if e.Provider == id {
+	for i, existingEntry := range db.entries {
+		if existingEntry.Provider == id {
 			db.entries = append(db.entries[:i], db.entries[i+1:]...)
 			return nil
 		}
@@ -185,8 +185,8 @@ func (db *Database) UpdateEntry(entry Entry) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	for i, e := range db.entries {
-		if e.Provider == entry.Provider {
+	for i, existingEntry := range db.entries {
+		if existingEntry.Provider == entry.Provider {
 			db.entries[i] = entry
 			return nil
 		}
@@ -195,17 +195,17 @@ func (db *Database) UpdateEntry(entry Entry) error {
 	return ErrEntryNotFound
 }
 
-// newerEntry compares two entries and returns true if a is newer than b.
-func newerEntry(a, b Entry) bool {
-	aTime := a.UpdatedAt
-	if aTime.IsZero() {
-		aTime = a.CreatedAt
+// newerEntry compares two entries and returns true if first is newer than second.
+func newerEntry(first, second Entry) bool {
+	firstTime := first.UpdatedAt
+	if firstTime.IsZero() {
+		firstTime = first.CreatedAt
 	}
-	bTime := b.UpdatedAt
-	if bTime.IsZero() {
-		bTime = b.CreatedAt
+	secondTime := second.UpdatedAt
+	if secondTime.IsZero() {
+		secondTime = second.CreatedAt
 	}
-	return aTime.After(bTime)
+	return firstTime.After(secondTime)
 }
 
 // duplicateDetector tracks duplicate providers and finds newest entries.
@@ -251,8 +251,8 @@ func (d *duplicateDetector) processEntry(entry Entry) bool {
 
 // hasDuplicates returns true if any duplicates were found.
 func (d *duplicateDetector) hasDuplicates() bool {
-	for _, v := range d.counts {
-		if v > 1 {
+	for _, count := range d.counts {
+		if count > 1 {
 			return true
 		}
 	}
@@ -266,8 +266,8 @@ func createBackup(dataDir string, dropped map[string][]Entry) error {
 	}
 
 	backupData := make([]Entry, 0)
-	for _, entries := range dropped {
-		backupData = append(backupData, entries...)
+	for _, droppedEntries := range dropped {
+		backupData = append(backupData, droppedEntries...)
 	}
 
 	if len(backupData) == 0 {

@@ -57,13 +57,13 @@ var sessionFilePattern = regexp.MustCompile(`^(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{
 
 // parseSessionTimestamp parses the non-standard timestamp format used by pi sessions:
 // Format: 2026-02-18T04-01-19-316Z (YYYY-MM-DDTHH-MM-SS-MMMZ)
-func parseSessionTimestamp(ts string) (time.Time, error) {
-	// ts format: 2026-02-18T04-01-19-316Z
+func parseSessionTimestamp(timestampStr string) (time.Time, error) {
+	// timestampStr format: 2026-02-18T04-01-19-316Z
 	// We need to convert to standard format: 2006-01-02T15:04:05.000Z
 
 	// Match pattern: YYYY-MM-DDTHH-MM-SS-MMMZ
-	re := regexp.MustCompile(`^(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z$`)
-	matches := re.FindStringSubmatch(ts)
+	timestampPattern := regexp.MustCompile(`^(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z$`)
+	matches := timestampPattern.FindStringSubmatch(timestampStr)
 	if matches == nil {
 		return time.Time{}, nil
 	}

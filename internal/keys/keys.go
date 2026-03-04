@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	keySize          = 32 // 256 bits
+	keySize          = 32 // age scrypt identity size (256 bits)
 	keyFileName      = "master.key"
 	keyringService   = "ply"
 	keyringUser      = "master-key"
@@ -234,7 +234,7 @@ func (m *Manager) DeletePassword() error {
 	return nil
 }
 
-// GenerateKey generates a new random master key.
+// GenerateKey generates a new random master key for age scrypt-based encryption.
 func GenerateKey() ([]byte, error) {
 	key := make([]byte, keySize)
 	if _, err := rand.Read(key); err != nil {
@@ -243,7 +243,6 @@ func GenerateKey() ([]byte, error) {
 	return key, nil
 }
 
-// keyFilePath returns the path to the key file.
 func (m *Manager) keyFilePath() string {
 	return filepath.Join(m.dataDir, keyFileName)
 }
