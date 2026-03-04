@@ -126,6 +126,9 @@ func loadMasterKey(keyMgr *keys.Manager) ([]byte, error) {
 
 // zeroMasterKey securely zeros the master key bytes.
 func zeroMasterKey(masterKey []byte) {
+	if masterKey == nil {
+		return
+	}
 	for i := range masterKey {
 		masterKey[i] = 0
 	}
