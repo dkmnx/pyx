@@ -12,19 +12,19 @@ import (
 	"github.com/yarlson/tap"
 )
 
-var configDeleteCmd = &cobra.Command{
+var deleteCmd = &cobra.Command{
 	Use:   "delete [provider]",
 	Short: "Delete a provider configuration",
 	Long:  `Delete removes a provider configuration by provider name.`,
 	Args:  cobra.ExactArgs(1),
-	Run:   runConfigDelete,
+	Run:   runDelete,
 }
 
 func init() {
-	configCmd.AddCommand(configDeleteCmd)
+	rootCmd.AddCommand(deleteCmd)
 }
 
-func runConfigDelete(cmd *cobra.Command, args []string) {
+func runDelete(cmd *cobra.Command, args []string) {
 	ctx := cmd.Context()
 	if ctx == nil {
 		ctx = context.Background()

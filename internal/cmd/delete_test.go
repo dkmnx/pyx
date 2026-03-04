@@ -14,7 +14,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func TestConfigDelete_ByProvider(t *testing.T) {
+func TestDelete_ByProvider(t *testing.T) {
 	tempDir := t.TempDir()
 
 	origHome := os.Getenv("HOME")
@@ -48,7 +48,7 @@ func TestConfigDelete_ByProvider(t *testing.T) {
 	}
 
 	cmd := &cobra.Command{}
-	runConfigDelete(cmd, []string{"non-existent"})
+	runDelete(cmd, []string{"non-existent"})
 
 	db2 := database.New(dataDir)
 	_ = db2.Load(context.Background())
@@ -69,7 +69,7 @@ func TestConfigDelete_ByProvider(t *testing.T) {
 	}
 }
 
-func TestConfigDelete_NotFound(t *testing.T) {
+func TestDelete_NotFound(t *testing.T) {
 	tempDir := t.TempDir()
 
 	origHome := os.Getenv("HOME")
@@ -89,7 +89,7 @@ func TestConfigDelete_NotFound(t *testing.T) {
 	_ = db.Save(context.Background())
 
 	cmd := &cobra.Command{}
-	runConfigDelete(cmd, []string{"non-existent"})
+	runDelete(cmd, []string{"non-existent"})
 
 	_, err := db.GetEntry("openai")
 	if err != nil {
@@ -97,7 +97,7 @@ func TestConfigDelete_NotFound(t *testing.T) {
 	}
 }
 
-func TestConfigDelete_EmptyDatabase(t *testing.T) {
+func TestDelete_EmptyDatabase(t *testing.T) {
 	// Use a subdirectory in temp dir to avoid any existing files
 	tempDir := t.TempDir()
 	plyDataDir := filepath.Join(tempDir, "ply-data")
@@ -133,7 +133,7 @@ func TestConfigDelete_EmptyDatabase(t *testing.T) {
 
 	cmd := &cobra.Command{}
 	// Use a valid provider name to avoid validation error
-	runConfigDelete(cmd, []string{"openai"})
+	runDelete(cmd, []string{"openai"})
 
 	// Check database is still empty after delete attempt
 	entries = db.ListEntries()
@@ -142,14 +142,14 @@ func TestConfigDelete_EmptyDatabase(t *testing.T) {
 	}
 }
 
-func TestConfigDelete_InvalidProvider(t *testing.T) {
+func TestDelete_InvalidProvider(t *testing.T) {
 	tests := []struct {
 		name     string
 		provider string
 	}{
-		{"path traversal", "../etc"},
-		{"invalid characters", "provider@bad"},
-		{"empty string", ""},
+		{"path_traversal", "../etc"},
+		{"invalid_characters", "provider@bad"},
+		{"empty_string", ""},
 	}
 
 	for _, tt := range tests {
@@ -180,7 +180,7 @@ func TestConfigDelete_InvalidProvider(t *testing.T) {
 
 			// Run delete with invalid provider
 			cmd := &cobra.Command{}
-			runConfigDelete(cmd, []string{tt.provider})
+			runDelete(cmd, []string{tt.provider})
 
 			_ = w.Close()
 			os.Stderr = oldStderr
@@ -193,8 +193,30 @@ func TestConfigDelete_InvalidProvider(t *testing.T) {
 
 			_, err := db2.GetEntry("openai")
 			if err != nil {
-				t.Errorf("Original entry should still exist after invalid provider attempt: %v", err)
+				t.Errorf("Original entry should still exist after invalid delete attempt: %v", err)
 			}
 		})
+	}
+}
+
+func TestDeleteCmdStructure(t *testing.T) {
+	if deleteCmd == nil {
+		t.Fatal("deleteCmd is nil")
+	}
+
+	if deleteCmd.Use != "delete [provider]" {
+		t.Errorf("deleteCmd.Use = %q, expected %q", deleteCmd.Use, "delete [provider]")
+	}
+
+	// Check that it's added to rootCmd
+	found := false
+	for _, cmd := range rootCmd.Commands() {
+		if cmd.Use == "delete [provider]" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("deleteCmd should be added to rootCmd")
 	}
 }
