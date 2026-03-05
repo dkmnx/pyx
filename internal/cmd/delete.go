@@ -70,9 +70,16 @@ func runDelete(cmd *cobra.Command, args []string) {
 			}
 		}
 
+		// Set initial value to first option to ensure proper initialization
+		var initialValue string
+		if len(options) > 0 {
+			initialValue = options[0].Value
+		}
+
 		target = prompt.Select(ctx, tap.SelectOptions[string]{
-			Message: "Select a provider to delete:",
-			Options: options,
+			Message:      "Select a provider to delete:",
+			Options:      options,
+			InitialValue: &initialValue,
 		})
 
 		if target == "" {

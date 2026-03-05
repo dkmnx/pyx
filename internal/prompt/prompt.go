@@ -57,9 +57,49 @@ func PromptProvider(ctx context.Context) (string, error) {
 		}
 	}
 
+	// Check for matches using the suggest function
 	matches := suggest(result)
+
 	if len(matches) == 1 {
+		// Single match - return it
 		return matches[0], nil
+	}
+
+	if len(matches) > 1 {
+		// Multiple matches - try to find the best match
+		// Priority 1: Exact prefix match (input is at start of provider name)
+		inputLower := strings.ToLower(result)
+		var prefixMatches []string
+		for _, match := range matches {
+			if strings.HasPrefix(strings.ToLower(match), inputLower) {
+				prefixMatches = append(prefixMatches, match)
+			}
+		}
+
+		if len(prefixMatches) == 1 {
+			// Only one prefix match - use it
+			return prefixMatches[0], nil
+		}
+
+		if len(prefixMatches) > 1 {
+			// Multiple prefix matches - prefer the shortest one
+			shortest := prefixMatches[0]
+			for _, match := range prefixMatches[1:] {
+				if len(match) < len(shortest) {
+					shortest = match
+				}
+			}
+			return shortest, nil
+		}
+
+		// No prefix matches - prefer the shortest substring match
+		shortest := matches[0]
+		for _, match := range matches[1:] {
+			if len(match) < len(shortest) {
+				shortest = match
+			}
+		}
+		return shortest, nil
 	}
 
 	return "", ErrInvalidProvider
@@ -141,6 +181,9 @@ func PromptNewPassword(ctx context.Context) (string, error) {
 }
 
 func PromptPackageManager(ctx context.Context) (string, error) {
+	// Set initial value to first option to ensure proper initialization
+	initialValue := "npm"
+
 	result := defaultClient.Select(ctx, tap.SelectOptions[string]{
 		Message: "Select a package manager:",
 		Options: []tap.SelectOption[string]{
@@ -149,6 +192,7 @@ func PromptPackageManager(ctx context.Context) (string, error) {
 			{Value: "yarn", Label: "yarn"},
 			{Value: "bun", Label: "bun"},
 		},
+		InitialValue: &initialValue,
 	})
 
 	if result == "" {

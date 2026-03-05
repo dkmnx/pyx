@@ -123,7 +123,9 @@ func createMasterKey(ctx context.Context, keyMgr *keys.Manager) ([]byte, error) 
 	_, err = keyMgr.GetStoredPassword()
 	if err != nil {
 		// Password exists in keyring but can't be retrieved - clear it and prompt again
-		_ = keyMgr.DeletePassword()
+		if err := keyMgr.DeletePassword(); err != nil {
+			tap.Message("Warning: Failed to clear invalid password from keyring")
+		}
 		tap.Message("Keyring password is invalid. Please create a new password.")
 		return createMasterKey(ctx, keyMgr)
 	}
