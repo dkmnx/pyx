@@ -15,8 +15,8 @@ import (
 const (
 	keySize          = 32 // age scrypt identity size (256 bits)
 	keyFileName      = "master.key"
-	keyringService   = "ply"
-	keyringUser      = "master-key"
+	defaultService   = "ply"
+	defaultUser      = "master-key"
 	legacyPassphrase = "default" // Used in old versions before keyring
 )
 
@@ -33,13 +33,27 @@ var ErrKeyringUnavailable = errors.New("keyring unavailable")
 
 // Manager handles secure master key storage.
 type Manager struct {
-	dataDir string
+	dataDir        string
+	keyringService string
+	keyringUser    string
 }
 
-// New creates a new Manager instance.
+// New creates a new Manager instance with default keyring identifiers.
 func New(dataDir string) *Manager {
 	return &Manager{
-		dataDir: dataDir,
+		dataDir:        dataDir,
+		keyringService: defaultService,
+		keyringUser:    defaultUser,
+	}
+}
+
+// NewWithKeyring creates a new Manager instance with custom keyring identifiers.
+// This is primarily intended for testing to isolate test keyring namespaces.
+func NewWithKeyring(dataDir, service, user string) *Manager {
+	return &Manager{
+		dataDir:        dataDir,
+		keyringService: service,
+		keyringUser:    user,
 	}
 }
 
@@ -200,7 +214,7 @@ func (m *Manager) RequiresPassword() (bool, error) {
 
 // PasswordExists returns true if a password is stored in the OS keyring.
 func (m *Manager) PasswordExists() (bool, error) {
-	_, err := keyring.Get(keyringService, keyringUser)
+	_, err := keyring.Get(m.keyringService, m.keyringUser)
 	if err == nil {
 		return true, nil
 	}
@@ -224,7 +238,7 @@ func (m *Manager) SetPassword(password []byte) error {
 		return ErrInvalidPassword
 	}
 
-	err := keyring.Set(keyringService, keyringUser, string(password))
+	err := keyring.Set(m.keyringService, m.keyringUser, string(password))
 	if err != nil {
 		return fmt.Errorf("failed to store password in keyring: %w", err)
 	}
@@ -234,7 +248,7 @@ func (m *Manager) SetPassword(password []byte) error {
 
 // DeletePassword removes the password from the OS keyring.
 func (m *Manager) DeletePassword() error {
-	err := keyring.Delete(keyringService, keyringUser)
+	err := keyring.Delete(m.keyringService, m.keyringUser)
 	if err != nil && err != keyring.ErrNotFound {
 		return fmt.Errorf("failed to delete password from keyring: %w", err)
 	}
@@ -279,7 +293,7 @@ func (m *Manager) getPassphrase(providedPassword []byte) (string, error) {
 
 // getStoredPassword retrieves the password from the OS keyring.
 func (m *Manager) getStoredPassword() (string, error) {
-	passphrase, err := keyring.Get(keyringService, keyringUser)
+	passphrase, err := keyring.Get(m.keyringService, m.keyringUser)
 	if err != nil {
 		if err == keyring.ErrNotFound {
 			return "", ErrNoPassword

@@ -18,7 +18,8 @@ import (
 // 8. Verify decrypted key matches original
 func TestIntegration_FullWorkflow(t *testing.T) {
 	dir := tempDir(t)
-	m := New(dir)
+	service, user := testKeyring(t)
+	m := NewWithKeyring(dir, service, user)
 	db := database.New(dir)
 
 	// Set up password in keyring
@@ -26,6 +27,8 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 	if err := m.SetPassword([]byte(testPassword)); err != nil {
 		t.Skip("Keyring not available, skipping test")
 	}
+	// Clean up keyring after test
+	t.Cleanup(func() { _ = m.DeletePassword() })
 
 	// Step 1: Generate master key
 	masterKey, err := GenerateKey()
@@ -96,7 +99,8 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 // TestIntegration_MultipleProviders tests encryption/decryption with multiple providers
 func TestIntegration_MultipleProviders(t *testing.T) {
 	dir := tempDir(t)
-	m := New(dir)
+	service, user := testKeyring(t)
+	m := NewWithKeyring(dir, service, user)
 	db := database.New(dir)
 
 	// Set up password in keyring
@@ -104,6 +108,8 @@ func TestIntegration_MultipleProviders(t *testing.T) {
 	if err := m.SetPassword([]byte(testPassword)); err != nil {
 		t.Skip("Keyring not available, skipping test")
 	}
+	// Clean up keyring after test
+	t.Cleanup(func() { _ = m.DeletePassword() })
 
 	// Generate master key
 	masterKey, err := GenerateKey()

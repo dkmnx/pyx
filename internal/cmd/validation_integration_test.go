@@ -8,17 +8,26 @@ import (
 	"github.com/dkmnx/ply/internal/crypto"
 	"github.com/dkmnx/ply/internal/database"
 	"github.com/dkmnx/ply/internal/keys"
+	"github.com/google/uuid"
 )
+
+// testKeyring returns unique keyring service and user names for test isolation.
+// This prevents tests from interfering with each other and with the user's actual installation.
+func testKeyring(t *testing.T) (service, user string) {
+	t.Helper()
+	id := uuid.New().String()
+	return "ply-test-" + id[:8], "test-key"
+}
 
 func TestProviderValidationIntegration(t *testing.T) {
 	// Create temporary directory for testing
 	tmpDir := t.TempDir()
 
-	// Set up test environment
+	// Set up test environment with unique keyring identifiers
 	ctx := context.Background()
 	dataDir := tmpDir
-
-	keyMgr := keys.New(dataDir)
+	service, user := testKeyring(t)
+	keyMgr := keys.NewWithKeyring(dataDir, service, user)
 	db := database.New(dataDir)
 
 	// Set up password in keyring for testing
@@ -26,6 +35,8 @@ func TestProviderValidationIntegration(t *testing.T) {
 	if err := keyMgr.SetPassword([]byte(testPassword)); err != nil {
 		t.Skip("Keyring not available, skipping test")
 	}
+	// Clean up keyring after test
+	t.Cleanup(func() { _ = keyMgr.DeletePassword() })
 
 	// Initialize master key
 	masterKey, err := keys.GenerateKey()

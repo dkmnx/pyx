@@ -8,6 +8,14 @@ import (
 	"github.com/google/uuid"
 )
 
+// testKeyring returns unique keyring service and user names for test isolation.
+// This prevents tests from interfering with each other and with the user's actual installation.
+func testKeyring(t *testing.T) (service, user string) {
+	t.Helper()
+	id := uuid.New().String()
+	return "ply-test-" + id[:8], "test-key"
+}
+
 func tempDir(t *testing.T) string {
 	t.Helper()
 	dir := filepath.Join(os.TempDir(), "ply-test-"+uuid.New().String())
@@ -43,13 +51,16 @@ func TestGenerateKey(t *testing.T) {
 
 func TestManagerSaveLoad(t *testing.T) {
 	dir := tempDir(t)
-	m := New(dir)
+	service, user := testKeyring(t)
+	m := NewWithKeyring(dir, service, user)
 
 	// Set up password in keyring for testing
 	testPassword := "test-password-123"
 	if err := m.SetPassword([]byte(testPassword)); err != nil {
 		t.Skip("Keyring not available, skipping test")
 	}
+	// Clean up keyring after test
+	t.Cleanup(func() { _ = m.DeletePassword() })
 
 	key, err := GenerateKey()
 	if err != nil {
@@ -97,7 +108,8 @@ func TestManagerSaveLoad(t *testing.T) {
 
 func TestManagerLoadNotFound(t *testing.T) {
 	dir := tempDir(t)
-	m := New(dir)
+	service, user := testKeyring(t)
+	m := NewWithKeyring(dir, service, user)
 
 	// Without a password set and no key file, should return ErrKeyNotFound
 	_, err := m.Load(nil)
@@ -112,13 +124,16 @@ func TestManagerLoadNotFound(t *testing.T) {
 
 func TestManagerDelete(t *testing.T) {
 	dir := tempDir(t)
-	m := New(dir)
+	service, user := testKeyring(t)
+	m := NewWithKeyring(dir, service, user)
 
 	// Set up password in keyring for testing
 	testPassword := "test-password-123"
 	if err := m.SetPassword([]byte(testPassword)); err != nil {
 		t.Skip("Keyring not available, skipping test")
 	}
+	// Clean up keyring after test
+	t.Cleanup(func() { _ = m.DeletePassword() })
 
 	key, err := GenerateKey()
 	if err != nil {
@@ -147,7 +162,8 @@ func TestManagerDelete(t *testing.T) {
 
 func TestManagerRequiresPassword(t *testing.T) {
 	dir := tempDir(t)
-	m := New(dir)
+	service, user := testKeyring(t)
+	m := NewWithKeyring(dir, service, user)
 
 	// Without password, RequiresPassword should return false
 	requires, err := m.RequiresPassword()
@@ -163,6 +179,8 @@ func TestManagerRequiresPassword(t *testing.T) {
 	if err := m.SetPassword([]byte(testPassword)); err != nil {
 		t.Skip("Keyring not available, skipping test")
 	}
+	// Clean up keyring after test
+	t.Cleanup(func() { _ = m.DeletePassword() })
 
 	// With password set, RequiresPassword should return true
 	requires, err = m.RequiresPassword()
@@ -172,9 +190,6 @@ func TestManagerRequiresPassword(t *testing.T) {
 	if !requires {
 		t.Error("RequiresPassword() should return true when password is set")
 	}
-
-	// Clean up
-	_ = m.DeletePassword()
 }
 
 func TestEqual(t *testing.T) {
