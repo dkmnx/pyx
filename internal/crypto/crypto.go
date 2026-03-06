@@ -44,6 +44,14 @@ func (s SecureBytes) Bytes() []byte {
 // SecureString wraps a SecureBytes to prevent accidental string conversions
 // and ensure sensitive data can be securely zeroed. It does not implement
 // fmt.Stringer to prevent accidental logging.
+//
+// Memory Security Notes:
+//   - Always call Zero() on SecureString when done to prevent sensitive data
+//     from remaining in memory longer than necessary
+//   - When calling Bytes(), the returned slice is a copy - the caller MUST
+//     zero this copy when finished to ensure sensitive data is erased
+//   - SecureString is not thread-safe by itself, but uses a mutex to protect
+//     internal state during concurrent access
 type SecureString struct {
 	mu    sync.RWMutex
 	bytes SecureBytes

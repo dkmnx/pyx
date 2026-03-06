@@ -135,7 +135,7 @@ func TestValidateValidNames(t *testing.T) {
 		{"azure_openai"},
 		{"provider-123"},
 		{"123-provider"},
-		{"a"},  // Minimum length
+		{"a"}, // Minimum length
 		{"abcdefghijklmnopqrstuvwxyz1234567890abcd"}, // 40 chars - OK
 	}
 
@@ -179,9 +179,9 @@ func TestEnvVarUnknownProvider(t *testing.T) {
 
 func TestEnvVarKnownProviders(t *testing.T) {
 	tests := []struct {
-		name     string
-		wantEnv  string
-		wantOk   bool
+		name    string
+		wantEnv string
+		wantOk  bool
 	}{
 		{"openai", "OPENAI_API_KEY", true},
 		{"anthropic", "ANTHROPIC_API_KEY", true},
@@ -207,9 +207,9 @@ func TestEnvVarKnownProviders(t *testing.T) {
 
 func TestDeriveEnvVarSpecialCases(t *testing.T) {
 	tests := []struct {
-		name     string
-		wantEnv  string
-		wantOk   bool
+		name    string
+		wantEnv string
+		wantOk  bool
 	}{
 		{"google-vertex", "GOOGLE_APPLICATION_CREDENTIALS", true},
 		{"google-gemini-cli", "GEMINI_API_KEY", true},
@@ -237,9 +237,9 @@ func TestDeriveEnvVarSpecialCases(t *testing.T) {
 
 func TestDeriveEnvVarAiSuffix(t *testing.T) {
 	tests := []struct {
-		name     string
-		wantEnv  string
-		wantOk   bool
+		name    string
+		wantEnv string
+		wantOk  bool
 	}{
 		{"my-ai", "MY_API_KEY", true},
 		{"some_ai", "SOME_API_KEY", true},
@@ -324,9 +324,9 @@ func TestValidateProviderWithEnvVarMapping(t *testing.T) {
 
 func TestEnvVarPatternMatching(t *testing.T) {
 	tests := []struct {
-		name     string
-		wantEnv  string
-		wantOk   bool
+		name    string
+		wantEnv string
+		wantOk  bool
 	}{
 		{"amazon-bedrock", "AWS_BEARER_TOKEN_BEDROCK", true},
 		{"aws-something", "AWS_BEARER_TOKEN_BEDROCK", true},
@@ -367,17 +367,17 @@ func TestValidateWithSpecialCases(t *testing.T) {
 		name    string
 		wantErr bool
 	}{
-		{"", true},                                     // Empty
-		{"starts-with-hyphen", false},                  // Valid format
-		{"ends-with-hyphen-", false},                   // Valid format
-		{"_starts-with-underscore", false},             // Valid format
-		{"ends-with-underscore_", false},               // Valid format
-		{"123-starts-with-number", false},              // Valid format
-		{"MiXeD-cAsE-pRoViDeR", false},                 // Valid format
-		{"provider--double-hyphen", false},             // Valid format
-		{"provider__double-underscore", false},         // Valid format
-		{"provider-_mixed", false},                     // Valid format
-		{"a", false},                                   // Single char
+		{"", true},                                          // Empty
+		{"starts-with-hyphen", false},                       // Valid format
+		{"ends-with-hyphen-", false},                        // Valid format
+		{"_starts-with-underscore", false},                  // Valid format
+		{"ends-with-underscore_", false},                    // Valid format
+		{"123-starts-with-number", false},                   // Valid format
+		{"MiXeD-cAsE-pRoViDeR", false},                      // Valid format
+		{"provider--double-hyphen", false},                  // Valid format
+		{"provider__double-underscore", false},              // Valid format
+		{"provider-_mixed", false},                          // Valid format
+		{"a", false},                                        // Single char
 		{"abcdefghijklmnopqrstuvwxyz1234567890abcd", false}, // 40 chars - OK
 	}
 

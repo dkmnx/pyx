@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"sort"
+	"time"
 
 	"github.com/dkmnx/ply/internal/crypto"
 	"github.com/dkmnx/ply/internal/database"
@@ -50,6 +51,10 @@ func runRoot(cmd *cobra.Command, args []string) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+
+	// Add timeout for initialization operations (key loading, database operations)
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
 
 	// Initialize key manager, database, and ensure master key exists
 	keyMgr, db, err := initializeKeyManager()

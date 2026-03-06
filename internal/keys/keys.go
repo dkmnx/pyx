@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
+	"time"
 
 	"github.com/dkmnx/ply/internal/crypto"
 	"github.com/zalando/go-keyring"
@@ -26,6 +28,7 @@ var (
 	ErrInvalidPassword = errors.New("invalid password")
 	ErrNoPassword      = errors.New("no password set")
 	ErrMigrationNeeded = errors.New("migration from legacy format needed")
+	ErrTooManyAttempts = errors.New("too many failed attempts, please wait before retrying")
 )
 
 // ErrKeyringUnavailable is returned when the OS keyring is not available.
@@ -33,10 +36,18 @@ var ErrKeyringUnavailable = errors.New("keyring unavailable")
 
 // Manager handles secure master key storage.
 type Manager struct {
-	dataDir        string
-	keyringService string
-	keyringUser    string
+	dataDir           string
+	keyringService    string
+	keyringUser       string
+	failedAttempts    int
+	lastFailedAttempt time.Time
+	mu                sync.Mutex
 }
+
+const (
+	maxFailedAttempts = 5
+	lockoutDuration   = 30 * time.Second
+)
 
 // New creates a new Manager instance with default keyring identifiers.
 func New(dataDir string) *Manager {
@@ -85,6 +96,19 @@ func (m *Manager) Save(key []byte) error {
 // Load loads the master key from the file, using the password from keyring or env var.
 // If no password is set, it tries the legacy "default" passphrase for migration.
 func (m *Manager) Load(password []byte) ([]byte, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Check for rate limiting
+	if m.failedAttempts >= maxFailedAttempts {
+		timeSinceLastAttempt := time.Since(m.lastFailedAttempt)
+		if timeSinceLastAttempt < lockoutDuration {
+			return nil, ErrTooManyAttempts
+		}
+		// Reset failed attempts after lockout period
+		m.failedAttempts = 0
+	}
+
 	// First try with provided password (or from keyring/env var)
 	passphrase, err := m.getPassphrase(password)
 	if err != nil {
@@ -106,6 +130,10 @@ func (m *Manager) Load(password []byte) ([]byte, error) {
 
 	key, err := crypto.Decrypt(passphrase, string(data))
 	if err != nil {
+		// Record failed attempt for rate limiting
+		m.failedAttempts++
+		m.lastFailedAttempt = time.Now()
+
 		// If decryption failed with provided password/env var, try legacy passphrase for migration
 		// This handles the case where user has old master.key but set PLY_PASSPHRASE
 		if err == crypto.ErrInvalidPassphrase {
@@ -113,6 +141,10 @@ func (m *Manager) Load(password []byte) ([]byte, error) {
 		}
 		return nil, fmt.Errorf("failed to decrypt master key: %w", err)
 	}
+
+	// Reset failed attempts on success
+	m.failedAttempts = 0
+	m.lastFailedAttempt = time.Time{}
 
 	return []byte(key), nil
 }

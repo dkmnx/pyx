@@ -440,7 +440,7 @@ func TestDuplicateDetectorNoDuplicates(t *testing.T) {
 func TestNormalizeEntriesWithDuplicates(t *testing.T) {
 	tempDir := t.TempDir()
 	filePath := filepath.Join(tempDir, "database.json")
-	
+
 	entries := []Entry{
 		{Provider: "openai", Cipher: "old", UpdatedAt: time.Date(2024, time.January, 1, 0, 0, 0, 0, time.UTC)},
 		{Provider: "openai", Cipher: "new", UpdatedAt: time.Date(2024, time.January, 2, 0, 0, 0, 0, time.UTC)},

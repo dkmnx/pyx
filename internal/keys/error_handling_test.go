@@ -183,7 +183,7 @@ func TestPasswordExistsError(t *testing.T) {
 
 	// PasswordExists should handle keyring errors gracefully
 	// This is hard to test without mocking, but we can at least test the happy path
-	exists, err := m.PasswordExists()
+	_, err := m.PasswordExists()
 	if err != nil {
 		// If keyring is not available, that's ok
 		t.Logf("PasswordExists() error (may be expected): %v", err)
@@ -193,7 +193,7 @@ func TestPasswordExistsError(t *testing.T) {
 	if err := m.SetPassword([]byte("test")); err == nil {
 		t.Cleanup(func() { _ = m.DeletePassword() })
 
-		exists, err = m.PasswordExists()
+		exists, err := m.PasswordExists()
 		if err != nil {
 			t.Fatalf("PasswordExists() error = %v", err)
 		}
