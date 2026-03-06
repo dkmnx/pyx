@@ -115,7 +115,7 @@ func initializeKeyManager() (*keys.Manager, *database.Database, error) {
 	}
 
 	if !keyExists {
-		return nil, nil, errors.New("master key not found, run 'ply setup' to initialize")
+		return nil, nil, errors.New("configuration not found, run 'ply setup' to initialize")
 	}
 
 	return keyMgr, db, nil
@@ -124,7 +124,7 @@ func initializeKeyManager() (*keys.Manager, *database.Database, error) {
 func loadMasterKey(keyMgr *keys.Manager) ([]byte, error) {
 	masterKey, err := keyMgr.Load(nil)
 	if err != nil {
-		return nil, err
+		return nil, errors.New("could not decrypt your API keys. Run 'ply setup' to recreate your configuration")
 	}
 	return masterKey, nil
 }
