@@ -18,8 +18,8 @@ func TestOutputTable(t *testing.T) {
 
 	// Create test data
 	testData := models.Models{
-		"openai":    {"gpt-4", "gpt-3.5-turbo"},
-		"anthropic": {"claude-3-opus", "claude-3-sonnet"},
+		"openai":    []string{"gpt-4", "gpt-3.5-turbo"},
+		"anthropic": []string{"claude-3-opus", "claude-3-sonnet"},
 	}
 
 	tests := []struct {
@@ -117,8 +117,8 @@ func TestOutputJSON(t *testing.T) {
 
 	// Create test data
 	testData := models.Models{
-		"openai":    {"gpt-4", "gpt-3.5-turbo"},
-		"anthropic": {"claude-3-opus"},
+		"openai":    []string{"gpt-4", "gpt-3.5-turbo"},
+		"anthropic": []string{"claude-3-opus"},
 	}
 
 	// Test all providers
@@ -173,7 +173,7 @@ func TestOutputJSONInvalidData(t *testing.T) {
 	// Test JSON marshaling with data that might fail
 	// This is a regression test - if models data can't be marshaled, we'd get an error
 	testData := models.Models{
-		"test": {"model1"},
+		"test": []string{"model1"},
 	}
 
 	// Capture stderr
