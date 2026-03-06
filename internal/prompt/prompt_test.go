@@ -202,8 +202,8 @@ func TestPromptAPIKey_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PromptAPIKey() returned error: %v", err)
 	}
-	if key != expectedKey {
-		t.Errorf("PromptAPIKey() = %q, expected %q", key, expectedKey)
+	if string(key.Bytes()) != expectedKey {
+		t.Errorf("PromptAPIKey() = %v, expected %q", key, expectedKey)
 	}
 }
 
@@ -223,8 +223,8 @@ func TestPromptAPIKey_Empty(t *testing.T) {
 	if err != ErrEmptyAPIKey {
 		t.Errorf("PromptAPIKey() error = %v, expected %v", err, ErrEmptyAPIKey)
 	}
-	if key != "" {
-		t.Errorf("PromptAPIKey() key = %q, expected empty string", key)
+	if key != nil {
+		t.Errorf("PromptAPIKey() key = %v, expected nil", key)
 	}
 }
 

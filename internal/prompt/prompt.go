@@ -7,6 +7,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/dkmnx/ply/internal/crypto"
 	"github.com/dkmnx/ply/internal/providers"
 	"github.com/yarlson/tap"
 )
@@ -105,14 +106,14 @@ func PromptProvider(ctx context.Context) (string, error) {
 	return "", ErrInvalidProvider
 }
 
-func PromptAPIKey(ctx context.Context, provider string) (string, error) {
+func PromptAPIKey(ctx context.Context, provider string) (*crypto.SecureString, error) {
 	for {
 		result := defaultClient.Password(ctx, tap.PasswordOptions{
 			Message: fmt.Sprintf("Enter API key for %s:", provider),
 		})
 
 		if result == "" {
-			return "", ErrEmptyAPIKey
+			return nil, ErrEmptyAPIKey
 		}
 
 		if err := validateAPIKey(result, provider); err != nil {
@@ -120,7 +121,7 @@ func PromptAPIKey(ctx context.Context, provider string) (string, error) {
 			continue
 		}
 
-		return result, nil
+		return crypto.NewSecureString(result), nil
 	}
 }
 

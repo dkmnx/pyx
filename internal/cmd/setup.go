@@ -219,23 +219,23 @@ func loadOrCreateMasterKey(ctx context.Context, keyMgr *keys.Manager, db *databa
 }
 
 // promptProviderAndKey prompts user for provider and API key, handling overrides.
-func promptProviderAndKey(ctx context.Context, db *database.Database) (string, string, error) {
+func promptProviderAndKey(ctx context.Context, db *database.Database) (string, *crypto.SecureString, error) {
 	provider, err := prompt.PromptProvider(ctx)
 	if err != nil {
-		return "", "", fmt.Errorf("error: %w", err)
+		return "", nil, fmt.Errorf("error: %w", err)
 	}
 
 	// Check if provider already configured
 	if _, err := db.GetEntry(provider); err == nil {
 		if !confirmProviderOverride(ctx, provider) {
 			tap.Outro("Provider already configured!")
-			return "", "", fmt.Errorf("setup cancelled")
+			return "", nil, fmt.Errorf("setup cancelled")
 		}
 	}
 
 	apiKey, err := prompt.PromptAPIKey(ctx, provider)
 	if err != nil {
-		return "", "", fmt.Errorf("error: %w", err)
+		return "", nil, fmt.Errorf("error: %w", err)
 	}
 
 	return provider, apiKey, nil
@@ -311,11 +311,14 @@ func runRecovery(ctx context.Context, keyMgr *keys.Manager, db *database.Databas
 			return
 		}
 
-		cipher, err := crypto.Encrypt(string(masterKey), apiKey)
+		cipher, err := crypto.Encrypt(string(masterKey), string(apiKey.Bytes()))
 		if err != nil {
 			tap.Cancel(fmt.Sprintf("Error encrypting API key for %s", entry.Provider))
 			return
 		}
+
+		// Zero the API key after encryption
+		apiKey.Zero()
 
 		entry.Cipher = cipher
 		entry.UpdatedAt = time.Now().UTC()
@@ -378,11 +381,8 @@ func runSetup(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	// Wrap API key in SecureString for secure handling
-	secureAPIKey := crypto.NewSecureString(apiKey)
-
-	// Store provider entry (secureAPIKey will be zeroed inside)
-	isUpdate, err := storeProviderEntry(ctx, db, masterKey, provider, secureAPIKey)
+	// Store provider entry (apiKey will be zeroed inside storeProviderEntry)
+	isUpdate, err := storeProviderEntry(ctx, db, masterKey, provider, apiKey)
 	if err != nil {
 		tap.Cancel(fmt.Sprintf("Error: %v", err))
 		return
