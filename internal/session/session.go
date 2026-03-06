@@ -1,6 +1,7 @@
 package session
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -9,6 +10,9 @@ import (
 	"strings"
 	"time"
 )
+
+// ErrInvalidCwd is returned when the cwd is invalid for encoding
+var ErrInvalidCwd = errors.New("invalid working directory")
 
 // Info holds information about a pi session
 type Info struct {
@@ -27,7 +31,21 @@ func PiSessionsDir() (string, error) {
 }
 
 // EncodeCwd encodes a working directory path for use in session directory names
-func EncodeCwd(cwd string) string {
+func EncodeCwd(cwd string) (string, error) {
+	if cwd == "" {
+		return "", ErrInvalidCwd
+	}
+
+	// Reject path traversal attempts
+	if strings.Contains(cwd, "..") {
+		return "", ErrInvalidCwd
+	}
+
+	// Reject null bytes (common in injection attacks)
+	if strings.Contains(cwd, "\x00") {
+		return "", ErrInvalidCwd
+	}
+
 	// Replace both \ and / with - first (normalize all path separators)
 	encoded := strings.ReplaceAll(cwd, "\\", "/")
 	// Remove leading slash
@@ -35,14 +53,29 @@ func EncodeCwd(cwd string) string {
 	// Replace remaining / and : with -
 	encoded = strings.ReplaceAll(encoded, "/", "-")
 	encoded = strings.ReplaceAll(encoded, ":", "-")
-	return "--" + encoded + "--"
+	return "--" + encoded + "--", nil
 }
 
 // DecodeCwd decodes an encoded directory name back to the original path
-func DecodeCwd(encoded string) string {
+func DecodeCwd(encoded string) (string, error) {
+	if encoded == "" {
+		return "", ErrInvalidCwd
+	}
+
+	// Reject null bytes
+	if strings.Contains(encoded, "\x00") {
+		return "", ErrInvalidCwd
+	}
+
 	// Remove -- prefix and suffix
 	decoded := strings.TrimPrefix(encoded, "--")
 	decoded = strings.TrimSuffix(decoded, "--")
+
+	// Reject path traversal after decoding (defense in depth)
+	if strings.Contains(decoded, "..") {
+		return "", ErrInvalidCwd
+	}
+
 	// Replace - back to / first, then convert to local separators
 	decoded = strings.ReplaceAll(decoded, "-", "/")
 	// Convert to local filepath separators
@@ -52,7 +85,7 @@ func DecodeCwd(encoded string) string {
 	if runtime.GOOS != "windows" && !strings.HasPrefix(decoded, string(filepath.Separator)) {
 		decoded = string(filepath.Separator) + decoded
 	}
-	return decoded
+	return decoded, nil
 }
 
 // DirForCwd returns the session directory for a given working directory
@@ -61,7 +94,11 @@ func DirForCwd(cwd string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(sessionsDir, EncodeCwd(cwd)), nil
+	encoded, err := EncodeCwd(cwd)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(sessionsDir, encoded), nil
 }
 
 var sessionFilePattern = regexp.MustCompile(`^(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z)_([[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12})\.jsonl$`)

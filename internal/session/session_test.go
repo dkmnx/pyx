@@ -10,15 +10,24 @@ func TestEncodeCwd(t *testing.T) {
 	tests := []struct {
 		input    string
 		expected string
+		wantErr  bool
 	}{
-		{"/home/user/project", "--home-user-project--"},
-		{"/Users/user/Documents", "--Users-user-Documents--"},
-		{"C:\\Users\\user\\Documents", "--C--Users-user-Documents--"},
-		{"C:/Users/user/Documents", "--C--Users-user-Documents--"},
+		{"/home/user/project", "--home-user-project--", false},
+		{"/Users/user/Documents", "--Users-user-Documents--", false},
+		{"C:\\Users\\user\\Documents", "--C--Users-user-Documents--", false},
+		{"C:/Users/user/Documents", "--C--Users-user-Documents--", false},
+		{"", "", true},
+		{"..", "", true},
+		{"/home/../etc/passwd", "", true},
+		{"path\x00with\x00null", "", true},
 	}
 
 	for _, tt := range tests {
-		result := EncodeCwd(tt.input)
+		result, err := EncodeCwd(tt.input)
+		if (err != nil) != tt.wantErr {
+			t.Errorf("EncodeCwd(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
+			continue
+		}
 		if result != tt.expected {
 			t.Errorf("EncodeCwd(%q) = %q, want %q", tt.input, result, tt.expected)
 		}
@@ -29,12 +38,20 @@ func TestDecodeCwd(t *testing.T) {
 	tests := []struct {
 		input    string
 		expected string
+		wantErr  bool
 	}{
-		{"--home-user-project--", filepath.FromSlash("/home/user/project")},
+		{"--home-user-project--", filepath.FromSlash("/home/user/project"), false},
+		{"", "", true},
+		{"--..--", "", true},
+		{"--path\x00with\x00null--", "", true},
 	}
 
 	for _, tt := range tests {
-		result := DecodeCwd(tt.input)
+		result, err := DecodeCwd(tt.input)
+		if (err != nil) != tt.wantErr {
+			t.Errorf("DecodeCwd(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
+			continue
+		}
 		if result != tt.expected {
 			t.Errorf("DecodeCwd(%q) = %q, want %q", tt.input, result, tt.expected)
 		}
