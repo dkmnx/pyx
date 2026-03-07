@@ -39,6 +39,7 @@ var envVarMapping = map[string]string{
 	"anthropic":              "ANTHROPIC_API_KEY",
 	"azure-openai-responses": "AZURE_OPENAI_API_KEY",
 	"cerebras":               "CEREBRAS_API_KEY",
+	"deepseek":               "DEEPSEEK_API_KEY",
 	"github-copilot":         "GITHUB_TOKEN",
 	"google":                 "GEMINI_API_KEY",
 	"google-antigravity":     "GEMINI_API_KEY",
@@ -76,6 +77,11 @@ func Names(ctx context.Context) []string {
 	// Add qwen if extension exists
 	if hasQwenExtension() {
 		names = append(names, "qwen")
+	}
+
+	// Add deepseek if extension exists
+	if hasDeepSeekExtension() {
+		names = append(names, "deepseek")
 	}
 
 	return names
@@ -216,6 +222,20 @@ func hasQwenExtension() bool {
 	return err == nil && info.IsDir()
 }
 
+// hasDeepSeekExtension checks if the deepseek-provider extension exists.
+func hasDeepSeekExtension() bool {
+	homeDir := os.Getenv("HOME")
+	if homeDir == "" {
+		homeDir = os.Getenv("USERPROFILE") // Windows fallback
+	}
+	if homeDir == "" {
+		return false
+	}
+	extPath := filepath.Join(homeDir, ".pi", "agent", "extensions", "deepseek-provider")
+	info, err := os.Stat(extPath)
+	return err == nil && info.IsDir()
+}
+
 // IsValid returns true if the given provider name is recognized.
 // This checks against the providers fetched from models cache.
 // Deprecated: Use Validate() instead which provides better error messages.
@@ -228,6 +248,11 @@ func IsValid(name string) bool {
 
 	// Also check for qwen extension
 	if name == "qwen" && hasQwenExtension() {
+		return true
+	}
+
+	// Also check for deepseek extension
+	if name == "deepseek" && hasDeepSeekExtension() {
 		return true
 	}
 
@@ -245,6 +270,11 @@ func IsValidWithContext(ctx context.Context, name string) bool {
 
 	// Also check for qwen extension
 	if name == "qwen" && hasQwenExtension() {
+		return true
+	}
+
+	// Also check for deepseek extension
+	if name == "deepseek" && hasDeepSeekExtension() {
 		return true
 	}
 
@@ -313,6 +343,12 @@ func GetAll(ctx context.Context) ([]Provider, error) {
 	if hasQwenExtension() {
 		envVar, _ := EnvVar("qwen") // We just added it to mapping, so this will succeed
 		providers = append(providers, Provider{Name: "qwen", EnvVar: envVar})
+	}
+
+	// Add deepseek if extension exists
+	if hasDeepSeekExtension() {
+		envVar, _ := EnvVar("deepseek") // We just added it to mapping, so this will succeed
+		providers = append(providers, Provider{Name: "deepseek", EnvVar: envVar})
 	}
 
 	return providers, nil
