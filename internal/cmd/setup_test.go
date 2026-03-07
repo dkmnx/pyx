@@ -11,6 +11,7 @@ import (
 	"github.com/dkmnx/ply/internal/crypto"
 	"github.com/dkmnx/ply/internal/database"
 	"github.com/dkmnx/ply/internal/fs"
+	"github.com/dkmnx/ply/internal/keys"
 )
 
 func TestSetupCreatesMasterKey(t *testing.T) {
@@ -99,10 +100,10 @@ func TestSetupCreatesDatabaseEntry(t *testing.T) {
 
 	// Simulate setup flow
 	provider := "openai"
-	apiKey := "sk-test-api-key-12345"
+	apiKey := []byte("sk-test-api-key-12345")
 
 	// Encrypt API key
-	cipher, err := crypto.Encrypt(string(masterKey), apiKey)
+	cipher, err := crypto.EncryptBytes(masterKey, apiKey)
 	if err != nil {
 		t.Fatalf("Encrypt() error = %v", err)
 	}
@@ -166,14 +167,14 @@ func TestSetupCreatesDatabaseEntry(t *testing.T) {
 	}
 
 	// Verify decryption
-	decryptedKey, err := crypto.Decrypt(string(masterKey), entries[0].Cipher)
+	decryptedKey, err := crypto.DecryptBytes(masterKey, entries[0].Cipher)
 	if err != nil {
 		t.Fatalf("Decrypt() error = %v", err)
 	}
 	defer decryptedKey.Zero()
 
-	if decryptedKey.String() != apiKey {
-		t.Errorf("Decrypted key = %v, want %v", decryptedKey.String(), apiKey)
+	if !keys.Equal(decryptedKey, apiKey) {
+		t.Errorf("Decrypted key does not match original")
 	}
 }
 
@@ -297,7 +298,7 @@ func TestStoreProviderEntry_Update(t *testing.T) {
 	db.Load(ctx)
 
 	// Create initial entry
-	cipher, _ := crypto.Encrypt(string(masterKey), "sk-old-key")
+	cipher, _ := crypto.EncryptBytes(masterKey, []byte("sk-old-key"))
 	entry := database.NewEntry("openai", cipher)
 	db.AddEntry(entry)
 	db.Save(ctx)

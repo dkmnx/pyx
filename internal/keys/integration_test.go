@@ -53,8 +53,8 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 	}
 
 	// Step 4: Encrypt API key with master key
-	originalAPIKey := "sk-test-api-key-12345678901234567890"
-	cipher, err := crypto.Encrypt(string(masterKey), originalAPIKey)
+	originalAPIKey := []byte("sk-test-api-key-12345678901234567890")
+	cipher, err := crypto.EncryptBytes(masterKey, originalAPIKey)
 	if err != nil {
 		t.Fatalf("Encrypt() error = %v", err)
 	}
@@ -81,15 +81,15 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 	}
 
 	// Step 7: Decrypt API key with master key
-	decryptedKey, err := crypto.Decrypt(string(masterKey), loadedEntry.Cipher)
+	decryptedKey, err := crypto.DecryptBytes(masterKey, loadedEntry.Cipher)
 	if err != nil {
 		t.Fatalf("Decrypt() error = %v", err)
 	}
 	defer decryptedKey.Zero()
 
 	// Step 8: Verify decrypted key matches original
-	if decryptedKey.String() != originalAPIKey {
-		t.Errorf("Decrypted key = %q, want %q", decryptedKey.String(), originalAPIKey)
+	if !Equal(decryptedKey, originalAPIKey) {
+		t.Errorf("Decrypted key does not match original")
 	}
 
 	// Cleanup
@@ -123,15 +123,15 @@ func TestIntegration_MultipleProviders(t *testing.T) {
 	}
 
 	// Define multiple providers with different API keys
-	providers := map[string]string{
-		"openai":    "sk-openai-test-key-123",
-		"anthropic": "sk-ant-test-key-456",
-		"google":    "google-api-key-789",
+	providers := map[string][]byte{
+		"openai":    []byte("sk-openai-test-key-123"),
+		"anthropic": []byte("sk-ant-test-key-456"),
+		"google":    []byte("google-api-key-789"),
 	}
 
 	// Encrypt and store each provider's API key
 	for provider, apiKey := range providers {
-		cipher, err := crypto.Encrypt(string(masterKey), apiKey)
+		cipher, err := crypto.EncryptBytes(masterKey, apiKey)
 		if err != nil {
 			t.Fatalf("Encrypt() error for %s: %v", provider, err)
 		}
@@ -159,14 +159,14 @@ func TestIntegration_MultipleProviders(t *testing.T) {
 			t.Fatalf("db.GetEntry() error for %s: %v", provider, err)
 		}
 
-		decryptedKey, err := crypto.Decrypt(string(masterKey), entry.Cipher)
+		decryptedKey, err := crypto.DecryptBytes(masterKey, entry.Cipher)
 		if err != nil {
 			t.Fatalf("Decrypt() error for %s: %v", provider, err)
 		}
 		defer decryptedKey.Zero()
 
-		if decryptedKey.String() != expectedAPIKey {
-			t.Errorf("%s: decrypted key = %q, want %q", provider, decryptedKey.String(), expectedAPIKey)
+		if !Equal(decryptedKey, expectedAPIKey) {
+			t.Errorf("%s: decrypted key does not match original", provider)
 		}
 	}
 

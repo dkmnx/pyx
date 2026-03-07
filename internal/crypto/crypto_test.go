@@ -195,3 +195,87 @@ func TestSamePassphraseDifferentCiphertext(t *testing.T) {
 		t.Error("Same passphrase should produce different ciphertexts due to random salt")
 	}
 }
+
+func TestEncryptBytesDecryptBytes(t *testing.T) {
+	key := []byte("32-byte-master-key-12345678901")
+	plaintext := []byte("test-api-key-12345")
+
+	ciphertext, err := EncryptBytes(key, plaintext)
+	if err != nil {
+		t.Fatalf("EncryptBytes() error = %v", err)
+	}
+
+	if ciphertext == "" {
+		t.Error("EncryptBytes() returned empty ciphertext")
+	}
+
+	decrypted, err := DecryptBytes(key, ciphertext)
+	if err != nil {
+		t.Fatalf("DecryptBytes() error = %v", err)
+	}
+	defer decrypted.Zero()
+
+	if string(decrypted) != string(plaintext) {
+		t.Errorf("DecryptBytes() = %v, want %v", string(decrypted), string(plaintext))
+	}
+}
+
+func TestDecryptBytesWrongKey(t *testing.T) {
+	correctKey := []byte("correct-32-byte-master-key-1234")
+	wrongKey := []byte("wrong-32-byte-master-key-123456")
+	plaintext := []byte("secret-data")
+
+	ciphertext, err := EncryptBytes(correctKey, plaintext)
+	if err != nil {
+		t.Fatalf("EncryptBytes() error = %v", err)
+	}
+
+	_, err = DecryptBytes(wrongKey, ciphertext)
+	if err == nil {
+		t.Error("DecryptBytes() expected error for wrong key")
+	}
+
+	if err != ErrInvalidPassphrase {
+		t.Errorf("DecryptBytes() error = %v, want %v", err, ErrInvalidPassphrase)
+	}
+}
+
+func TestEncryptBytesDecryptBytesNilKey(t *testing.T) {
+	plaintext := []byte("test-data")
+
+	_, err := EncryptBytes(nil, plaintext)
+	if err == nil {
+		t.Error("EncryptBytes() expected error for nil key")
+	}
+}
+
+func TestEncryptBytesDecryptBytesLargeData(t *testing.T) {
+	key := []byte("32-byte-master-key-12345678901")
+	// Test with a larger payload (simulating a large API key)
+	plaintext := make([]byte, 1000)
+	for i := range plaintext {
+		plaintext[i] = byte(i % 256)
+	}
+
+	ciphertext, err := EncryptBytes(key, plaintext)
+	if err != nil {
+		t.Fatalf("EncryptBytes() error = %v", err)
+	}
+
+	decrypted, err := DecryptBytes(key, ciphertext)
+	if err != nil {
+		t.Fatalf("DecryptBytes() error = %v", err)
+	}
+	defer decrypted.Zero()
+
+	if len(decrypted) != len(plaintext) {
+		t.Errorf("DecryptBytes() length = %v, want %v", len(decrypted), len(plaintext))
+	}
+
+	for i := range plaintext {
+		if decrypted[i] != plaintext[i] {
+			t.Errorf("DecryptBytes() mismatch at index %d", i)
+			break
+		}
+	}
+}

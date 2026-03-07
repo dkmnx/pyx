@@ -172,7 +172,14 @@ func storeProviderEntry(
 	provider string,
 	apiKey *crypto.SecureString,
 ) (bool, error) {
-	cipher, err := crypto.Encrypt(string(masterKey), string(apiKey.Bytes()))
+	apiKeyBytes := apiKey.Bytes()
+	defer func() {
+		for i := range apiKeyBytes {
+			apiKeyBytes[i] = 0
+		}
+	}()
+
+	cipher, err := crypto.EncryptBytes(masterKey, apiKeyBytes)
 	if err != nil {
 		return false, fmt.Errorf("error encrypting API key: %w", err)
 	}
@@ -311,7 +318,12 @@ func runRecovery(ctx context.Context, keyMgr *keys.Manager, db *database.Databas
 			return
 		}
 
-		cipher, err := crypto.Encrypt(string(masterKey), string(apiKey.Bytes()))
+		apiKeyBytes := apiKey.Bytes()
+		cipher, err := crypto.EncryptBytes(masterKey, apiKeyBytes)
+		for i := range apiKeyBytes {
+			apiKeyBytes[i] = 0
+		}
+
 		if err != nil {
 			tap.Cancel(fmt.Sprintf("Error encrypting API key for %s", entry.Provider))
 			return

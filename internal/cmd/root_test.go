@@ -184,8 +184,8 @@ func TestDecryptProviderKeys(t *testing.T) {
 	masterKey := make([]byte, 32)
 
 	// Create test entries
-	cipher1, _ := crypto.Encrypt(string(masterKey), "key1")
-	cipher2, _ := crypto.Encrypt(string(masterKey), "key2")
+	cipher1, _ := crypto.EncryptBytes(masterKey, []byte("key1"))
+	cipher2, _ := crypto.EncryptBytes(masterKey, []byte("key2"))
 
 	entries := []database.Entry{
 		{Provider: "openai", Cipher: cipher1},
@@ -293,7 +293,7 @@ func TestBuildProviderEnv_InvalidPassphrase(t *testing.T) {
 
 	// Create test entries with a correct master key
 	correctMasterKey := make([]byte, 32)
-	cipher, _ := crypto.Encrypt(string(correctMasterKey), "test-api-key")
+	cipher, _ := crypto.EncryptBytes(correctMasterKey, []byte("test-api-key"))
 
 	entries := []database.Entry{
 		{Provider: "zai", Cipher: cipher},

@@ -76,6 +76,7 @@ func (m *Manager) Save(key []byte) error {
 		return fmt.Errorf("failed to get password: %w", err)
 	}
 
+	// nolint:staticcheck // Password from keyring is a string; use string-based encryption
 	encrypted, err := crypto.Encrypt(passphrase, string(key))
 	if err != nil {
 		return fmt.Errorf("failed to encrypt master key: %w", err)
@@ -128,6 +129,7 @@ func (m *Manager) Load(password []byte) ([]byte, error) {
 		return nil, fmt.Errorf("failed to read key file: %w", err)
 	}
 
+	// nolint:staticcheck // Password from keyring is a string; use string-based decryption
 	key, err := crypto.Decrypt(passphrase, string(data))
 	if err != nil {
 		// Record failed attempt for rate limiting
@@ -162,6 +164,7 @@ func (m *Manager) loadWithLegacyPassphrase() ([]byte, error) {
 	}
 
 	// Try legacy passphrase
+	// nolint:staticcheck // Legacy passphrase is a string constant
 	key, err := crypto.Decrypt(legacyPassphrase, string(data))
 	if err != nil {
 		// Legacy passphrase didn't work either

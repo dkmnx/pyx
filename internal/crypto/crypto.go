@@ -144,6 +144,10 @@ func (ss *SecureString) Equal(other *SecureString) bool {
 
 // Encrypt encrypts plaintext using age with the provided passphrase.
 // Returns a base64-encoded age ciphertext.
+//
+// Deprecated: For better security with machine-generated keys, use EncryptBytes
+// which accepts []byte directly. This function remains for password-based
+// encryption where the passphrase is a human-readable string.
 func Encrypt(passphrase string, plaintext string) (string, error) {
 	recipient, err := age.NewScryptRecipient(passphrase)
 	if err != nil {
@@ -167,10 +171,83 @@ func Encrypt(passphrase string, plaintext string) (string, error) {
 	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
 }
 
+// EncryptBytes encrypts plaintext using age with the provided key bytes.
+// Returns a base64-encoded age ciphertext.
+//
+// This is the preferred method for encryption with machine-generated keys like
+// master keys, as it avoids string conversions and minimizes the time sensitive
+// data exists in immutable string form.
+//
+// Note: The age library's API requires strings for scrypt recipient/identity,
+// so a temporary string conversion is still performed internally. However, by
+// accepting []byte in our API, we prevent unnecessary string conversions in
+// calling code and minimize the number of immutable string copies created.
+func EncryptBytes(key []byte, plaintext []byte) (string, error) {
+	recipient, err := age.NewScryptRecipient(string(key))
+	if err != nil {
+		return "", ErrEncryptionFailed
+	}
+
+	var buf bytes.Buffer
+	w, err := age.Encrypt(&buf, recipient)
+	if err != nil {
+		return "", ErrEncryptionFailed
+	}
+
+	if _, err := w.Write(plaintext); err != nil {
+		return "", ErrEncryptionFailed
+	}
+
+	if err := w.Close(); err != nil {
+		return "", ErrEncryptionFailed
+	}
+
+	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
+}
+
 // Decrypt decrypts a base64-encoded age ciphertext using the provided passphrase.
 // Returns SecureBytes that should be zeroed after use via defer.
+//
+// Deprecated: For better security with machine-generated keys, use DecryptBytes
+// which accepts []byte directly. This function remains for password-based
+// encryption where the passphrase is a human-readable string.
 func Decrypt(passphrase string, ciphertext string) (SecureBytes, error) {
 	identity, err := age.NewScryptIdentity(passphrase)
+	if err != nil {
+		return nil, ErrInvalidPassphrase
+	}
+
+	cipherBytes, err := base64.StdEncoding.DecodeString(ciphertext)
+	if err != nil {
+		return nil, ErrDecryptionFailed
+	}
+
+	r, err := age.Decrypt(bytes.NewReader(cipherBytes), identity)
+	if err != nil {
+		return nil, ErrInvalidPassphrase
+	}
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		return nil, ErrDecryptionFailed
+	}
+
+	return SecureBytes(buf.Bytes()), nil
+}
+
+// DecryptBytes decrypts a base64-encoded age ciphertext using the provided key bytes.
+// Returns SecureBytes that should be zeroed after use via defer.
+//
+// This is the preferred method for decryption with machine-generated keys like
+// master keys, as it avoids string conversions and minimizes the time sensitive
+// data exists in immutable string form.
+//
+// Note: The age library's API requires strings for scrypt recipient/identity,
+// so a temporary string conversion is still performed internally. However, by
+// accepting []byte in our API, we prevent unnecessary string conversions in
+// calling code and minimize the number of immutable string copies created.
+func DecryptBytes(key []byte, ciphertext string) (SecureBytes, error) {
+	identity, err := age.NewScryptIdentity(string(key))
 	if err != nil {
 		return nil, ErrInvalidPassphrase
 	}

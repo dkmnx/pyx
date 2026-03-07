@@ -287,7 +287,7 @@ func decryptProviderKeys(masterKey []byte, providerEntries []database.Entry) (ma
 	decryptedAPIKeys := make(map[string]*crypto.SecureString)
 
 	for _, entry := range providerEntries {
-		apiKey, err := crypto.Decrypt(string(masterKey), entry.Cipher)
+		apiKey, err := crypto.DecryptBytes(masterKey, entry.Cipher)
 		if err != nil {
 			// Zero any already-decrypted keys before returning
 			for _, v := range decryptedAPIKeys {

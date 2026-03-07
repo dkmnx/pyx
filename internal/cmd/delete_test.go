@@ -51,7 +51,7 @@ func TestDelete_ByProvider(t *testing.T) {
 	}
 
 	for _, te := range testEntries {
-		cipher, _ := crypto.Encrypt(string(masterKey), te.apiKey)
+		cipher, _ := crypto.EncryptBytes(masterKey, []byte(te.apiKey))
 		entry := database.NewEntry(te.provider, cipher)
 		_ = db.AddEntry(entry)
 	}
@@ -109,7 +109,7 @@ func TestDelete_NotFound(t *testing.T) {
 	db := database.New(dataDir)
 	_ = db.Load(context.Background())
 
-	cipher, _ := crypto.Encrypt(string(masterKey), "test-key")
+	cipher, _ := crypto.EncryptBytes(masterKey, []byte("test-key"))
 	entry := database.NewEntry("openai", cipher)
 	_ = db.AddEntry(entry)
 	_ = db.Save(context.Background())
@@ -207,7 +207,7 @@ func TestDelete_InvalidProvider(t *testing.T) {
 			_ = db.Load(context.Background())
 
 			// Add a test provider
-			cipher, _ := crypto.Encrypt(string(masterKey), "test-key")
+			cipher, _ := crypto.EncryptBytes(masterKey, []byte("test-key"))
 			entry := database.NewEntry("openai", cipher)
 			_ = db.AddEntry(entry)
 			_ = db.Save(context.Background())
