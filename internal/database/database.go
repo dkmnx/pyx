@@ -11,6 +11,8 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/dkmnx/ply/internal/validation"
 )
 
 var (
@@ -287,6 +289,12 @@ func createBackup(dataDir string, dropped map[string][]Entry) error {
 		return nil
 	}
 
+	// Validate data directory path to prevent path traversal
+	validatedDir, err := validation.ValidateDataDir(dataDir)
+	if err != nil {
+		return fmt.Errorf("invalid data directory: %w", err)
+	}
+
 	backupData := make([]Entry, 0)
 	for _, droppedEntries := range dropped {
 		backupData = append(backupData, droppedEntries...)
@@ -296,7 +304,7 @@ func createBackup(dataDir string, dropped map[string][]Entry) error {
 		return nil
 	}
 
-	backupPath := filepath.Join(dataDir, "database.json.dropped.bak")
+	backupPath := filepath.Join(validatedDir, "database.json.dropped.bak")
 	backupJSON, err := json.MarshalIndent(backupData, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal backup: %w", err)

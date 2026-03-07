@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/dkmnx/ply/internal/pi"
+	"github.com/dkmnx/ply/internal/validation"
 	"github.com/spf13/cobra"
 )
 
@@ -126,6 +127,11 @@ func runCompletion(cmd *cobra.Command, args []string) {
 
 // installCompletionForShell installs completion for a specific shell.
 func installCompletionForShell(shell string) error {
+	// Validate shell argument for security
+	if err := validation.SanitizeShellArg(shell); err != nil {
+		return fmt.Errorf("invalid shell argument: %w", err)
+	}
+
 	// Generate completion script
 	genCmd := exec.Command("ply", "completion", shell)
 	output, err := genCmd.CombinedOutput()

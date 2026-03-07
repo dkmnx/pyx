@@ -10,6 +10,7 @@ import (
 
 	"github.com/dkmnx/ply/internal/models"
 	"github.com/dkmnx/ply/internal/settings"
+	"github.com/dkmnx/ply/internal/validation"
 )
 
 type Provider struct {
@@ -210,11 +211,8 @@ func deriveEnvVar(name string) (string, bool) {
 
 // hasQwenExtension checks if the qwen-coding-plan-provider extension exists.
 func hasQwenExtension() bool {
-	homeDir := os.Getenv("HOME")
-	if homeDir == "" {
-		homeDir = os.Getenv("USERPROFILE") // Windows fallback
-	}
-	if homeDir == "" {
+	homeDir, err := validation.ValidateAndResolveHome()
+	if err != nil {
 		return false
 	}
 	extPath := filepath.Join(homeDir, ".pi", "agent", "extensions", "qwen-coding-plan-provider")
@@ -224,11 +222,8 @@ func hasQwenExtension() bool {
 
 // hasDeepSeekExtension checks if the deepseek-provider extension exists.
 func hasDeepSeekExtension() bool {
-	homeDir := os.Getenv("HOME")
-	if homeDir == "" {
-		homeDir = os.Getenv("USERPROFILE") // Windows fallback
-	}
-	if homeDir == "" {
+	homeDir, err := validation.ValidateAndResolveHome()
+	if err != nil {
 		return false
 	}
 	extPath := filepath.Join(homeDir, ".pi", "agent", "extensions", "deepseek-provider")

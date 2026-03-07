@@ -16,6 +16,7 @@ import (
 	"github.com/dkmnx/ply/internal/pi"
 	"github.com/dkmnx/ply/internal/providers"
 	"github.com/dkmnx/ply/internal/session"
+	"github.com/dkmnx/ply/internal/validation"
 	"github.com/spf13/cobra"
 )
 
@@ -223,6 +224,12 @@ func executePi(providerEntries []database.Entry, piCommandArgs []string, provide
 	// Add session flag if provided
 	if sessionFlag != "" {
 		finalPiArgs = append(finalPiArgs, "--session", sessionFlag)
+	}
+
+	// Validate shell arguments for security
+	if err := validation.ValidateShellArgs(finalPiArgs); err != nil {
+		fmt.Fprintf(os.Stderr, "Invalid pi arguments: %v\n", err)
+		os.Exit(1)
 	}
 
 	piCmd := exec.Command("pi", finalPiArgs...)
