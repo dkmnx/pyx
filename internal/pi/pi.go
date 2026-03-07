@@ -76,45 +76,8 @@ func DetectCurrentShell() ShellType {
 	return ShellBash
 }
 
-// getHomeDir returns the user's home directory or empty string on error
-func getHomeDir() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("failed to get home directory: %w", err)
-	}
-	return home, nil
-}
-
 // ErrUnknownShell is returned when the shell type is not recognized
 var ErrUnknownShell = errors.New("unknown shell type")
-
-// CompletionScriptPath returns the completion script path for a shell.
-// Returns an error if the home directory cannot be determined or shell is unknown.
-func CompletionScriptPath(shell ShellType) (string, error) {
-	home, err := getHomeDir()
-	if err != nil {
-		return "", err
-	}
-
-	switch shell {
-	case ShellZsh:
-		// Zsh: ${fpath[1]}/_ply
-		return filepath.Join(home, ".zshrc"), nil
-	case ShellFish:
-		// Fish: ~/.config/fish/completions/ply.fish
-		return filepath.Join(home, ".config", "fish", "completions", "ply.fish"), nil
-	case ShellPowerShell:
-		// PowerShell: ply.ps1 in user's Documents/PowerShell
-		return filepath.Join(home, "Documents", "PowerShell", "ply.ps1"), nil
-	case ShellBash:
-		// Bash: try both system and user locations
-		// System: /etc/bash_completion.d/ply (Linux)
-		// User: ~/.bashrc
-		return filepath.Join(home, ".bashrc"), nil
-	default:
-		return "", ErrUnknownShell
-	}
-}
 
 // InstallCompletion installs the appropriate completion script for the detected shell.
 func InstallCompletion() error {

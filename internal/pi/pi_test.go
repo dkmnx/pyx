@@ -2,7 +2,6 @@ package pi
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 )
 
@@ -116,21 +115,6 @@ func TestShellNames(t *testing.T) {
 		if name != expected[i] {
 			t.Errorf("ShellNames[%d] = %q, expected %q", i, name, expected[i])
 		}
-	}
-}
-
-func TestGetHomeDir(t *testing.T) {
-	home, err := getHomeDir()
-	if err != nil {
-		t.Errorf("getHomeDir() error = %v", err)
-	}
-	if home == "" {
-		t.Error("getHomeDir() returned empty string")
-	}
-	// Verify it's actually the home directory
-	expectedHome, _ := os.UserHomeDir()
-	if home != expectedHome {
-		t.Errorf("getHomeDir() = %q, expected %q", home, expectedHome)
 	}
 }
 
@@ -270,52 +254,6 @@ func TestErrUnknownShell(t *testing.T) {
 	}
 	if ErrUnknownShell.Error() != "unknown shell type" {
 		t.Errorf("ErrUnknownShell.Error() = %q, expected 'unknown shell type'", ErrUnknownShell.Error())
-	}
-}
-
-func TestCompletionScriptPathAllShells(t *testing.T) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		t.Skipf("Cannot get home directory: %v", err)
-	}
-
-	tests := []struct {
-		name  string
-		shell ShellType
-		want  string
-	}{
-		{
-			name:  "zsh",
-			shell: ShellZsh,
-			want:  filepath.Join(home, ".zshrc"),
-		},
-		{
-			name:  "fish",
-			shell: ShellFish,
-			want:  filepath.Join(home, ".config", "fish", "completions", "ply.fish"),
-		},
-		{
-			name:  "powershell",
-			shell: ShellPowerShell,
-			want:  filepath.Join(home, "Documents", "PowerShell", "ply.ps1"),
-		},
-		{
-			name:  "bash",
-			shell: ShellBash,
-			want:  filepath.Join(home, ".bashrc"),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := CompletionScriptPath(tt.shell)
-			if err != nil {
-				t.Fatalf("CompletionScriptPath(%s) error: %v", tt.shell, err)
-			}
-			if got != tt.want {
-				t.Errorf("CompletionScriptPath(%s) = %v, want %v", tt.shell, got, tt.want)
-			}
-		})
 	}
 }
 
