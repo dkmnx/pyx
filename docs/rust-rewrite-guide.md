@@ -1,6 +1,13 @@
 # Rust Rewrite Guide
 
-Guide for rewriting `ply` from Go to Rust while preserving user-facing behavior, on-disk compatibility, and security properties.
+```text
+██████  ██
+██  ██  ██
+████  ██  ██
+██    ██  ██
+```
+
+Guide for rewriting `pyx` from Go to Rust while preserving user-facing behavior, on-disk compatibility, and security properties.
 
 ## Purpose
 
@@ -41,23 +48,23 @@ This means the Rust rewrite should aim to:
 
 Current commands implemented in `internal/cmd/`:
 
-- `ply`
-- `ply setup`
-- `ply list`
-- `ply delete [provider]`
-- `ply models`
-- `ply models update`
-- `ply pi install`
-- `ply reset`
-- `ply completion [bash|zsh|fish|powershell]`
-- `ply version`
+- `pyx`
+- `pyx setup`
+- `pyx list`
+- `pyx delete [provider]`
+- `pyx models`
+- `pyx models update`
+- `pyx pi install`
+- `pyx reset`
+- `pyx completion [bash|zsh|fish|powershell]`
+- `pyx version`
 
 Root command behavior from `internal/cmd/root.go`:
 
-- `ply` runs `pi` with all configured providers
-- `ply <provider>` runs `pi` with one provider
-- `ply -- ...` passes arguments through to `pi`
-- `ply -s, --session <uuid>` appends `--session <uuid>` to the `pi` invocation
+- `pyx` runs `pi` with all configured providers
+- `pyx <provider>` runs `pi` with one provider
+- `pyx -- ...` passes arguments through to `pi`
+- `pyx -s, --session <uuid>` appends `--session <uuid>` to the `pi` invocation
 
 ## Data and Files
 
@@ -92,7 +99,7 @@ Additional behavior that must be preserved or consciously migrated:
 - Provider names are derived from cached or fetched model metadata
 - Provider-to-environment-variable mapping uses a mix of hardcoded rules and derivation heuristics
 - `qwen` and `deepseek` are conditionally added when matching `~/.pi/agent/extensions/...` directories exist
-- `ply` auto-installs `pi` if not already installed
+- `pyx` auto-installs `pi` if not already installed
 - Completion scripts are installed into shell-specific locations
 - Session hints are derived from `~/.pi/agent/sessions/...`
 
@@ -114,7 +121,7 @@ Examples in the pi extension docs and examples:
 - `custom-provider-anthropic/`
 - `custom-provider-gitlab-duo/`
 
-Each of those extensions declares providers in code through `pi.registerProvider(...)`. That means `ply` should stop trying to infer extension-backed providers from filesystem heuristics.
+Each of those extensions declares providers in code through `pi.registerProvider(...)`. That means `pyx` should stop trying to infer extension-backed providers from filesystem heuristics.
 
 ### Rewrite goal
 
@@ -123,17 +130,17 @@ The Rust rewrite should remove provider-specific checks like `hasQwenExtension()
 Instead:
 
 - pi remains the source of truth for which providers and models exist
-- `ply` only needs to know how to map an extension-registered provider name to the environment variable that should be exported when launching pi
+- `pyx` only needs to know how to map an extension-registered provider name to the environment variable that should be exported when launching pi
 
 ### Important design constraint
 
-Because pi extensions are TypeScript modules and provider registration happens programmatically, `ply` should not try to parse arbitrary extension source files or infer providers from directory names.
+Because pi extensions are TypeScript modules and provider registration happens programmatically, `pyx` should not try to parse arbitrary extension source files or infer providers from directory names.
 
 That would be brittle and unsafe.
 
 ### Recommended architecture
 
-Until pi exposes a stable machine-readable provider registry, use a minimal `ply` provider-env config for extension-backed providers.
+Until pi exposes a stable machine-readable provider registry, use a minimal `pyx` provider-env config for extension-backed providers.
 
 That config should contain only:
 
@@ -194,7 +201,7 @@ No model definitions should be stored in this file. pi remains the source of tru
 - required
 - must be non-empty
 - must be unique within the file
-- should follow the same provider-name validation rules used by `ply`
+- should follow the same provider-name validation rules used by `pyx`
 - should match `^[a-zA-Z0-9_-]{1,50}$`
 
 #### `envVar`
@@ -208,8 +215,8 @@ No model definitions should be stored in this file. pi remains the source of tru
 ### Semantic rules
 
 - `name` is the provider name as registered by pi or by a pi extension through `pi.registerProvider(...)`
-- `envVar` is the environment variable `ply` exports when launching pi for that provider
-- unknown providers should be allowed in `providers.json`; the provider may come from an installed extension not otherwise visible to `ply`
+- `envVar` is the environment variable `pyx` exports when launching pi for that provider
+- unknown providers should be allowed in `providers.json`; the provider may come from an installed extension not otherwise visible to `pyx`
 - multiple providers may map to the same env var, but runtime conflict detection must preserve existing behavior: same secret is allowed, different secrets for the same env var is an error
 
 ### Registry merge strategy
@@ -222,7 +229,7 @@ Create a unified provider registry with deterministic precedence:
 4. built-in fallback mappings
 5. heuristic env-var derivation as a last resort
 
-This keeps `ply` focused on credential storage and env-var mapping, while pi remains responsible for model discovery.
+This keeps `pyx` focused on credential storage and env-var mapping, while pi remains responsible for model discovery.
 
 When multiple sources define the same provider name, the highest-precedence source wins.
 
@@ -255,7 +262,7 @@ Recommended phased approach:
 
 1. support runtime merge only
 2. document `providers.json` as the preferred location
-3. optionally add a migration command, such as `ply provider-env migrate`
+3. optionally add a migration command, such as `pyx provider-env migrate`
 4. only later consider deprecation warnings for `settings.json.customProviderEnvVars`
 
 The rewrite should avoid destructive or silent migration of user config.
@@ -264,7 +271,7 @@ The rewrite should avoid destructive or silent migration of user config.
 
 This should stay out of V1 scope, but it belongs in the backlog:
 
-- `ply provider-env generate --scan-extensions`
+- `pyx provider-env generate --scan-extensions`
 
 The command could inspect installed pi extensions, suggest likely provider names and environment variables, and reduce the manual setup burden around `providers.json`.
 
@@ -422,7 +429,7 @@ tests/
 
 ### Prompt Library Choice
 
-Choose `dialoguer` over `inquire` for the initial rewrite plan. It is a closer API match for `ply`'s current prompt flow, appears better aligned with the simple interactive needs of this CLI, and keeps the dependency surface smaller. Revisit that choice only if the Rust rewrite needs richer prompt widgets that `dialoguer` cannot support cleanly.
+Choose `dialoguer` over `inquire` for the initial rewrite plan. It is a closer API match for `pyx`'s current prompt flow, appears better aligned with the simple interactive needs of this CLI, and keeps the dependency surface smaller. Revisit that choice only if the Rust rewrite needs richer prompt widgets that `dialoguer` cannot support cleanly.
 
 ### Async vs Sync
 
@@ -557,7 +564,7 @@ Preserve behavior from `internal/providers/providers.go` where it affects compat
 - preserve provider name validation rules
 - replace embedded extension-driven availability checks for `qwen` and `deepseek` with a minimal provider-env config
 - preserve conflict handling where multiple providers map to the same environment variable
-- treat extension-registered provider names as first-class registry entries without duplicating model definitions in `ply`
+- treat extension-registered provider names as first-class registry entries without duplicating model definitions in `pyx`
 
 ## Phased Rewrite Plan
 
@@ -704,7 +711,7 @@ Implement the main execution flow:
 
 ### Exit criteria
 
-- `ply`, `ply <provider>`, and `ply -- ...` all behave correctly
+- `pyx`, `pyx <provider>`, and `pyx -- ...` all behave correctly
 - session forwarding and pass-through arguments behave correctly
 
 ## Phase 7: Polish and Release Preparation
@@ -756,7 +763,7 @@ Use typed domain errors with `thiserror`.
 
 Suggested pattern:
 
-- library code returns `Result<T, PlyError>`
+- library code returns `Result<T, PyxError>`
 - top-level command runner converts errors into user-facing messages and exit codes
 
 This is cleaner and more testable than spreading direct process exits throughout the implementation.
@@ -864,13 +871,13 @@ Create a dedicated compatibility suite under `tests/compatibility/`.
 
 ### 3. CLI behavior tests
 
-- `ply`
-- `ply openai`
-- `ply -- --help`
-- `ply -s <uuid>`
-- `ply models --json`
-- `ply completion bash`
-- `ply delete <provider>`
+- `pyx`
+- `pyx openai`
+- `pyx -- --help`
+- `pyx -s <uuid>`
+- `pyx models --json`
+- `pyx completion bash`
+- `pyx delete <provider>`
 
 ### 4. Provider mapping tests
 
@@ -906,7 +913,7 @@ The rewrite should not be considered complete until all of the following are tru
 - Existing `database.json` can be read
 - Existing `master.key` can be decrypted
 - Keyring behavior matches current app behavior
-- `ply`, `ply <provider>`, and `ply -- ...` work as expected
+- `pyx`, `pyx <provider>`, and `pyx -- ...` work as expected
 - `setup`, `list`, `delete`, `models`, `reset`, `pi install`, `completion`, and `version` all work
 - Shell completion generation and installation work across supported shells
 - Provider env-var collisions behave correctly
@@ -957,7 +964,7 @@ Best rewrite strategy for this codebase:
 - choose `dialoguer` for prompts unless a stronger requirement appears
 - replace embedded extension-specific provider logic with a minimal `providers.json` mapping for extension-backed providers
 - keep pi as the source of truth for models
-- keep `ply provider-env generate --scan-extensions` in the backlog rather than V1 scope
+- keep `pyx provider-env generate --scan-extensions` in the backlog rather than V1 scope
 - build a unified provider registry that merges `providers.json`, remote, and local definitions
 - port read-only functionality first
 - port mutating flows second
