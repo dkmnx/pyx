@@ -6,13 +6,11 @@ use crate::storage::database::Database;
 /// Execute the delete command
 pub fn execute(provider_name: &str) -> Result<()> {
     // Load database
-    let mut db = Database::load().map_err(|e| {
-        match e {
-            PyxError::Config(_) => PyxError::Config(
-                "No providers configured. Run 'pyx setup' first.".to_string(),
-            ),
-            _ => e,
+    let mut db = Database::load().map_err(|e| match e {
+        PyxError::Config(_) => {
+            PyxError::Config("No providers configured. Run 'pyx setup' first.".to_string())
         }
+        _ => e,
     })?;
 
     // Check if provider exists
@@ -25,7 +23,7 @@ pub fn execute(provider_name: &str) -> Result<()> {
 
     // Remove provider
     let removed = db.remove(provider_name).unwrap();
-    
+
     // Save database
     db.save()?;
 
@@ -46,14 +44,17 @@ mod tests {
     fn test_delete_provider() {
         let dir = tempdir().unwrap();
         let db_path = dir.path().join("database.json");
-        
+
         let mut db = Database::default();
-        db.upsert(ProviderEntry::new("test-provider".to_string(), "cipher".to_string()));
+        db.upsert(ProviderEntry::new(
+            "test-provider".to_string(),
+            "cipher".to_string(),
+        ));
         db.save_to_path(&db_path).unwrap();
-        
+
         // Would need to override database_path() for full testing
         assert!(db.has_provider("test-provider"));
-        
+
         db.remove("test-provider");
         assert!(!db.has_provider("test-provider"));
     }

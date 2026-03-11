@@ -83,7 +83,7 @@ mod tests {
     fn test_load_nonexistent_settings() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("settings.json");
-        
+
         let settings = Settings::load_from_path(&path).unwrap();
         assert_eq!(settings.custom_provider_env_vars.len(), 0);
         assert!(settings.github_source.is_none());
@@ -93,16 +93,19 @@ mod tests {
     fn test_save_and_load_settings() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("settings.json");
-        
+
         let mut settings = Settings::default();
         settings.set_custom_env_var("openai".to_string(), "OPENAI_API_KEY".to_string());
         settings.set_custom_env_var("qwen-cli".to_string(), "QWEN_CLI_API_KEY".to_string());
-        
+
         settings.save_to_path(&path).unwrap();
-        
+
         let loaded = Settings::load_from_path(&path).unwrap();
         assert_eq!(loaded.custom_provider_env_vars.len(), 2);
-        assert_eq!(loaded.get_custom_env_var("openai"), Some(&"OPENAI_API_KEY".to_string()));
+        assert_eq!(
+            loaded.get_custom_env_var("openai"),
+            Some(&"OPENAI_API_KEY".to_string())
+        );
     }
 
     #[test]

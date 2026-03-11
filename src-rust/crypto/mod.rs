@@ -2,4 +2,4 @@
 
 pub mod age;
 
-pub use age::{encrypt_with_passphrase, decrypt_with_passphrase};
+pub use age::{decrypt_with_passphrase, encrypt_with_passphrase};

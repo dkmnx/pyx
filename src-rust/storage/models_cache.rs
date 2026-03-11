@@ -118,13 +118,16 @@ mod tests {
     fn test_save_and_load_cache() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("models.json");
-        
+
         let mut cache = ModelsCache::new("v1.0.0");
-        cache.upsert_models("openai".to_string(), vec!["gpt-4".to_string(), "gpt-3.5".to_string()]);
+        cache.upsert_models(
+            "openai".to_string(),
+            vec!["gpt-4".to_string(), "gpt-3.5".to_string()],
+        );
         cache.upsert_models("anthropic".to_string(), vec!["claude-3".to_string()]);
-        
+
         cache.save_to_path(&path).unwrap();
-        
+
         let loaded = ModelsCache::load_from_path(&path).unwrap();
         assert_eq!(loaded.version, "v1.0.0");
         assert_eq!(loaded.models.len(), 2);
@@ -134,13 +137,13 @@ mod tests {
     #[test]
     fn test_cache_staleness() {
         let mut cache = ModelsCache::new("v1.0.0");
-        
+
         // Fresh cache should not be stale with 1 hour TTL
         assert!(!cache.is_stale(3600));
-        
+
         // Manually set old timestamp
         cache.updated_at = OffsetDateTime::now_utc() - time::Duration::days(2);
-        
+
         // Now it should be stale with 1 day TTL
         assert!(cache.is_stale(86400));
     }
@@ -148,12 +151,15 @@ mod tests {
     #[test]
     fn test_upsert_models() {
         let mut cache = ModelsCache::new("v1.0.0");
-        
+
         cache.upsert_models("openai".to_string(), vec!["gpt-4".to_string()]);
         assert_eq!(cache.get_models("openai").unwrap().len(), 1);
-        
+
         // Update should replace
-        cache.upsert_models("openai".to_string(), vec!["gpt-4".to_string(), "gpt-5".to_string()]);
+        cache.upsert_models(
+            "openai".to_string(),
+            vec!["gpt-4".to_string(), "gpt-5".to_string()],
+        );
         assert_eq!(cache.get_models("openai").unwrap().len(), 2);
     }
 }

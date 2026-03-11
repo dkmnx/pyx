@@ -2,7 +2,9 @@
 
 use crate::error::{PyxError, Result};
 use crate::keys::manager::KeyManager;
-use crate::storage::paths::{master_key_path, database_path, models_cache_path, settings_path, providers_env_path};
+use crate::storage::paths::{
+    database_path, master_key_path, models_cache_path, providers_env_path, settings_path,
+};
 use std::fs;
 use std::path::Path;
 
@@ -28,18 +30,24 @@ pub fn execute() -> Result<()> {
 
     // Delete master key
     delete_file("Master key", &master_key_path()?)?;
-    
+
     // Delete database
     delete_file("Provider database", &database_path()?)?;
-    delete_file("Database backup", &database_path()?.with_extension("json.bak"))?;
-    
+    delete_file(
+        "Database backup",
+        &database_path()?.with_extension("json.bak"),
+    )?;
+
     // Delete models cache
     delete_file("Models cache", &models_cache_path()?)?;
-    
+
     // Delete settings
     delete_file("Settings", &settings_path()?)?;
-    delete_file("Settings backup", &settings_path()?.with_extension("json.bak"))?;
-    
+    delete_file(
+        "Settings backup",
+        &settings_path()?.with_extension("json.bak"),
+    )?;
+
     // Delete providers config
     delete_file("Providers config", &providers_env_path()?)?;
 
@@ -77,9 +85,8 @@ fn confirm_reset() -> Result<bool> {
 /// Delete a file if it exists
 fn delete_file(description: &str, path: &Path) -> Result<()> {
     if path.exists() {
-        fs::remove_file(path).map_err(|e| {
-            PyxError::Config(format!("Failed to delete {}: {}", description, e))
-        })?;
+        fs::remove_file(path)
+            .map_err(|e| PyxError::Config(format!("Failed to delete {}: {}", description, e)))?;
         println!("  ✓ Deleted: {}", description);
     } else {
         println!("  - Not found: {}", description);
@@ -90,7 +97,7 @@ fn delete_file(description: &str, path: &Path) -> Result<()> {
 /// Check if keyring has an entry for pyx
 fn keyring_has_entry() -> bool {
     use keyring::Entry;
-    
+
     match Entry::new("ply", "master-key") {
         Ok(entry) => entry.get_password().is_ok(),
         Err(_) => false,
@@ -104,18 +111,18 @@ mod tests {
     #[test]
     fn test_delete_file() {
         use tempfile::tempdir;
-        
+
         let dir = tempdir().unwrap();
         let path = dir.path().join("test.txt");
-        
+
         // Create file
         fs::write(&path, "test").unwrap();
         assert!(path.exists());
-        
+
         // Delete it
         delete_file("Test file", &path).unwrap();
         assert!(!path.exists());
-        
+
         // Delete non-existent (should not error)
         assert!(delete_file("Non-existent", &path).is_ok());
     }

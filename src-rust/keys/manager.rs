@@ -21,9 +21,8 @@ impl KeyManager {
 
         // Read encrypted master.key
         let path = master_key_path()?;
-        let encrypted_content = fs::read_to_string(&path).map_err(|e| {
-            PyxError::Config(format!("Failed to read master.key: {}", e))
-        })?;
+        let encrypted_content = fs::read_to_string(&path)
+            .map_err(|e| PyxError::Config(format!("Failed to read master.key: {}", e)))?;
 
         // Decrypt the master key
         let decrypted = decrypt_with_passphrase(&encrypted_content, &passphrase)
@@ -31,7 +30,7 @@ impl KeyManager {
 
         // Convert to hex string for storage (avoiding binary data issues)
         let master_key_hex = hex::encode(&decrypted);
-        
+
         Ok(Self {
             key: SecretString::new(master_key_hex.into_boxed_str()),
         })
@@ -41,13 +40,12 @@ impl KeyManager {
     pub fn generate() -> Result<Self> {
         // Generate 32 random bytes using getrandom crate
         let mut key_bytes = vec![0u8; 32];
-        getrandom::fill(&mut key_bytes).map_err(|e| {
-            PyxError::Crypto(format!("Failed to generate random key: {}", e))
-        })?;
+        getrandom::fill(&mut key_bytes)
+            .map_err(|e| PyxError::Crypto(format!("Failed to generate random key: {}", e)))?;
 
         // Store as hex string
         let master_key_hex = hex::encode(&key_bytes);
-        
+
         Ok(Self {
             key: SecretString::new(master_key_hex.into_boxed_str()),
         })
@@ -60,9 +58,8 @@ impl KeyManager {
             .ok_or_else(|| PyxError::Keyring("No passphrase available".to_string()))?;
 
         // Decode hex to bytes
-        let key_bytes = hex::decode(self.key.expose_secret()).map_err(|e| {
-            PyxError::Crypto(format!("Invalid master key hex: {}", e))
-        })?;
+        let key_bytes = hex::decode(self.key.expose_secret())
+            .map_err(|e| PyxError::Crypto(format!("Invalid master key hex: {}", e)))?;
 
         // Encrypt with passphrase
         let encrypted = encrypt_with_passphrase(&key_bytes, &passphrase)
@@ -73,9 +70,9 @@ impl KeyManager {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
-        
+
         fs::write(&path, &encrypted)?;
-        
+
         // Set file permissions (Unix only)
         #[cfg(unix)]
         {
@@ -93,9 +90,8 @@ impl KeyManager {
 
     /// Get the master key as bytes
     pub fn get_key_bytes(&self) -> Result<Vec<u8>> {
-        hex::decode(self.key.expose_secret()).map_err(|e| {
-            PyxError::Crypto(format!("Invalid master key hex: {}", e))
-        })
+        hex::decode(self.key.expose_secret())
+            .map_err(|e| PyxError::Crypto(format!("Invalid master key hex: {}", e)))
     }
 
     /// Set passphrase in keyring
@@ -110,9 +106,7 @@ impl KeyManager {
 
     /// Check if master key file exists
     pub fn master_key_exists() -> bool {
-        master_key_path()
-            .map(|path| path.exists())
-            .unwrap_or(false)
+        master_key_path().map(|path| path.exists()).unwrap_or(false)
     }
 
     /// Delete master key file
@@ -135,9 +129,9 @@ mod tests {
         // This test requires keyring setup and should be run manually
         let manager = KeyManager::generate().unwrap();
         let key_hex = manager.get_key_hex().to_string();
-        
+
         assert_eq!(key_hex.len(), 64); // 32 bytes = 64 hex chars
-        
+
         // Save and reload would require keyring setup
     }
 }

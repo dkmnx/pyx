@@ -31,16 +31,14 @@ fn run() -> Result<()> {
         Some(Commands::Delete { provider }) => {
             pyx_rust::commands::delete::execute(&provider)?;
         }
-        Some(Commands::Models { action }) => {
-            match action {
-                ModelsCommands::Update => {
-                    pyx_rust::commands::models::execute_update()?;
-                }
-                ModelsCommands::List { json, refresh } => {
-                    pyx_rust::commands::models::execute(json, refresh)?;
-                }
+        Some(Commands::Models { action }) => match action {
+            ModelsCommands::Update => {
+                pyx_rust::commands::models::execute_update()?;
             }
-        }
+            ModelsCommands::List { json, refresh } => {
+                pyx_rust::commands::models::execute(json, refresh)?;
+            }
+        },
         Some(Commands::PiInstall) => {
             pyx_rust::pi::exec::install_pi()?;
         }

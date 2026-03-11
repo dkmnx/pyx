@@ -27,9 +27,9 @@ pub fn spawn_pi(env_vars: &[(String, String)], args: &[String]) -> Result<i32> {
     }
 
     // Execute and preserve exit code
-    let status = cmd.status().map_err(|e| {
-        PyxError::CommandExecution(format!("Failed to execute pi: {}", e))
-    })?;
+    let status = cmd
+        .status()
+        .map_err(|e| PyxError::CommandExecution(format!("Failed to execute pi: {}", e)))?;
 
     Ok(status.code().unwrap_or(1))
 }
@@ -44,18 +44,17 @@ pub fn install_pi() -> Result<()> {
 
     // Detect package manager
     let package_managers = ["npm", "pnpm", "yarn", "bun"];
-    let detected = package_managers.iter().find(|&pm| {
-        which::which(pm).is_ok()
-    });
+    let detected = package_managers.iter().find(|&pm| which::which(pm).is_ok());
 
     let pm = detected.ok_or_else(|| {
         PyxError::CommandExecution(
-            "No package manager found (npm, pnpm, yarn, bun). Please install one first.".to_string(),
+            "No package manager found (npm, pnpm, yarn, bun). Please install one first."
+                .to_string(),
         )
     })?;
 
     println!("Installing pi using {}...", pm);
-    
+
     // Install pi globally
     let status = Command::new(pm)
         .args(["install", "-g", "@anthropics/pi"])
@@ -66,17 +65,17 @@ pub fn install_pi() -> Result<()> {
         println!("✓ pi installed successfully");
         Ok(())
     } else {
-        Err(PyxError::CommandExecution(
-            format!("Failed to install pi. Exit code: {:?}", status.code()),
-        ))
+        Err(PyxError::CommandExecution(format!(
+            "Failed to install pi. Exit code: {:?}",
+            status.code()
+        )))
     }
 }
 
 /// Check pi version
 pub fn get_pi_version() -> Result<String> {
-    let pi_path = find_pi().ok_or_else(|| {
-        PyxError::CommandExecution("pi not found in PATH".to_string())
-    })?;
+    let pi_path =
+        find_pi().ok_or_else(|| PyxError::CommandExecution("pi not found in PATH".to_string()))?;
 
     let output = Command::new(&pi_path)
         .arg("--version")

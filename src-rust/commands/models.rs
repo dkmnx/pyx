@@ -1,8 +1,8 @@
 //! Models command implementation
 
 use crate::error::{PyxError, Result};
-use crate::storage::models_cache::ModelsCache;
 use crate::models::fetch::fetch_models_from_remote;
+use crate::storage::models_cache::ModelsCache;
 
 /// Default cache TTL in seconds (24 hours)
 const DEFAULT_TTL_SECONDS: i64 = 24 * 60 * 60;
@@ -31,7 +31,7 @@ pub fn execute(json: bool, refresh: bool) -> Result<()> {
         } else {
             println!("Cache is stale, fetching updated models...");
         }
-        
+
         match fetch_models_from_remote() {
             Ok(new_cache) => {
                 new_cache.save()?;
@@ -65,10 +65,10 @@ fn print_models(cache: &ModelsCache, json: bool) -> Result<()> {
         println!("Models cache (version: {})", cache.version);
         println!("Last updated: {}", cache.updated_at);
         println!();
-        
+
         let mut providers: Vec<_> = cache.models.keys().collect();
         providers.sort();
-        
+
         for provider in providers {
             let models = cache.models.get(provider).unwrap();
             println!("{}:", provider);
@@ -79,22 +79,22 @@ fn print_models(cache: &ModelsCache, json: bool) -> Result<()> {
         println!();
         println!("Total: {} provider(s)", cache.models.len());
     }
-    
+
     Ok(())
 }
 
 /// Execute models update command
 pub fn execute_update() -> Result<()> {
     println!("Fetching models from remote...");
-    
+
     let cache = fetch_models_from_remote()
         .map_err(|e| PyxError::Network(format!("Failed to fetch models: {}", e)))?;
-    
+
     cache.save()?;
     println!("Models cache updated successfully.");
     println!("Version: {}", cache.version);
     println!("Providers: {}", cache.models.len());
-    
+
     Ok(())
 }
 
@@ -106,7 +106,7 @@ mod tests {
     fn test_models_cache_creation() {
         let mut cache = ModelsCache::new("v1.0.0");
         cache.upsert_models("openai".to_string(), vec!["gpt-4".to_string()]);
-        
+
         assert_eq!(cache.version, "v1.0.0");
         assert_eq!(cache.models.len(), 1);
     }

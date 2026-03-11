@@ -14,7 +14,7 @@ use std::collections::HashMap;
 /// Built-in hardcoded provider mappings for compatibility
 fn get_builtin_mappings() -> HashMap<&'static str, &'static str> {
     let mut map = HashMap::new();
-    
+
     // Core providers
     map.insert("openai", "OPENAI_API_KEY");
     map.insert("anthropic", "ANTHROPIC_API_KEY");
@@ -22,14 +22,14 @@ fn get_builtin_mappings() -> HashMap<&'static str, &'static str> {
     map.insert("google-vertex", "GOOGLE_VERTEX_API_KEY");
     map.insert("azure", "AZURE_OPENAI_API_KEY");
     map.insert("azure-openai", "AZURE_OPENAI_API_KEY");
-    
+
     // Chinese providers
     map.insert("minimax", "MINIMAX_API_KEY");
     map.insert("minimax-cn", "MINIMAX_API_KEY");
     map.insert("zhipu", "ZHIPU_API_KEY");
     map.insert("baichuan", "BAICHUAN_API_KEY");
     map.insert("moonshot", "MOONSHOT_API_KEY");
-    
+
     // Other providers
     map.insert("vercel-ai", "VERCEL_AI_API_KEY");
     map.insert("vercel-openai", "VERCEL_OPENAI_API_KEY");
@@ -42,7 +42,7 @@ fn get_builtin_mappings() -> HashMap<&'static str, &'static str> {
     map.insert("replicate", "REPLICATE_API_KEY");
     map.insert("perplexity", "PERPLEXITY_API_KEY");
     map.insert("friendli", "FRIENDLI_API_KEY");
-    
+
     map
 }
 
@@ -160,6 +160,9 @@ mod tests {
         let mappings = get_builtin_mappings();
         assert_eq!(mappings.get("openai"), Some(&"OPENAI_API_KEY"));
         assert_eq!(mappings.get("anthropic"), Some(&"ANTHROPIC_API_KEY"));
-        assert_eq!(mappings.get("google-vertex"), Some(&"GOOGLE_VERTEX_API_KEY"));
+        assert_eq!(
+            mappings.get("google-vertex"),
+            Some(&"GOOGLE_VERTEX_API_KEY")
+        );
     }
 }

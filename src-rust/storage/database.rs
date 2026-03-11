@@ -53,9 +53,7 @@ impl Database {
     /// Load database from specific path (for testing)
     pub fn load_from_path(path: &Path) -> Result<Self> {
         if !path.exists() {
-            return Err(PyxError::Config(
-                "Database file does not exist".to_string(),
-            ));
+            return Err(PyxError::Config("Database file does not exist".to_string()));
         }
 
         let content = std::fs::read_to_string(path)?;
@@ -91,7 +89,11 @@ impl Database {
 
     /// Remove a provider by name
     pub fn remove(&mut self, provider_name: &str) -> Option<ProviderEntry> {
-        if let Some(pos) = self.providers.iter().position(|p| p.provider == provider_name) {
+        if let Some(pos) = self
+            .providers
+            .iter()
+            .position(|p| p.provider == provider_name)
+        {
             Some(self.providers.remove(pos))
         } else {
             None
@@ -139,17 +141,17 @@ mod tests {
     #[test]
     fn test_upsert_provider() {
         let mut db = Database::default();
-        
+
         let entry = ProviderEntry::new("openai".to_string(), "cipher1".to_string());
         db.upsert(entry);
-        
+
         assert_eq!(db.len(), 1);
         assert!(db.has_provider("openai"));
-        
+
         // Update should not create duplicate
         let entry2 = ProviderEntry::new("openai".to_string(), "cipher2".to_string());
         db.upsert(entry2);
-        
+
         assert_eq!(db.len(), 1);
         assert_eq!(db.get("openai").unwrap().cipher, "cipher2");
     }
@@ -157,14 +159,20 @@ mod tests {
     #[test]
     fn test_remove_provider() {
         let mut db = Database::default();
-        db.upsert(ProviderEntry::new("openai".to_string(), "cipher1".to_string()));
-        db.upsert(ProviderEntry::new("anthropic".to_string(), "cipher2".to_string()));
-        
+        db.upsert(ProviderEntry::new(
+            "openai".to_string(),
+            "cipher1".to_string(),
+        ));
+        db.upsert(ProviderEntry::new(
+            "anthropic".to_string(),
+            "cipher2".to_string(),
+        ));
+
         let removed = db.remove("openai");
         assert!(removed.is_some());
         assert_eq!(db.len(), 1);
         assert!(!db.has_provider("openai"));
-        
+
         // Remove non-existent should return None
         let removed2 = db.remove("nonexistent");
         assert!(removed2.is_none());
@@ -174,12 +182,15 @@ mod tests {
     fn test_save_and_load_database() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("database.json");
-        
+
         let mut db = Database::default();
-        db.upsert(ProviderEntry::new("openai".to_string(), "test-cipher".to_string()));
-        
+        db.upsert(ProviderEntry::new(
+            "openai".to_string(),
+            "test-cipher".to_string(),
+        ));
+
         db.save_to_path(&path).unwrap();
-        
+
         let loaded = Database::load_from_path(&path).unwrap();
         assert_eq!(loaded.len(), 1);
         assert!(loaded.has_provider("openai"));
@@ -189,7 +200,7 @@ mod tests {
     fn test_load_nonexistent_database() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("nonexistent.json");
-        
+
         let result = Database::load_from_path(&path);
         assert!(result.is_err());
     }

@@ -38,7 +38,7 @@ impl ProvidersEnvConfig {
     /// Load providers.json from disk
     pub fn load() -> Result<Option<Self>> {
         let path = providers_env_path()?;
-        
+
         if !path.exists() {
             return Ok(None);
         }
@@ -66,7 +66,7 @@ impl ProvidersEnvConfig {
     /// Save providers.json to disk
     pub fn save(&self) -> Result<()> {
         let path = providers_env_path()?;
-        
+
         // Ensure parent directory exists
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
@@ -100,10 +100,10 @@ impl ProvidersEnvConfig {
 
         // Remove existing entry
         self.providers.retain(|p| p.name != name);
-        
+
         // Add new entry
         self.providers.push(ProviderEnvMapping { name, env_var });
-        
+
         Ok(())
     }
 }
@@ -125,12 +125,10 @@ mod tests {
     fn test_validate_valid_config() {
         let config = ProvidersEnvConfig {
             schema_version: 1,
-            providers: vec![
-                ProviderEnvMapping {
-                    name: "qwen-cli".to_string(),
-                    env_var: "QWEN_CLI_API_KEY".to_string(),
-                },
-            ],
+            providers: vec![ProviderEnvMapping {
+                name: "qwen-cli".to_string(),
+                env_var: "QWEN_CLI_API_KEY".to_string(),
+            }],
         };
 
         assert!(config.providers.iter().all(|p| {
@@ -142,12 +140,10 @@ mod tests {
     fn test_get_env_var() {
         let config = ProvidersEnvConfig {
             schema_version: 1,
-            providers: vec![
-                ProviderEnvMapping {
-                    name: "openai".to_string(),
-                    env_var: "OPENAI_API_KEY".to_string(),
-                },
-            ],
+            providers: vec![ProviderEnvMapping {
+                name: "openai".to_string(),
+                env_var: "OPENAI_API_KEY".to_string(),
+            }],
         };
 
         assert_eq!(config.get_env_var("openai"), Some("OPENAI_API_KEY"));

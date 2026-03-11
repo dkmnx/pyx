@@ -64,7 +64,7 @@ pub enum Commands {
     Completion {
         /// Shell type (bash, zsh, fish, powershell)
         shell: String,
-        
+
         /// Show installation instructions
         #[arg(long)]
         install: bool,
@@ -88,7 +88,7 @@ pub enum ModelsCommands {
         /// Output as JSON
         #[arg(long)]
         json: bool,
-        
+
         /// Force refresh from remote
         #[arg(long)]
         refresh: bool,

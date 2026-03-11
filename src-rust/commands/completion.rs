@@ -2,7 +2,7 @@
 
 use crate::error::Result;
 use clap::CommandFactory;
-use clap_complete::{generate, Shell};
+use clap_complete::{Shell, generate};
 use std::io;
 
 /// Generate shell completion script
@@ -16,11 +16,11 @@ pub fn generate_completion(shell: &str) -> Result<()> {
 
     let mut cmd = crate::cli::Cli::command();
     let bin_name = cmd.get_name().to_string();
-    
+
     let mut stdout = io::stdout();
-    
+
     generate(shell, &mut cmd, bin_name, &mut stdout);
-    
+
     Ok(())
 }
 
@@ -28,7 +28,7 @@ pub fn generate_completion(shell: &str) -> Result<()> {
 pub fn print_install_instructions(shell: &str) {
     println!("To install {} completions, run:", shell);
     println!();
-    
+
     match shell {
         "bash" => {
             println!("  # Add to ~/.bashrc:");

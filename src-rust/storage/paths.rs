@@ -13,10 +13,7 @@ pub fn get_data_dir() -> Result<PathBuf> {
 
     // Fall back to ~/.local/share/ply
     if let Ok(home) = std::env::var("HOME") {
-        return Ok(PathBuf::from(home)
-            .join(".local")
-            .join("share")
-            .join("ply"));
+        return Ok(PathBuf::from(home).join(".local").join("share").join("ply"));
     }
 
     Err(PyxError::Config(
@@ -52,10 +49,10 @@ pub fn providers_env_path() -> Result<PathBuf> {
 /// Ensure data directory exists with proper permissions
 pub fn ensure_data_dir() -> Result<PathBuf> {
     let dir = get_data_dir()?;
-    
+
     if !dir.exists() {
         std::fs::create_dir_all(&dir)?;
-        
+
         // Set directory permissions (Unix only)
         #[cfg(unix)]
         {
@@ -63,7 +60,7 @@ pub fn ensure_data_dir() -> Result<PathBuf> {
             std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700))?;
         }
     }
-    
+
     Ok(dir)
 }
 
@@ -82,10 +79,10 @@ mod tests {
             std::env::set_var("HOME", "/test/home");
             std::env::remove_var("XDG_DATA_HOME");
         }
-        
+
         let path = get_data_dir().unwrap();
         assert_eq!(path, PathBuf::from("/test/home/.local/share/ply"));
-        
+
         unsafe {
             std::env::remove_var("HOME");
         }
@@ -97,10 +94,10 @@ mod tests {
         unsafe {
             std::env::set_var("XDG_DATA_HOME", "/test/xdg");
         }
-        
+
         let path = get_data_dir().unwrap();
         assert_eq!(path, PathBuf::from("/test/xdg/ply"));
-        
+
         unsafe {
             std::env::remove_var("XDG_DATA_HOME");
         }

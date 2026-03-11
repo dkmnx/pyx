@@ -15,6 +15,6 @@ pub mod storage;
 pub mod validation;
 
 // Re-export commonly used types
+pub use keys::manager::KeyManager;
 pub use storage::database::{Database, ProviderEntry};
 pub use storage::models_cache::ModelsCache;
-pub use keys::manager::KeyManager;

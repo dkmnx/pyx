@@ -45,32 +45,32 @@ pub fn get_passphrase() -> Result<Option<SecretString>> {
     }
 
     // Legacy fallback: "default" passphrase
-    Ok(Some(SecretString::new(LEGACY_PASSPHRASE.to_string().into_boxed_str())))
+    Ok(Some(SecretString::new(
+        LEGACY_PASSPHRASE.to_string().into_boxed_str(),
+    )))
 }
 
 /// Store passphrase in OS keyring
 pub fn set_passphrase(passphrase: &SecretString) -> Result<()> {
-    let entry = keyring::Entry::new(SERVICE_NAME, USER_NAME).map_err(|e| {
-        PyxError::Keyring(format!("Failed to create keyring entry: {}", e))
-    })?;
+    let entry = keyring::Entry::new(SERVICE_NAME, USER_NAME)
+        .map_err(|e| PyxError::Keyring(format!("Failed to create keyring entry: {}", e)))?;
 
-    entry.set_password(passphrase.expose_secret()).map_err(|e| {
-        PyxError::Keyring(format!("Failed to set password in keyring: {}", e))
-    })?;
+    entry
+        .set_password(passphrase.expose_secret())
+        .map_err(|e| PyxError::Keyring(format!("Failed to set password in keyring: {}", e)))?;
 
     Ok(())
 }
 
 /// Clear passphrase from OS keyring
 pub fn clear_passphrase() -> Result<()> {
-    let entry = keyring::Entry::new(SERVICE_NAME, USER_NAME).map_err(|e| {
-        PyxError::Keyring(format!("Failed to create keyring entry: {}", e))
-    })?;
+    let entry = keyring::Entry::new(SERVICE_NAME, USER_NAME)
+        .map_err(|e| PyxError::Keyring(format!("Failed to create keyring entry: {}", e)))?;
 
     // Delete by setting empty password (workaround for keyring crate)
-    entry.set_password("").map_err(|e| {
-        PyxError::Keyring(format!("Failed to clear password in keyring: {}", e))
-    })?;
+    entry
+        .set_password("")
+        .map_err(|e| PyxError::Keyring(format!("Failed to clear password in keyring: {}", e)))?;
 
     Ok(())
 }
@@ -84,13 +84,13 @@ mod tests {
     fn test_keyring_roundtrip() {
         // This test requires actual keyring access and should be run manually
         let passphrase = SecretString::new("test-passphrase".to_string().into_boxed_str());
-        
+
         set_passphrase(&passphrase).unwrap();
-        
+
         let retrieved = get_passphrase().unwrap();
         assert!(retrieved.is_some());
         assert_eq!(retrieved.unwrap().expose_secret(), "test-passphrase");
-        
+
         clear_passphrase().unwrap();
     }
 }
