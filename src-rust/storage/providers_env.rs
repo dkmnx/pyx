@@ -120,7 +120,6 @@ impl Default for ProvidersEnvConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
 
     #[test]
     fn test_validate_valid_config() {

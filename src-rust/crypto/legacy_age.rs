@@ -42,8 +42,6 @@ pub fn encrypt_with_passphrase(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     #[ignore = "Requires Go-generated test fixtures"]
     fn test_decrypt_go_master_key() {

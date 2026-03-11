@@ -70,23 +70,39 @@ pub fn ensure_data_dir() -> Result<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    // Prevent tests from running in parallel since they modify environment variables
+    static ENV_MUTEX: Mutex<()> = Mutex::new(());
 
     #[test]
     fn test_get_data_dir_with_home() {
-        std::env::set_var("HOME", "/test/home");
-        std::env::remove_var("XDG_DATA_HOME");
+        let _guard = ENV_MUTEX.lock().unwrap();
+        unsafe {
+            std::env::set_var("HOME", "/test/home");
+            std::env::remove_var("XDG_DATA_HOME");
+        }
         
         let path = get_data_dir().unwrap();
         assert_eq!(path, PathBuf::from("/test/home/.local/share/ply"));
+        
+        unsafe {
+            std::env::remove_var("HOME");
+        }
     }
 
     #[test]
     fn test_get_data_dir_with_xdg() {
-        std::env::set_var("XDG_DATA_HOME", "/test/xdg");
+        let _guard = ENV_MUTEX.lock().unwrap();
+        unsafe {
+            std::env::set_var("XDG_DATA_HOME", "/test/xdg");
+        }
         
         let path = get_data_dir().unwrap();
         assert_eq!(path, PathBuf::from("/test/xdg/ply"));
         
-        std::env::remove_var("XDG_DATA_HOME");
+        unsafe {
+            std::env::remove_var("XDG_DATA_HOME");
+        }
     }
 }
