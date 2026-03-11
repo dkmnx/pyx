@@ -1,6 +1,6 @@
 //! Key manager - handles master key lifecycle
 
-use crate::crypto::legacy_age::{decrypt_with_passphrase, encrypt_with_passphrase};
+use crate::crypto::age::{decrypt_with_passphrase, encrypt_with_passphrase};
 use crate::error::{PyxError, Result};
 use crate::keys::keyring;
 use crate::storage::paths::master_key_path;
@@ -26,7 +26,7 @@ impl KeyManager {
         })?;
 
         // Decrypt the master key
-        let decrypted = decrypt_with_passphrase(encrypted_content.as_bytes(), &passphrase)
+        let decrypted = decrypt_with_passphrase(&encrypted_content, &passphrase)
             .map_err(|e| PyxError::Crypto(format!("Failed to decrypt master key: {}", e)))?;
 
         // Convert to hex string for storage (avoiding binary data issues)

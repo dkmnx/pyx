@@ -1,7 +1,9 @@
 //! Add provider command implementation
 
+use crate::crypto::age::encrypt_with_passphrase;
 use crate::error::{PyxError, Result};
 use crate::keys::manager::KeyManager;
+use crate::keys::keyring::get_passphrase;
 use crate::storage::database::{Database, ProviderEntry};
 
 /// Execute the add provider command
@@ -19,7 +21,7 @@ pub fn execute(provider_name: &str) -> Result<()> {
     crate::providers::validate_provider_name(provider_name)?;
 
     // Prompt for API key
-    let _api_key = prompt_for_api_key(provider_name)?;
+    let api_key = prompt_for_api_key(provider_name)?;
 
     // Load database
     let mut db = Database::load().map_err(|e| {
@@ -38,33 +40,25 @@ pub fn execute(provider_name: &str) -> Result<()> {
         std::process::exit(1);
     }
 
-    // TODO: Implement actual encryption once crypto migration is complete
-    // For now, show migration notice
-    eprintln!();
-    eprintln!("⚠ CRYPTO MIGRATION REQUIRED");
-    eprintln!();
-    eprintln!("The Rust implementation requires a migration tool to encrypt new providers.");
-    eprintln!("Until then, you can:");
-    eprintln!("  1. Use the Go version to add providers");
-    eprintln!("  2. Or wait for the migration tool");
-    eprintln!();
-    eprintln!("See RUST-IMPLEMENTATION-SUMMARY.md for details.");
+    // Get passphrase
+    let passphrase = get_passphrase()?
+        .ok_or_else(|| PyxError::Keyring("No passphrase available".to_string()))?;
+
+    // Encrypt API key
+    let cipher = encrypt_with_passphrase(api_key.as_bytes(), &passphrase)
+        .map_err(|e| PyxError::Crypto(format!("Failed to encrypt API key: {}", e)))?;
     
-    // For demonstration, we'll skip actual encryption
-    // In production, this would encrypt the API key
-    let _cipher = format!("PLACEHOLDER_FOR_{}", provider_name);
-    
-    // Create provider entry (with placeholder - won't work for actual use)
-    let entry = ProviderEntry::new(provider_name.to_string(), _cipher);
+    // Create provider entry
+    let entry = ProviderEntry::new(provider_name.to_string(), cipher);
     db.upsert(entry);
 
     // Save database
     db.save()?;
 
-    println!("✓ Provider '{}' configuration prepared!", provider_name);
+    println!("✓ Provider '{}' added successfully!", provider_name);
     println!();
-    println!("Note: Actual encryption pending migration tool implementation.");
-    println!("The Go version can be used to add providers until then.");
+    println!("You can now use it with:");
+    println!("  pyx {}", provider_name);
 
     Ok(())
 }
@@ -100,13 +94,9 @@ fn prompt_for_api_key(provider_name: &str) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use tempfile::tempdir;
-
     #[test]
     fn test_add_provider_workflow() {
         // This test would require full setup (master key, etc.)
-        // For now, just verify the function exists
-        let _ = provider_name;
+        // Integration testing is done via CLI tests
     }
 }

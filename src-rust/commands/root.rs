@@ -2,7 +2,7 @@
 
 use crate::error::{PyxError, Result};
 use crate::keys::manager::KeyManager;
-use crate::crypto::legacy_age::decrypt_with_passphrase;
+use crate::crypto::age::decrypt_with_passphrase;
 use crate::storage::database::Database;
 use crate::providers::provider_to_env_var;
 use crate::pi::exec::{find_pi, spawn_pi};
@@ -59,7 +59,7 @@ pub fn execute(provider: Option<&str>, session: Option<&str>) -> Result<()> {
             .ok_or_else(|| PyxError::Keyring("No passphrase available".to_string()))?;
         
         let api_key_bytes = decrypt_with_passphrase(
-            entry.cipher.as_bytes(),
+            &entry.cipher,
             &passphrase,
         ).map_err(|e| PyxError::Crypto(format!("Failed to decrypt API key: {}", e)))?;
 
