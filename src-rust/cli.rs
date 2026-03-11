@@ -28,6 +28,12 @@ pub enum Commands {
     /// Setup pyx with initial configuration
     Setup,
 
+    /// Add a new provider with API key
+    Add {
+        /// Provider name (e.g., openai, anthropic)
+        provider: String,
+    },
+
     /// List configured providers
     List {
         /// Output as JSON
