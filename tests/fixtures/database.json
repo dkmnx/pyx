@@ -1,0 +1,16 @@
+{
+  "providers": [
+    {
+      "provider": "openai",
+      "cipher": "YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IHNjcnlwdCBCVk9Qc1dIWVRNWGFWUTFLVlZ4bTNnIDE4CkFmY1o1eGM2dnE3OTNDOEZOUHVhMW5URi9sSzQwOGN5WnJJZHZheWtoTE0KLS0tIElLQ0pYSGxKZFYrcWI2STFlcFlBamg3bTROUlAvaS92L0tPNW02VGs0eDQKCkgRF9a1Vpld73DsF8g2xqR/ERGIfYLMS3JwJZpJ+C8pIf/AwNQkw4ypQTX6/ndx/JOr4BXMX8A=",
+      "created_at": "2026-03-11T06:26:27.133988803Z",
+      "updated_at": "2026-03-11T06:26:27.133988938Z"
+    },
+    {
+      "provider": "anthropic",
+      "cipher": "YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IHNjcnlwdCBPeHJaaTltQkhDWS9QckhEOTQxOFB3IDE4ClhzdXBOMG9Eb2NSSTJVYkY1bENQZ2s4NXZOSUxlcVJFRXNObkMxL1N5TEUKLS0tIDQ5RVU4MW5KaStKTnVldWhZYnZsNDZ3NGV0MlVUYWl6ZUZ4SzB4UEFaaGMK1yCByh1BdAg0JlXd89aOf+qGh2Fh0/viKqPcrH1ipuTGE5o/piOUnSS9V6vallpgdJsOL2o=",
+      "created_at": "2026-03-11T06:26:27.999436026Z",
+      "updated_at": "2026-03-11T06:26:27.999436124Z"
+    }
+  ]
+}

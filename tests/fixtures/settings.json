@@ -1,0 +1,6 @@
+{
+  "customProviderEnvVars": {
+    "deepseek": "DEEPSEEK_API_KEY",
+    "qwen-cli": "QWEN_CLI_API_KEY"
+  }
+}
