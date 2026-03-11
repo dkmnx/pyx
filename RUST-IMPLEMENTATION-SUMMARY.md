@@ -47,18 +47,18 @@
 
 ## Command Reference
 
-| Command | Status | Description |
-|---------|--------|-------------|
-| `setup` | ✅ | Interactive initialization |
-| `list` | ✅ | List providers (text/JSON) |
-| `delete` | ✅ | Remove provider |
-| `models list` | ✅ | Display cached models |
-| `models update` | ✅ | Fetch from remote |
-| `version` | ✅ | Version info (text/JSON) |
-| `completion` | ✅ | Shell completions |
-| `pi-install` | ✅ | Install pi agent |
-| `reset` | ✅ | Delete all data |
-| `[provider]` | ✅ | Run with provider(s) |
+| Command         | Status   | Description                |
+| --------------- | -------- | -------------------------- |
+| `setup`         | ✅        | Interactive initialization |
+| `list`          | ✅        | List providers (text/JSON) |
+| `delete`        | ✅        | Remove provider            |
+| `models list`   | ✅        | Display cached models      |
+| `models update` | ✅        | Fetch from remote          |
+| `version`       | ✅        | Version info (text/JSON)   |
+| `completion`    | ✅        | Shell completions          |
+| `pi-install`    | ✅        | Install pi agent           |
+| `reset`         | ✅        | Delete all data            |
+| `[provider]`    | ✅        | Run with provider(s)       |
 
 ## Architecture Highlights
 
@@ -104,10 +104,7 @@
    - Mitigation: Migration tool planned
    - Workaround: Re-setup or use Go version
 
-2. **Models Fetch**: Placeholder implementation
-   - TODO: Integrate with pi-mono API
-
-3. **Extension Discovery**: Manual configuration
+2. **Extension Discovery**: Manual configuration
    - providers.json must be edited by hand
    - Future: Auto-discovery command
 
@@ -168,15 +165,15 @@
 
 ## Comparison: Go vs Rust
 
-| Aspect | Go | Rust |
-|--------|-----|------|
-| Binary Size | ~8MB | 1.9MB |
-| Memory Safety | GC | Ownership |
-| Concurrency | Goroutines | Async (not used) |
-| Build Time | Fast | Moderate |
-| Runtime Speed | Fast | Fast |
-| Crypto Compat | N/A | Migration needed |
-| Test Count | ~20 | 37 passing |
+| Aspect        | Go         | Rust             |
+| ------------- | ---------- | ---------------- |
+| Binary Size   | ~8MB       | 1.9MB            |
+| Memory Safety | GC         | Ownership        |
+| Concurrency   | Goroutines | Async (not used) |
+| Build Time    | Fast       | Moderate         |
+| Runtime Speed | Fast       | Fast             |
+| Crypto Compat | N/A        | Migration needed |
+| Test Count    | ~20        | 37 passing       |
 
 ## Lessons Learned
 
