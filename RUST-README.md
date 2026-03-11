@@ -246,14 +246,12 @@ cargo check
 ## Known Limitations
 
 1. **Crypto Compatibility**: Cannot decrypt Go-generated data (see Migration section)
-2. **Models Fetch**: Returns placeholder data (TODO: integrate with pi-mono)
-3. **Extension Providers**: providers.json must be manually configured
-4. **Migration Tool**: Not yet implemented
+2. **Extension Providers**: providers.json must be manually configured
+3. **Migration Tool**: Not yet implemented
 
 ## Roadmap
 
 - [ ] Migration tool (Go → Rust format)
-- [ ] Pi-mono integration for models fetch
 - [ ] Extension provider auto-discovery
 - [ ] GitHub Actions CI/CD
 - [ ] Release packaging (deb, rpm, Homebrew)
