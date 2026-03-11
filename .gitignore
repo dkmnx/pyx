@@ -61,3 +61,8 @@ temp/
 
 # Editor
 .zed/
+
+
+# Added by cargo
+
+/target
