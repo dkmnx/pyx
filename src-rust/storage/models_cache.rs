@@ -15,6 +15,7 @@ const DEFAULT_TTL_SECONDS: i64 = 24 * 60 * 60;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelsCache {
     pub version: String,
+    #[serde(with = "time::serde::rfc3339")]
     pub updated_at: OffsetDateTime,
     pub models: HashMap<String, Vec<String>>,
 }

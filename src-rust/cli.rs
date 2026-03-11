@@ -4,7 +4,8 @@ use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(name = "pyx")]
-#[command(author, version, about, long_about = None)]
+#[command(author, version, about = "Secure API key management for pi")]
+#[command(long_about = "pyx securely manages AI provider API keys for the pi coding agent.")]
 pub struct Cli {
     /// Provider name to use
     #[arg(index = 1)]
@@ -15,7 +16,7 @@ pub struct Cli {
     pub session: Option<String>,
 
     /// Output format
-    #[arg(short, long, default_value = "text")]
+    #[arg(short, long, default_value = "text", value_parser = ["text", "json"])]
     pub format: String,
 
     #[command(subcommand)]
@@ -28,7 +29,11 @@ pub enum Commands {
     Setup,
 
     /// List configured providers
-    List,
+    List {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
 
     /// Delete a provider configuration
     Delete {
@@ -39,11 +44,11 @@ pub enum Commands {
     /// Manage AI models
     Models {
         #[command(subcommand)]
-        action: Option<ModelsCommands>,
+        action: ModelsCommands,
     },
 
     /// Install pi if not already installed
-    #[command(name = "pi install")]
+    #[command(name = "pi-install")]
     PiInstall,
 
     /// Reset pyx to initial state
@@ -51,17 +56,25 @@ pub enum Commands {
 
     /// Generate shell completion script
     Completion {
-        /// Shell type
+        /// Shell type (bash, zsh, fish, powershell)
         shell: String,
+        
+        /// Show installation instructions
+        #[arg(long)]
+        install: bool,
     },
 
     /// Print version information
-    Version,
+    Version {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Subcommand)]
 pub enum ModelsCommands {
-    /// Update models cache
+    /// Update models cache from remote
     Update,
 
     /// List available models
@@ -69,5 +82,9 @@ pub enum ModelsCommands {
         /// Output as JSON
         #[arg(long)]
         json: bool,
+        
+        /// Force refresh from remote
+        #[arg(long)]
+        refresh: bool,
     },
 }

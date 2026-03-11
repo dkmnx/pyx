@@ -1,7 +1,7 @@
 //! Pyx Rust CLI - Secure API key management for pi
 
 use clap::Parser;
-use pyx_rust::cli::{Cli, Commands};
+use pyx_rust::cli::{Cli, Commands, ModelsCommands};
 use pyx_rust::error::Result;
 
 fn main() {
@@ -18,55 +18,49 @@ fn run() -> Result<()> {
         Some(Commands::Setup) => {
             pyx_rust::commands::setup::execute()?;
         }
-        Some(Commands::List) => {
-            pyx_rust::commands::list::execute()?;
+        Some(Commands::List { json }) => {
+            if json {
+                pyx_rust::commands::list::execute_json()?;
+            } else {
+                pyx_rust::commands::list::execute()?;
+            }
         }
         Some(Commands::Delete { provider }) => {
-            println!("Delete command - provider: {}", provider);
-            // TODO: Implement delete command
+            pyx_rust::commands::delete::execute(&provider)?;
         }
         Some(Commands::Models { action }) => {
             match action {
-                Some(pyx_rust::cli::ModelsCommands::Update) => {
-                    println!("Models update command");
-                    // TODO: Implement models update
+                ModelsCommands::Update => {
+                    pyx_rust::commands::models::execute_update()?;
                 }
-                Some(pyx_rust::cli::ModelsCommands::List { json }) => {
-                    pyx_rust::commands::models::execute(json)?;
-                }
-                None => {
-                    println!("Models command - use 'models update' or 'models list'");
+                ModelsCommands::List { json, refresh } => {
+                    pyx_rust::commands::models::execute(json, refresh)?;
                 }
             }
         }
         Some(Commands::PiInstall) => {
-            println!("PI install command");
-            // TODO: Implement pi install
+            pyx_rust::pi::exec::install_pi()?;
         }
         Some(Commands::Reset) => {
             pyx_rust::commands::reset::execute()?;
         }
-        Some(Commands::Completion { shell }) => {
-            println!("Completion command - shell: {}", shell);
-            // TODO: Implement completion generation
+        Some(Commands::Completion { shell, install }) => {
+            if install {
+                pyx_rust::commands::completion::print_install_instructions(&shell);
+            } else {
+                pyx_rust::commands::completion::generate_completion(&shell)?;
+            }
         }
-        Some(Commands::Version) => {
-            pyx_rust::commands::version::execute()?;
+        Some(Commands::Version { json }) => {
+            if json {
+                pyx_rust::commands::version::execute_json()?;
+            } else {
+                pyx_rust::commands::version::execute()?;
+            }
         }
         None => {
-            // Root command execution
-            if let Some(provider) = cli.provider {
-                println!("Running pi with provider: {}", provider);
-                // TODO: Implement root execution with provider
-            } else {
-                println!("Running pi with all configured providers");
-                // TODO: Implement root execution with all providers
-            }
-            
-            if let Some(session) = cli.session {
-                println!("Session ID: {}", session);
-                // TODO: Forward session to pi
-            }
+            // Root command execution - run pi with configured providers
+            pyx_rust::commands::root::execute(cli.provider.as_deref(), cli.session.as_deref())?;
         }
     }
 

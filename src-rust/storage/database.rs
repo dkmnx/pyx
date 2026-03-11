@@ -12,7 +12,9 @@ use time::OffsetDateTime;
 pub struct ProviderEntry {
     pub provider: String,
     pub cipher: String,
+    #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
+    #[serde(with = "time::serde::rfc3339")]
     pub updated_at: OffsetDateTime,
 }
 
