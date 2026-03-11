@@ -3,6 +3,7 @@
 use clap::Parser;
 use pyx_rust::cli::{Cli, Commands, ModelsCommands};
 use pyx_rust::error::Result;
+use pyx_rust::root_args::{parse_root_invocation, should_use_clap};
 
 fn main() {
     if let Err(e) = run() {
@@ -12,6 +13,27 @@ fn main() {
 }
 
 fn run() -> Result<()> {
+    let raw_args: Vec<String> = std::env::args().skip(1).collect();
+
+    if should_use_clap(&raw_args) {
+        return run_subcommand_mode();
+    }
+
+    let invocation = parse_root_invocation(&raw_args)?;
+    let exit_code = pyx_rust::commands::root::execute(
+        invocation.provider.as_deref(),
+        invocation.session.as_deref(),
+        &invocation.pi_args,
+    )?;
+
+    if exit_code != 0 {
+        std::process::exit(exit_code);
+    }
+
+    Ok(())
+}
+
+fn run_subcommand_mode() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
@@ -60,8 +82,15 @@ fn run() -> Result<()> {
             }
         }
         None => {
-            // Root command execution - run pi with configured providers
-            pyx_rust::commands::root::execute(cli.provider.as_deref(), cli.session.as_deref())?;
+            let exit_code = pyx_rust::commands::root::execute(
+                cli.provider.as_deref(),
+                cli.session.as_deref(),
+                &[],
+            )?;
+
+            if exit_code != 0 {
+                std::process::exit(exit_code);
+            }
         }
     }
 

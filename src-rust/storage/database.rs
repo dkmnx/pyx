@@ -57,8 +57,15 @@ impl Database {
         }
 
         let content = std::fs::read_to_string(path)?;
-        let database: Self = serde_json::from_str(&content)?;
-        Ok(database)
+
+        // Preferred format: { "providers": [...] }
+        if let Ok(database) = serde_json::from_str::<Self>(&content) {
+            return Ok(database);
+        }
+
+        // Compatibility format (Go): top-level provider array
+        let providers: Vec<ProviderEntry> = serde_json::from_str(&content)?;
+        Ok(Self { providers })
     }
 
     /// Save database to file with atomic write and backup
@@ -74,7 +81,8 @@ impl Database {
             std::fs::create_dir_all(parent)?;
         }
 
-        let content = serde_json::to_string_pretty(self)?;
+        // Write in Go-compatible top-level array format.
+        let content = serde_json::to_string_pretty(&self.providers)?;
         atomic_write_with_backup(path, content.as_bytes(), 0o600)?;
         Ok(())
     }
@@ -203,5 +211,49 @@ mod tests {
 
         let result = Database::load_from_path(&path);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_load_go_compat_array_format() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("database.json");
+
+        let content = r#"[
+  {
+    "provider": "openai",
+    "cipher": "cipher",
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-01-01T00:00:00Z"
+  }
+]"#;
+
+        std::fs::write(&path, content).unwrap();
+
+        let db = Database::load_from_path(&path).unwrap();
+        assert_eq!(db.len(), 1);
+        assert!(db.has_provider("openai"));
+    }
+
+    #[test]
+    fn test_load_object_format() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("database.json");
+
+        let content = r#"{
+  "providers": [
+    {
+      "provider": "anthropic",
+      "cipher": "cipher",
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z"
+    }
+  ]
+}"#;
+
+        std::fs::write(&path, content).unwrap();
+
+        let db = Database::load_from_path(&path).unwrap();
+        assert_eq!(db.len(), 1);
+        assert!(db.has_provider("anthropic"));
     }
 }

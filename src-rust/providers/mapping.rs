@@ -11,37 +11,35 @@ use crate::storage::providers_env::ProvidersEnvConfig;
 use crate::storage::settings::Settings;
 use std::collections::HashMap;
 
-/// Built-in hardcoded provider mappings for compatibility
+/// Built-in hardcoded provider mappings for compatibility with Go implementation.
 fn get_builtin_mappings() -> HashMap<&'static str, &'static str> {
     let mut map = HashMap::new();
 
-    // Core providers
-    map.insert("openai", "OPENAI_API_KEY");
+    map.insert("amazon-bedrock", "AWS_BEARER_TOKEN_BEDROCK");
     map.insert("anthropic", "ANTHROPIC_API_KEY");
-    map.insert("google", "GOOGLE_API_KEY");
-    map.insert("google-vertex", "GOOGLE_VERTEX_API_KEY");
-    map.insert("azure", "AZURE_OPENAI_API_KEY");
-    map.insert("azure-openai", "AZURE_OPENAI_API_KEY");
-
-    // Chinese providers
-    map.insert("minimax", "MINIMAX_API_KEY");
-    map.insert("minimax-cn", "MINIMAX_API_KEY");
-    map.insert("zhipu", "ZHIPU_API_KEY");
-    map.insert("baichuan", "BAICHUAN_API_KEY");
-    map.insert("moonshot", "MOONSHOT_API_KEY");
-
-    // Other providers
-    map.insert("vercel-ai", "VERCEL_AI_API_KEY");
-    map.insert("vercel-openai", "VERCEL_OPENAI_API_KEY");
-    map.insert("vercel-anthropic", "VERCEL_ANTHROPIC_API_KEY");
+    map.insert("azure-openai-responses", "AZURE_OPENAI_API_KEY");
+    map.insert("cerebras", "CEREBRAS_API_KEY");
+    map.insert("deepseek", "DEEPSEEK_API_KEY");
+    map.insert("github-copilot", "GITHUB_TOKEN");
+    map.insert("google", "GEMINI_API_KEY");
+    map.insert("google-antigravity", "GEMINI_API_KEY");
+    map.insert("google-gemini-cli", "GEMINI_API_KEY");
+    map.insert("google-vertex", "GOOGLE_APPLICATION_CREDENTIALS");
     map.insert("groq", "GROQ_API_KEY");
+    map.insert("huggingface", "HF_TOKEN");
+    map.insert("kimi-coding", "KIMI_API_KEY");
+    map.insert("minimax", "MINIMAX_API_KEY");
+    map.insert("minimax-cn", "MINIMAX_CN_API_KEY");
     map.insert("mistral", "MISTRAL_API_KEY");
-    map.insert("cohere", "COHERE_API_KEY");
-    map.insert("together", "TOGETHER_API_KEY");
-    map.insert("anyscale", "ANYSCALE_API_KEY");
-    map.insert("replicate", "REPLICATE_API_KEY");
-    map.insert("perplexity", "PERPLEXITY_API_KEY");
-    map.insert("friendli", "FRIENDLI_API_KEY");
+    map.insert("openai", "OPENAI_API_KEY");
+    map.insert("openai-codex", "OPENAI_API_KEY");
+    map.insert("opencode", "OPENCODE_API_KEY");
+    map.insert("opencode-zen", "OPENCODE_API_KEY");
+    map.insert("openrouter", "OPENROUTER_API_KEY");
+    map.insert("qwen", "QWEN_API_KEY");
+    map.insert("vercel-ai-gateway", "AI_GATEWAY_API_KEY");
+    map.insert("xai", "XAI_API_KEY");
+    map.insert("zai", "ZAI_API_KEY");
 
     map
 }
@@ -50,7 +48,7 @@ fn get_builtin_mappings() -> HashMap<&'static str, &'static str> {
 /// e.g., "my-provider" -> "MY_PROVIDER_API_KEY"
 fn derive_env_var(provider_name: &str) -> String {
     let upper = provider_name.to_uppercase();
-    let normalized = upper.replace("-", "_");
+    let normalized = upper.replace('-', "_");
     format!("{}_API_KEY", normalized)
 }
 
@@ -75,10 +73,10 @@ impl ProviderEnvResolver {
     /// Returns the first match according to precedence rules
     pub fn get_env_var(&self, provider_name: &str) -> Result<String> {
         // 1. Check providers.json (highest priority)
-        if let Some(ref config) = self.providers_config {
-            if let Some(env_var) = config.get_env_var(provider_name) {
-                return Ok(env_var.to_string());
-            }
+        if let Some(ref config) = self.providers_config
+            && let Some(env_var) = config.get_env_var(provider_name)
+        {
+            return Ok(env_var.to_string());
         }
 
         // 2. Check settings.json customProviderEnvVars (legacy)
@@ -98,10 +96,10 @@ impl ProviderEnvResolver {
     /// Check if a provider has an explicit mapping (not derived)
     pub fn has_explicit_mapping(&self, provider_name: &str) -> bool {
         // Check providers.json
-        if let Some(ref config) = self.providers_config {
-            if config.get_env_var(provider_name).is_some() {
-                return true;
-            }
+        if let Some(ref config) = self.providers_config
+            && config.get_env_var(provider_name).is_some()
+        {
+            return true;
         }
 
         // Check settings.json
@@ -162,7 +160,9 @@ mod tests {
         assert_eq!(mappings.get("anthropic"), Some(&"ANTHROPIC_API_KEY"));
         assert_eq!(
             mappings.get("google-vertex"),
-            Some(&"GOOGLE_VERTEX_API_KEY")
+            Some(&"GOOGLE_APPLICATION_CREDENTIALS")
         );
+        assert_eq!(mappings.get("google"), Some(&"GEMINI_API_KEY"));
+        assert_eq!(mappings.get("minimax-cn"), Some(&"MINIMAX_CN_API_KEY"));
     }
 }

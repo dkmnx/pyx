@@ -1,15 +1,16 @@
 //! Root command execution - run pi with configured providers
 
-use crate::crypto::age::decrypt_with_passphrase;
+use crate::crypto::age::{decrypt_with_key, decrypt_with_passphrase};
 use crate::error::{PyxError, Result};
 use crate::keys::keyring::get_passphrase;
 use crate::keys::manager::KeyManager;
-use crate::pi::exec::{find_pi, spawn_pi};
+use crate::pi::exec::{find_pi, install_pi, spawn_pi};
 use crate::providers::provider_to_env_var;
 use crate::storage::database::Database;
+use std::collections::BTreeMap;
 
 /// Execute the root command (run pi with providers)
-pub fn execute(provider: Option<&str>, session: Option<&str>) -> Result<()> {
+pub fn execute(provider: Option<&str>, session: Option<&str>, pi_args: &[String]) -> Result<i32> {
     // Check if initialized
     if !KeyManager::master_key_exists() {
         return Err(PyxError::Config(
@@ -17,11 +18,16 @@ pub fn execute(provider: Option<&str>, session: Option<&str>) -> Result<()> {
         ));
     }
 
-    // Check if pi is installed
+    // Check if pi is installed, attempt auto-install if missing.
     if find_pi().is_none() {
-        eprintln!("pi not found in PATH.");
-        eprintln!("Run 'pyx pi-install' to install pi first.");
-        std::process::exit(1);
+        eprintln!("pi not found in PATH. Attempting installation...");
+        install_pi()?;
+
+        if find_pi().is_none() {
+            return Err(PyxError::CommandExecution(
+                "pi not found in PATH after installation attempt".to_string(),
+            ));
+        }
     }
 
     // Load database
@@ -41,35 +47,60 @@ pub fn execute(provider: Option<&str>, session: Option<&str>) -> Result<()> {
     // Determine which providers to use
     let providers_to_use = determine_providers(provider, &db)?;
 
-    // Load master key
+    // Load master key once
     let manager = KeyManager::load()?;
-    let _master_key_hex = manager.get_key_hex().to_string();
+    let mut master_key = manager.get_key_bytes()?;
 
-    // Build environment variables
-    let mut env_vars = Vec::new();
+    // Build environment variables with conflict detection
+    let mut env_map: BTreeMap<String, String> = BTreeMap::new();
     for provider_name in &providers_to_use {
         let entry = db.get(provider_name).ok_or_else(|| {
             PyxError::ProviderNotFound(format!("Provider '{}' not found", provider_name))
         })?;
 
-        // Decrypt API key
-        let passphrase = get_passphrase()?
-            .ok_or_else(|| PyxError::Keyring("No passphrase available".to_string()))?;
+        // Decrypt API key with master key.
+        // Fallback to passphrase-based decryption for legacy Rust-written entries.
+        let api_key_bytes = match decrypt_with_key(&entry.cipher, &master_key) {
+            Ok(bytes) => bytes,
+            Err(primary_error) => {
+                let passphrase = get_passphrase()?.ok_or_else(|| {
+                    PyxError::Crypto(format!(
+                        "Failed to decrypt API key with master key and no passphrase fallback is available: {}",
+                        primary_error
+                    ))
+                })?;
 
-        let api_key_bytes = decrypt_with_passphrase(&entry.cipher, &passphrase)
-            .map_err(|e| PyxError::Crypto(format!("Failed to decrypt API key: {}", e)))?;
+                decrypt_with_passphrase(&entry.cipher, &passphrase).map_err(|fallback_error| {
+                    PyxError::Crypto(format!(
+                        "Failed to decrypt API key with master key ({}) and passphrase fallback ({})",
+                        primary_error, fallback_error
+                    ))
+                })?
+            }
+        };
 
         let api_key = String::from_utf8_lossy(&api_key_bytes).to_string();
 
-        // Get env var for this provider
+        // Resolve env var for this provider
         let env_var = provider_to_env_var(provider_name)?;
 
-        env_vars.push((env_var, api_key));
-        eprintln!("✓ Loaded provider: {}", provider_name);
+        if let Some(existing) = env_map.get(&env_var) {
+            if existing != &api_key {
+                return Err(PyxError::Validation(format!(
+                    "Conflicting API keys for environment variable {}",
+                    env_var
+                )));
+            }
+        } else {
+            env_map.insert(env_var, api_key);
+        }
     }
 
+    // Zero master key bytes after decryption
+    master_key.fill(0);
+
     // Build pi arguments
-    let mut args = Vec::new();
+    let mut args = pi_args.to_vec();
 
     // Add session if provided
     if let Some(session_id) = session {
@@ -78,20 +109,12 @@ pub fn execute(provider: Option<&str>, session: Option<&str>) -> Result<()> {
     }
 
     // Spawn pi process
-    eprintln!();
-    eprintln!(
-        "Launching pi with {} provider(s)...",
-        providers_to_use.len()
-    );
+    let env_vars: Vec<(String, String)> = env_map.into_iter().collect();
+    let exit_code = spawn_pi(&env_vars, &args)?;
 
-    let env_vars_str: Vec<(String, String)> = env_vars
-        .iter()
-        .map(|(k, v)| (k.clone(), v.clone()))
-        .collect();
+    display_session_hint();
 
-    let exit_code = spawn_pi(&env_vars_str, &args)?;
-
-    std::process::exit(exit_code);
+    Ok(exit_code)
 }
 
 /// Determine which providers to use based on CLI args and database
@@ -113,6 +136,29 @@ fn determine_providers(provider_arg: Option<&str>, db: &Database) -> Result<Vec<
             .map(|s| s.to_string())
             .collect())
     }
+}
+
+fn display_session_hint() {
+    let Ok(cwd) = std::env::current_dir() else {
+        return;
+    };
+
+    let Some(cwd_str) = cwd.to_str() else {
+        return;
+    };
+
+    let Ok(session_dir) = crate::session::dir_for_cwd(cwd_str) else {
+        return;
+    };
+
+    let Ok(Some(uuid)) = crate::session::find_most_recent_session(&session_dir) else {
+        return;
+    };
+
+    eprintln!("  ██████  ██");
+    eprintln!("  ██  ██  ██    To continue this session, run:");
+    eprintln!("  ████  ██  ██  pyx -s {}", uuid);
+    eprintln!("  ██    ██  ██\n");
 }
 
 #[cfg(test)]

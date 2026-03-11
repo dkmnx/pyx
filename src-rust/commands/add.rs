@@ -1,8 +1,7 @@
 //! Add provider command implementation
 
-use crate::crypto::age::encrypt_with_passphrase;
+use crate::crypto::age::encrypt_with_key;
 use crate::error::{PyxError, Result};
-use crate::keys::keyring::get_passphrase;
 use crate::keys::manager::KeyManager;
 use crate::storage::database::{Database, ProviderEntry};
 
@@ -47,13 +46,16 @@ pub fn execute(provider_name: Option<&str>) -> Result<()> {
         std::process::exit(1);
     }
 
-    // Get passphrase
-    let passphrase = get_passphrase()?
-        .ok_or_else(|| PyxError::Keyring("No passphrase available".to_string()))?;
+    // Load master key
+    let manager = KeyManager::load()?;
+    let mut master_key = manager.get_key_bytes()?;
 
-    // Encrypt API key
-    let cipher = encrypt_with_passphrase(api_key.as_bytes(), &passphrase)
+    // Encrypt API key with master key
+    let cipher = encrypt_with_key(api_key.as_bytes(), &master_key)
         .map_err(|e| PyxError::Crypto(format!("Failed to encrypt API key: {}", e)))?;
+
+    // Zero master key bytes after use
+    master_key.fill(0);
 
     // Create provider entry
     let entry = ProviderEntry::new(provider_name.clone(), cipher);
@@ -94,22 +96,19 @@ fn prompt_for_provider_name() -> Result<String> {
 
 /// Prompt user for API key
 fn prompt_for_api_key(provider_name: &str) -> Result<String> {
-    use dialoguer::{Password, theme::ColorfulTheme};
-
-    let theme = ColorfulTheme::default();
-
-    println!("Enter API key for provider: {}", provider_name);
-    println!("(Input is hidden; the key will be encrypted and stored securely)");
-    println!();
-
-    let api_key = Password::with_theme(&theme)
-        .with_prompt("API Key")
-        .interact()
-        .map_err(|e| PyxError::Validation(format!("Failed to read API key: {}", e)))?;
-
-    if api_key.is_empty() {
-        return Err(PyxError::Validation("API key cannot be empty".to_string()));
-    }
+    let api_key = crate::prompt::prompt_secret(crate::prompt::SecretPromptOptions {
+        prompt: "API key".to_string(),
+        helper: Some(format!(
+            "Enter API key for {} (input is hidden):",
+            provider_name
+        )),
+        confirmation: Some((
+            "Confirm API key".to_string(),
+            "API keys do not match".to_string(),
+        )),
+        empty_error: "API key cannot be empty".to_string(),
+        allow_empty: false,
+    })?;
 
     // Basic validation - should look like a key
     if api_key.len() < 10 {
