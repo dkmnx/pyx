@@ -82,19 +82,17 @@ fn prompt_for_passphrase() -> Result<SecretString> {
 
 /// Prompt user for API key
 pub fn prompt_for_api_key(provider_name: &str) -> Result<String> {
-    use dialoguer::{Input, theme::ColorfulTheme};
+    use dialoguer::{Password, theme::ColorfulTheme};
 
     let theme = ColorfulTheme::default();
 
-    let api_key: String = Input::with_theme(&theme)
-        .with_prompt(&format!("Enter API key for {}", provider_name))
-        .interact_text()
+    let api_key = Password::with_theme(&theme)
+        .with_prompt(format!("Enter API key for {}", provider_name))
+        .interact()
         .map_err(|e| PyxError::Validation(format!("Failed to read API key: {}", e)))?;
 
     if api_key.is_empty() {
-        return Err(PyxError::Validation(
-            "API key cannot be empty".to_string(),
-        ));
+        return Err(PyxError::Validation("API key cannot be empty".to_string()));
     }
 
     Ok(api_key)

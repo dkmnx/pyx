@@ -2,8 +2,8 @@
 
 use crate::crypto::age::encrypt_with_passphrase;
 use crate::error::{PyxError, Result};
-use crate::keys::manager::KeyManager;
 use crate::keys::keyring::get_passphrase;
+use crate::keys::manager::KeyManager;
 use crate::storage::database::{Database, ProviderEntry};
 
 /// Execute the add provider command
@@ -30,19 +30,20 @@ pub fn execute(provider_name: Option<&str>) -> Result<()> {
     let api_key = prompt_for_api_key(&provider_name)?;
 
     // Load database
-    let mut db = Database::load().map_err(|e| {
-        match e {
-            PyxError::Config(_) => PyxError::Config(
-                "Database not found. Run 'pyx setup' first.".to_string(),
-            ),
-            _ => e,
+    let mut db = Database::load().map_err(|e| match e {
+        PyxError::Config(_) => {
+            PyxError::Config("Database not found. Run 'pyx setup' first.".to_string())
         }
+        _ => e,
     })?;
 
     // Check if provider already exists
     if db.has_provider(&provider_name) {
         eprintln!("Provider '{}' already exists.", provider_name);
-        eprintln!("To update it, first delete with: pyx delete {}", provider_name);
+        eprintln!(
+            "To update it, first delete with: pyx delete {}",
+            provider_name
+        );
         std::process::exit(1);
     }
 
@@ -53,7 +54,7 @@ pub fn execute(provider_name: Option<&str>) -> Result<()> {
     // Encrypt API key
     let cipher = encrypt_with_passphrase(api_key.as_bytes(), &passphrase)
         .map_err(|e| PyxError::Crypto(format!("Failed to encrypt API key: {}", e)))?;
-    
+
     // Create provider entry
     let entry = ProviderEntry::new(provider_name.clone(), cipher);
     db.upsert(entry);
@@ -93,28 +94,29 @@ fn prompt_for_provider_name() -> Result<String> {
 
 /// Prompt user for API key
 fn prompt_for_api_key(provider_name: &str) -> Result<String> {
-    use dialoguer::{Input, theme::ColorfulTheme};
+    use dialoguer::{Password, theme::ColorfulTheme};
 
     let theme = ColorfulTheme::default();
 
     println!("Enter API key for provider: {}", provider_name);
-    println!("(The key will be encrypted and stored securely)");
+    println!("(Input is hidden; the key will be encrypted and stored securely)");
     println!();
 
-    let api_key: String = Input::with_theme(&theme)
+    let api_key = Password::with_theme(&theme)
         .with_prompt("API Key")
-        .interact_text()
+        .interact()
         .map_err(|e| PyxError::Validation(format!("Failed to read API key: {}", e)))?;
 
     if api_key.is_empty() {
-        return Err(PyxError::Validation(
-            "API key cannot be empty".to_string(),
-        ));
+        return Err(PyxError::Validation("API key cannot be empty".to_string()));
     }
 
     // Basic validation - should look like a key
     if api_key.len() < 10 {
-        eprintln!("Warning: API key seems very short ({} characters)", api_key.len());
+        eprintln!(
+            "Warning: API key seems very short ({} characters)",
+            api_key.len()
+        );
     }
 
     Ok(api_key)
