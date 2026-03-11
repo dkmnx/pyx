@@ -19,7 +19,7 @@ fn run() -> Result<()> {
             pyx_rust::commands::setup::execute()?;
         }
         Some(Commands::Add { provider }) => {
-            pyx_rust::commands::add::execute(&provider)?;
+            pyx_rust::commands::add::execute(provider.as_deref())?;
         }
         Some(Commands::List { json }) => {
             if json {

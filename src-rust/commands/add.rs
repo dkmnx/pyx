@@ -7,7 +7,7 @@ use crate::keys::keyring::get_passphrase;
 use crate::storage::database::{Database, ProviderEntry};
 
 /// Execute the add provider command
-pub fn execute(provider_name: &str) -> Result<()> {
+pub fn execute(provider_name: Option<&str>) -> Result<()> {
     // Check if initialized
     if !KeyManager::master_key_exists() {
         eprintln!("Pyx not initialized. Run 'pyx setup' first.");
@@ -17,11 +17,17 @@ pub fn execute(provider_name: &str) -> Result<()> {
         std::process::exit(1);
     }
 
+    // Prompt for provider name if not provided
+    let provider_name = match provider_name {
+        Some(name) => name.to_string(),
+        None => prompt_for_provider_name()?,
+    };
+
     // Validate provider name
-    crate::providers::validate_provider_name(provider_name)?;
+    crate::providers::validate_provider_name(&provider_name)?;
 
     // Prompt for API key
-    let api_key = prompt_for_api_key(provider_name)?;
+    let api_key = prompt_for_api_key(&provider_name)?;
 
     // Load database
     let mut db = Database::load().map_err(|e| {
@@ -34,7 +40,7 @@ pub fn execute(provider_name: &str) -> Result<()> {
     })?;
 
     // Check if provider already exists
-    if db.has_provider(provider_name) {
+    if db.has_provider(&provider_name) {
         eprintln!("Provider '{}' already exists.", provider_name);
         eprintln!("To update it, first delete with: pyx delete {}", provider_name);
         std::process::exit(1);
@@ -49,7 +55,7 @@ pub fn execute(provider_name: &str) -> Result<()> {
         .map_err(|e| PyxError::Crypto(format!("Failed to encrypt API key: {}", e)))?;
     
     // Create provider entry
-    let entry = ProviderEntry::new(provider_name.to_string(), cipher);
+    let entry = ProviderEntry::new(provider_name.clone(), cipher);
     db.upsert(entry);
 
     // Save database
@@ -61,6 +67,28 @@ pub fn execute(provider_name: &str) -> Result<()> {
     println!("  pyx {}", provider_name);
 
     Ok(())
+}
+
+/// Prompt user for provider name
+fn prompt_for_provider_name() -> Result<String> {
+    use dialoguer::{Input, theme::ColorfulTheme};
+
+    let theme = ColorfulTheme::default();
+
+    println!("Select a provider to add:");
+    println!("Common providers: openai, anthropic, google, azure, groq, mistral");
+    println!();
+
+    let provider: String = Input::with_theme(&theme)
+        .with_prompt("Provider name")
+        .interact_text()
+        .map_err(|e| PyxError::Validation(format!("Failed to read provider name: {}", e)))?;
+
+    if provider.is_empty() {
+        return Err(PyxError::Validation("Provider name cannot be empty".into()));
+    }
+
+    Ok(provider)
 }
 
 /// Prompt user for API key

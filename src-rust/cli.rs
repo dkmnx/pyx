@@ -30,8 +30,8 @@ pub enum Commands {
 
     /// Add a new provider with API key
     Add {
-        /// Provider name (e.g., openai, anthropic)
-        provider: String,
+        /// Provider name (optional - will prompt if not provided)
+        provider: Option<String>,
     },
 
     /// List configured providers
