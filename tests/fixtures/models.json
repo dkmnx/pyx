@@ -1,6 +1,6 @@
 {
   "version": "v1.0.0",
-  "updated_at": "2026-03-11T06:26:27.999612671Z",
+  "updated_at": "2026-03-12T13:08:44.451111835Z",
   "models": {
     "anthropic": [
       "anthropic/claude-3-opus",
