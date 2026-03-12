@@ -1,29 +1,84 @@
-//! Setup command implementation
+//! Setup command implementation - unified init + add provider flow
 
-use crate::error::Result;
+use crate::crypto::age::encrypt_with_key;
+use crate::error::{PyxError, Result};
+use crate::keys::keyring;
 use crate::keys::manager::KeyManager;
+use crate::models::fetch::fetch_models_from_remote;
+use crate::prompt;
+use crate::storage::database::{Database, ProviderEntry};
+use crate::storage::models_cache::ModelsCache;
 use crate::storage::paths::ensure_data_dir;
-use secrecy::SecretString;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 /// Execute the setup command
 pub fn execute() -> Result<()> {
+    println!();
     println!("=== Pyx Setup ===");
     println!();
 
-    // Check if already set up
+    // Ensure data directory exists
+    let data_dir = ensure_data_dir()?;
+    println!("Data directory: {}", data_dir.display());
+    println!();
+
+    // Load or create master key
+    let manager = load_or_create_master_key()?;
+
+    // Load database (or create default)
+    let mut db = Database::load().unwrap_or_default();
+
+    // Fetch and cache provider models
+    fetch_providers()?;
+
+    // Get provider list from cache
+    let providers = get_provider_list()?;
+
+    // Prompt for provider selection
+    let provider = prompt_provider_selection(&providers, &db)?;
+
+    // Prompt for API key
+    let api_key = prompt_api_key(&provider)?;
+
+    // Encrypt and store provider entry
+    let is_update = store_provider_entry(&manager, &mut db, &provider, &api_key)?;
+
+    // Report success
+    let action = if is_update { "Updated" } else { "Created" };
+    println!();
+    println!("  {}: {} ({})", provider, action, format_time_now());
+    println!();
+    println!("Setup complete!");
+
+    Ok(())
+}
+
+/// Load existing master key or create a new one.
+fn load_or_create_master_key() -> Result<KeyManager> {
     if KeyManager::master_key_exists() {
-        println!("Pyx is already initialized.");
-        println!("Data directory: {}", ensure_data_dir()?.display());
+        println!("Using existing master key");
         println!();
-        println!("To reset and start fresh, run: pyx reset");
-        return Ok(());
+
+        // Check if we can get a passphrase (from env or keyring)
+        match keyring::get_passphrase()? {
+            Some(_) => {
+                // Passphrase available, load the key
+                return KeyManager::load();
+            }
+            None => {
+                // No passphrase available - this shouldn't happen normally
+                return Err(PyxError::Keyring(
+                    "No passphrase available. Run 'pyx reset' to reconfigure.".to_string(),
+                ));
+            }
+        }
     }
 
     println!("This will initialize pyx with secure encrypted storage.");
     println!();
 
     // Prompt for passphrase
-    let passphrase = prompt_for_passphrase()?;
+    let passphrase = prompt_new_passphrase()?;
 
     // Generate master key
     println!("Generating master key...");
@@ -31,35 +86,24 @@ pub fn execute() -> Result<()> {
 
     // Store passphrase in keyring
     println!("Storing passphrase in OS keyring...");
-    KeyManager::set_passphrase(&passphrase)?;
+    keyring::set_passphrase(&passphrase)?;
 
     // Save encrypted master key
     println!("Saving encrypted master key...");
     manager.save()?;
 
-    // Create empty database
-    println!("Initializing provider database...");
-    crate::storage::database::Database::default().save()?;
+    println!();
+    println!("Master key initialized!");
+    println!();
 
-    println!();
-    println!("✓ Setup complete!");
-    println!();
-    println!("Next steps:");
-    println!("  1. Add providers with: pyx add");
-    println!("  2. List providers with: pyx list");
-    println!("  3. Update models with: pyx models update");
-    println!();
-    println!("Your API keys are encrypted with AES-256-GCM via age.");
-    println!("The master key is stored in your OS keyring.");
-
-    Ok(())
+    Ok(manager)
 }
 
-/// Prompt user for passphrase
-fn prompt_for_passphrase() -> Result<SecretString> {
-    let passphrase = crate::prompt::prompt_secret(crate::prompt::SecretPromptOptions {
+/// Prompt for a new passphrase with confirmation.
+fn prompt_new_passphrase() -> Result<secrecy::SecretString> {
+    let passphrase = prompt::prompt_secret(prompt::SecretPromptOptions {
         prompt: "Passphrase".to_string(),
-        helper: Some("Enter passphrase to encrypt your API keys (input is hidden):".to_string()),
+        helper: Some("Choose a password to encrypt your API keys (input is hidden):".to_string()),
         confirmation: Some((
             "Confirm passphrase".to_string(),
             "Passphrases do not match".to_string(),
@@ -68,16 +112,79 @@ fn prompt_for_passphrase() -> Result<SecretString> {
         allow_empty: false,
     })?;
 
-    Ok(SecretString::new(passphrase.into_boxed_str()))
+    Ok(secrecy::SecretString::new(passphrase.into_boxed_str()))
 }
 
-/// Prompt user for API key
-pub fn prompt_for_api_key(provider_name: &str) -> Result<String> {
-    crate::prompt::prompt_secret(crate::prompt::SecretPromptOptions {
+/// Fetch providers from remote and cache them.
+fn fetch_providers() -> Result<()> {
+    print!("Fetching providers... ");
+    let start = Instant::now();
+
+    let result = fetch_models_from_remote();
+
+    match result {
+        Ok(cache) => {
+            println!("done ({}ms)", start.elapsed().as_millis());
+            cache.save()?;
+        }
+        Err(e) => {
+            // Try to fall back to cached models
+            if let Ok(_cached) = ModelsCache::load() {
+                println!("using cache (offline mode)");
+            } else {
+                println!("failed");
+                return Err(PyxError::Network(format!(
+                    "Failed to fetch providers and no cache available: {}",
+                    e
+                )));
+            }
+        }
+    }
+
+    println!();
+    Ok(())
+}
+
+/// Get provider list from cache.
+fn get_provider_list() -> Result<Vec<String>> {
+    let cache = ModelsCache::load()?;
+    let mut providers: Vec<String> = cache.models.keys().cloned().collect();
+    providers.sort();
+    Ok(providers)
+}
+
+/// Prompt for provider selection, handling override confirmation.
+fn prompt_provider_selection(providers: &[String], db: &Database) -> Result<String> {
+    loop {
+        let provider = prompt::prompt_provider(providers)?;
+
+        // Validate provider name
+        crate::providers::validate_provider_name(&provider)?;
+
+        // Check if provider already exists
+        if db.has_provider(&provider) {
+            let confirm = prompt::prompt_confirm(&format!(
+                "Provider '{}' already configured. Override?",
+                provider
+            ))?;
+            if !confirm {
+                println!("Provider already configured!");
+                println!();
+                continue;
+            }
+        }
+
+        return Ok(provider);
+    }
+}
+
+/// Prompt for API key.
+fn prompt_api_key(provider: &str) -> Result<String> {
+    let api_key = prompt::prompt_secret(prompt::SecretPromptOptions {
         prompt: "API key".to_string(),
         helper: Some(format!(
             "Enter API key for {} (input is hidden):",
-            provider_name
+            provider
         )),
         confirmation: Some((
             "Confirm API key".to_string(),
@@ -85,7 +192,59 @@ pub fn prompt_for_api_key(provider_name: &str) -> Result<String> {
         )),
         empty_error: "API key cannot be empty".to_string(),
         allow_empty: false,
-    })
+    })?;
+
+    // Basic validation
+    if api_key.len() < 10 {
+        eprintln!(
+            "Warning: API key seems very short ({} characters)",
+            api_key.len()
+        );
+    }
+
+    Ok(api_key)
+}
+
+/// Store provider entry in database.
+/// Returns true if this was an update, false if it was a new entry.
+fn store_provider_entry(
+    manager: &KeyManager,
+    db: &mut Database,
+    provider: &str,
+    api_key: &str,
+) -> Result<bool> {
+    let mut master_key = manager.get_key_bytes()?;
+
+    // Encrypt API key
+    let cipher = encrypt_with_key(api_key.as_bytes(), &master_key)
+        .map_err(|e| PyxError::Crypto(format!("Failed to encrypt API key: {}", e)))?;
+
+    // Zero master key after use
+    master_key.fill(0);
+
+    // Check if update or new entry
+    let is_update = db.has_provider(provider);
+
+    // Create and store entry
+    let entry = ProviderEntry::new(provider.to_string(), cipher);
+    db.upsert(entry);
+
+    // Save database
+    db.save()?;
+
+    Ok(is_update)
+}
+
+/// Format current time for display.
+fn format_time_now() -> String {
+    let duration = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default();
+    let secs = duration.as_secs();
+    let hours = (secs % 86400) / 3600;
+    let mins = (secs % 3600) / 60;
+    let secs = secs % 60;
+    format!("{:02}:{:02}:{:02} UTC", hours, mins, secs)
 }
 
 #[cfg(test)]
@@ -95,8 +254,7 @@ mod tests {
     #[test]
     #[ignore = "Requires interactive input"]
     fn test_prompt_for_passphrase() {
-        // This test requires interactive input
-        let result = prompt_for_passphrase();
+        let result = prompt_new_passphrase();
         assert!(result.is_ok());
     }
 }

@@ -25,14 +25,8 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    /// Setup pyx with initial configuration
+    /// Setup pyx with a provider (initializes or adds provider)
     Setup,
-
-    /// Add a new provider with API key
-    Add {
-        /// Provider name (optional - will prompt if not provided)
-        provider: Option<String>,
-    },
 
     /// List configured providers
     List {

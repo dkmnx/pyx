@@ -1,6 +1,5 @@
 //! Commands module
 
-pub mod add;
 pub mod completion;
 pub mod delete;
 pub mod list;

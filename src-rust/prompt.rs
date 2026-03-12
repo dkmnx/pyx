@@ -1,7 +1,7 @@
 //! Shared interactive prompt helpers.
 
 use crate::error::{PyxError, Result};
-use dialoguer::{Password, theme::ColorfulTheme};
+use dialoguer::{Confirm, FuzzySelect, Password, theme::ColorfulTheme};
 
 pub struct SecretPromptOptions {
     pub prompt: String,
@@ -41,4 +41,29 @@ pub fn prompt_secret(options: SecretPromptOptions) -> Result<String> {
     }
 
     Ok(value)
+}
+
+/// Prompt user to select a provider from a list with fuzzy search.
+pub fn prompt_provider(providers: &[String]) -> Result<String> {
+    let theme = ColorfulTheme::default();
+
+    let selection = FuzzySelect::with_theme(&theme)
+        .with_prompt("Select a provider")
+        .items(providers)
+        .default(0)
+        .interact()
+        .map_err(|e| PyxError::Validation(format!("Failed to select provider: {}", e)))?;
+
+    Ok(providers[selection].clone())
+}
+
+/// Prompt user for confirmation.
+pub fn prompt_confirm(message: &str) -> Result<bool> {
+    let theme = ColorfulTheme::default();
+
+    Confirm::with_theme(&theme)
+        .with_prompt(message)
+        .default(false)
+        .interact()
+        .map_err(|e| PyxError::Validation(format!("Failed to read confirmation: {}", e)))
 }

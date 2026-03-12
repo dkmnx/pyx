@@ -40,9 +40,6 @@ fn run_subcommand_mode() -> Result<()> {
         Some(Commands::Setup) => {
             pyx_rust::commands::setup::execute()?;
         }
-        Some(Commands::Add { provider }) => {
-            pyx_rust::commands::add::execute(provider.as_deref())?;
-        }
         Some(Commands::List { json }) => {
             if json {
                 pyx_rust::commands::list::execute_json()?;
