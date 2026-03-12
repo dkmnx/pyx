@@ -58,7 +58,6 @@ fn root_forwards_pi_args_and_injects_provider_env() {
         .arg("gpt-4")
         .env("XDG_DATA_HOME", &xdg_data)
         .env("PLY_PASSPHRASE", "test-passphrase")
-        .env("PLY_PASSPHRASE_FORCE", "1")
         .env("PATH", path);
 
     cmd.assert().success();
@@ -68,7 +67,6 @@ fn root_forwards_pi_args_and_injects_provider_env() {
 }
 
 #[test]
-#[ignore = "Go random-byte passphrase compatibility requires dedicated migration path"]
 fn root_decrypts_go_fixture_data() {
     let temp = tempdir().unwrap();
     let xdg_data = temp.path().join("xdg");
@@ -93,7 +91,6 @@ fn root_decrypts_go_fixture_data() {
     cmd.arg("openai")
         .env("XDG_DATA_HOME", &xdg_data)
         .env("PLY_PASSPHRASE", "test-passphrase")
-        .env("PLY_PASSPHRASE_FORCE", "1")
         .env("PATH", path);
 
     cmd.assert().success();
