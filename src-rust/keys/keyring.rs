@@ -7,7 +7,6 @@ const SERVICE_NAME: &str = "ply";
 const USER_NAME: &str = "master-key";
 const LEGACY_PASSPHRASE: &str = "default";
 const ENV_PASSPHRASE: &str = "PLY_PASSPHRASE";
-const ENV_FORCE_PASSPHRASE: &str = "PLY_PASSPHRASE_FORCE";
 
 fn env_passphrase() -> Option<SecretString> {
     std::env::var(ENV_PASSPHRASE)
@@ -16,26 +15,17 @@ fn env_passphrase() -> Option<SecretString> {
         .map(|v| SecretString::new(v.into_boxed_str()))
 }
 
-fn force_env_passphrase() -> bool {
-    matches!(
-        std::env::var(ENV_FORCE_PASSPHRASE)
-            .ok()
-            .map(|v| v.to_ascii_lowercase())
-            .as_deref(),
-        Some("1" | "true" | "yes")
-    )
-}
-
-/// Get passphrase from OS keyring
+/// Get passphrase - matches Go implementation priority:
+/// 1. PLY_PASSPHRASE env var
+/// 2. OS Keyring
+/// 3. Legacy "default" passphrase
 pub fn get_passphrase() -> Result<Option<SecretString>> {
-    // Optional force-override for deterministic non-interactive usage.
-    if force_env_passphrase()
-        && let Some(passphrase) = env_passphrase()
-    {
+    // 1. Try PLY_PASSPHRASE env var first (matches Go's getPassphrase)
+    if let Some(passphrase) = env_passphrase() {
         return Ok(Some(passphrase));
     }
 
-    // Try to get from keyring
+    // 2. Try to get from OS keyring
     match keyring::Entry::new(SERVICE_NAME, USER_NAME) {
         Ok(entry) => match entry.get_password() {
             Ok(password) => {
@@ -43,9 +33,7 @@ pub fn get_passphrase() -> Result<Option<SecretString>> {
                     return Ok(Some(SecretString::new(password.into_boxed_str())));
                 }
             }
-            Err(keyring::Error::NoEntry) => {
-                // No entry in keyring, will try fallback
-            }
+            Err(keyring::Error::NoEntry) => {}
             Err(e) => {
                 return Err(PyxError::Keyring(format!(
                     "Failed to get password from keyring: {}",
@@ -61,12 +49,7 @@ pub fn get_passphrase() -> Result<Option<SecretString>> {
         }
     }
 
-    // Fallback to PLY_PASSPHRASE environment variable
-    if let Some(passphrase) = env_passphrase() {
-        return Ok(Some(passphrase));
-    }
-
-    // Legacy fallback: "default" passphrase
+    // 3. Legacy fallback: "default" passphrase (matches Go's legacyPassphrase)
     Ok(Some(SecretString::new(
         LEGACY_PASSPHRASE.to_string().into_boxed_str(),
     )))
@@ -103,35 +86,6 @@ mod tests {
     use std::sync::Mutex;
 
     static ENV_MUTEX: Mutex<()> = Mutex::new(());
-
-    #[test]
-    fn test_force_env_passphrase_values() {
-        let _guard = ENV_MUTEX.lock().unwrap();
-
-        unsafe {
-            std::env::set_var(ENV_FORCE_PASSPHRASE, "1");
-        }
-        assert!(force_env_passphrase());
-
-        unsafe {
-            std::env::set_var(ENV_FORCE_PASSPHRASE, "true");
-        }
-        assert!(force_env_passphrase());
-
-        unsafe {
-            std::env::set_var(ENV_FORCE_PASSPHRASE, "yes");
-        }
-        assert!(force_env_passphrase());
-
-        unsafe {
-            std::env::set_var(ENV_FORCE_PASSPHRASE, "0");
-        }
-        assert!(!force_env_passphrase());
-
-        unsafe {
-            std::env::remove_var(ENV_FORCE_PASSPHRASE);
-        }
-    }
 
     #[test]
     fn test_env_passphrase_reads_non_empty() {

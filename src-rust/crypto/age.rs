@@ -251,27 +251,15 @@ fn encrypt_with_raw_key_recipient(plaintext: &[u8], key: &[u8]) -> Result<String
     Ok(base64::engine::general_purpose::STANDARD.encode(encrypted))
 }
 
-fn key_bytes_to_passphrase(key: &[u8]) -> SecretString {
-    // Go uses string([]byte) for scrypt passphrases, which permits non-UTF8 bytes.
-    // Rust strings must be UTF-8, so we mirror Go's behavior as closely as possible
-    // by using a deterministic lossy conversion for arbitrary key bytes.
-    let lossy = String::from_utf8_lossy(key).into_owned();
-    SecretString::new(lossy.into_boxed_str())
-}
-
 /// Encrypt data using key bytes (used for provider API key encryption).
 pub fn encrypt_with_key(plaintext: &[u8], key: &[u8]) -> Result<String> {
     encrypt_with_raw_key_recipient(plaintext, key)
 }
 
 /// Decrypt data using key bytes (used for provider API key decryption).
+/// Uses raw byte identity for Go compatibility (no lossy string conversion).
 pub fn decrypt_with_key(ciphertext: &str, key: &[u8]) -> Result<Vec<u8>> {
-    // Prefer raw-byte-compatible decryption for Go-generated data.
-    decrypt_with_raw_key_identity(ciphertext, key).or_else(|_| {
-        // Fallback for previously Rust-generated lossy passphrase entries.
-        let passphrase = key_bytes_to_passphrase(key);
-        decrypt_with_passphrase(ciphertext, &passphrase)
-    })
+    decrypt_with_raw_key_identity(ciphertext, key)
 }
 
 #[cfg(test)]
