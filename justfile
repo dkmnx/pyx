@@ -180,3 +180,58 @@ help:
     @echo "  just test"
     @echo "  just test-run TestProviderEnvVar"
     @echo "  just run --help"
+
+# =============================================================================
+# Rust (pyx) commands
+# =============================================================================
+
+# Build Rust implementation
+build-rust:
+    @echo "Building pyx (Rust)..."
+    cargo build
+
+# Build Rust for production
+build-rust-prod:
+    @echo "Building pyx (Rust, production)..."
+    cargo build --release
+
+# Run Rust tests
+test-rust:
+    @echo "Running pyx tests..."
+    cargo test --lib
+
+# Run Rust integration tests
+test-rust-integration:
+    @echo "Running pyx integration tests..."
+    cargo test --test root_parity
+
+# Run all Rust tests (lib + integration)
+test-rust-all: test-rust test-rust-integration
+
+# Run compatibility tests (requires Go fixtures)
+test-compat:
+    @echo "Running compatibility tests..."
+    cargo test --test root_parity
+
+# Format Rust code
+fmt-rust:
+    @echo "Formatting pyx code..."
+    cargo fmt
+
+# Lint Rust code
+lint-rust:
+    @echo "Linting pyx code..."
+    cargo clippy -- -D warnings
+
+# Clean Rust build artifacts
+clean-rust:
+    @echo "Cleaning pyx..."
+    cargo clean
+
+# Install Rust binary
+install-rust:
+    @echo "Installing pyx..."
+    cargo install --path .
+
+# All Rust checks
+check-rust: fmt-rust lint-rust test-rust-all
