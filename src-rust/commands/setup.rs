@@ -154,9 +154,18 @@ fn get_provider_list() -> Result<Vec<String>> {
 }
 
 /// Prompt for provider selection, handling override confirmation.
+/// Returns ErrCancelled on cancel (matches Go behavior).
 fn prompt_provider_selection(providers: &[String], db: &Database) -> Result<String> {
     loop {
-        let provider = prompt::prompt_provider(providers)?;
+        let provider = match prompt::prompt_provider(providers) {
+            Ok(p) => p,
+            Err(PyxError::Validation(msg)) if msg.contains("cancelled") => {
+                // Match Go's tap.Cancel("Setup cancelled!") behavior
+                println!("Setup cancelled!");
+                return Err(PyxError::Validation("operation cancelled".to_string()));
+            }
+            Err(e) => return Err(e),
+        };
 
         // Validate provider name
         crate::providers::validate_provider_name(&provider)?;

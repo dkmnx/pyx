@@ -29,7 +29,7 @@ keyring = "3.6"
 secrecy = { version = "0.10", features = ["serde"] }
 zeroize = { version = "1.8", features = ["zeroize_derive"] }
 # Interactive prompts
-dialoguer = { version = "0.11", features = ["fuzzy-select"] }
+inquire = "0.9"
 # HTTP client
 ureq = { version = "2.10", features = ["json"] }
 # Age encryption (for crypto compatibility)

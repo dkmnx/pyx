@@ -70,13 +70,11 @@ pub fn execute() -> Result<()> {
 
 /// Confirm reset with user
 fn confirm_reset() -> Result<bool> {
-    use dialoguer::Confirm;
+    use inquire::Confirm;
 
-    let confirmed = Confirm::new()
-        .with_prompt("Are you sure you want to reset?")
-        .default(false)
-        .wait_for_newline(true)
-        .interact()
+    let confirmed = Confirm::new("Are you sure you want to reset?")
+        .with_default(false)
+        .prompt()
         .map_err(|e| PyxError::Validation(format!("Failed to read confirmation: {}", e)))?;
 
     Ok(confirmed)
