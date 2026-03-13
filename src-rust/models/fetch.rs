@@ -144,11 +144,11 @@ fn load_source_config() -> Result<SourceConfig> {
             .and_then(|branch| normalize_optional_string(&branch));
     }
 
-    apply_env_override("PLY_GITHUB_API_URL", &mut config.api_url);
-    apply_env_override("PLY_GITHUB_RAW_URL", &mut config.raw_url);
-    apply_env_override("PLY_PI_MONO_OWNER", &mut config.owner);
-    apply_env_override("PLY_PI_MONO_REPO", &mut config.repo);
-    apply_env_override("PLY_MODELS_FILE_PATH", &mut config.models_path);
+    apply_env_override("PYX_GITHUB_API_URL", &mut config.api_url);
+    apply_env_override("PYX_GITHUB_RAW_URL", &mut config.raw_url);
+    apply_env_override("PYX_PI_MONO_OWNER", &mut config.owner);
+    apply_env_override("PYX_PI_MONO_REPO", &mut config.repo);
+    apply_env_override("PYX_MODELS_FILE_PATH", &mut config.models_path);
 
     if config.api_url.trim().is_empty()
         || config.raw_url.trim().is_empty()

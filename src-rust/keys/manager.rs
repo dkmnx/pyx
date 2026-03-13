@@ -10,7 +10,7 @@ use std::sync::Mutex;
 use std::time::Instant;
 
 const LEGACY_PASSPHRASE: &str = "default";
-const ENV_PASSPHRASE: &str = "PLY_PASSPHRASE";
+const ENV_PASSPHRASE: &str = "PYX_PASSPHRASE";
 const MAX_FAILED_ATTEMPTS: u32 = 5;
 const LOCKOUT_DURATION_SECS: u64 = 30;
 

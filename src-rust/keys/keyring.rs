@@ -3,10 +3,10 @@
 use crate::error::{PyxError, Result};
 use secrecy::{ExposeSecret, SecretString};
 
-const SERVICE_NAME: &str = "ply";
+const SERVICE_NAME: &str = "pyx";
 const USER_NAME: &str = "master-key";
 const LEGACY_PASSPHRASE: &str = "default";
-const ENV_PASSPHRASE: &str = "PLY_PASSPHRASE";
+const ENV_PASSPHRASE: &str = "PYX_PASSPHRASE";
 
 fn env_passphrase() -> Option<SecretString> {
     std::env::var(ENV_PASSPHRASE)
@@ -16,11 +16,11 @@ fn env_passphrase() -> Option<SecretString> {
 }
 
 /// Get passphrase - matches Go implementation priority:
-/// 1. PLY_PASSPHRASE env var
+/// 1. PYX_PASSPHRASE env var
 /// 2. OS Keyring
 /// 3. Legacy "default" passphrase
 pub fn get_passphrase() -> Result<Option<SecretString>> {
-    // 1. Try PLY_PASSPHRASE env var first (matches Go's getPassphrase)
+    // 1. Try PYX_PASSPHRASE env var first (matches Go's getPassphrase)
     if let Some(passphrase) = env_passphrase() {
         return Ok(Some(passphrase));
     }
