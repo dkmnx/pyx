@@ -67,7 +67,7 @@ fn install_pi_impl(pm_override: Option<&str>) -> Result<()> {
 
     // Install pi globally
     let status = Command::new(&pm)
-        .args(["install", "-g", "@anthropics/pi"])
+        .args(["install", "-g", "@mariozechner/pi-coding-agent"])
         .status()
         .map_err(|e| PyxError::CommandExecution(format!("Failed to run {}: {}", pm, e)))?;
 
