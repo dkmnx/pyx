@@ -156,45 +156,36 @@ fn get_provider_list() -> Result<Vec<String>> {
 /// Prompt for provider selection, handling override confirmation.
 /// Returns ErrCancelled on cancel (matches Go behavior).
 fn prompt_provider_selection(providers: &[String], db: &Database) -> Result<String> {
-    loop {
-        let provider = match prompt::prompt_provider(providers) {
-            Ok(p) => p,
-            Err(PyxError::Validation(msg)) if msg.contains("cancelled") => {
-                // Match Go's tap.Cancel("Setup cancelled!") behavior
-                println!("Setup cancelled!");
-                return Err(PyxError::Validation("operation cancelled".to_string()));
-            }
-            Err(e) => return Err(e),
-        };
-
-        // Validate provider name
-        crate::providers::validate_provider_name(&provider)?;
-
-        // Check if provider already exists
-        if db.has_provider(&provider) {
-            let confirm = prompt::prompt_confirm(&format!(
-                "Provider '{}' already configured. Override?",
-                provider
-            ))?;
-            if !confirm {
-                println!("Provider already configured!");
-                println!();
-                continue;
-            }
+    let provider = match prompt::prompt_provider(providers) {
+        Ok(p) => p,
+        Err(PyxError::Validation(msg)) if msg.contains("cancelled") => {
+            println!("Setup cancelled!");
+            return Err(PyxError::Cancelled);
         }
+        Err(e) => return Err(e),
+    };
 
-        return Ok(provider);
+    crate::providers::validate_provider_name(&provider)?;
+
+    if db.has_provider(&provider) {
+        let confirm = prompt::prompt_confirm(&format!(
+            "Provider '{}' already configured. Override?",
+            provider
+        ))?;
+        if !confirm {
+            println!("\nProvider already configured!\n");
+            return Err(PyxError::Cancelled);
+        }
     }
+
+    Ok(provider)
 }
 
 /// Prompt for API key.
 fn prompt_api_key(provider: &str) -> Result<String> {
     let api_key = prompt::prompt_secret(prompt::SecretPromptOptions {
         prompt: "API key".to_string(),
-        helper: Some(format!(
-            "Enter API key for {} (input is hidden):",
-            provider
-        )),
+        helper: Some(format!("Enter API key for {} (input is hidden):", provider)),
         confirmation: Some((
             "Confirm API key".to_string(),
             "API keys do not match".to_string(),

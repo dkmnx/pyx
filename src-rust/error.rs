@@ -33,6 +33,9 @@ pub enum PyxError {
 
     #[error("Temp file persist error: {0}")]
     TempFilePersist(String),
+
+    #[error("Cancelled")]
+    Cancelled,
 }
 
 pub type Result<T> = std::result::Result<T, PyxError>;

@@ -2,13 +2,18 @@
 
 use clap::Parser;
 use pyx_rust::cli::{Cli, Commands, ModelsCommands};
-use pyx_rust::error::Result;
+use pyx_rust::error::{PyxError, Result};
 use pyx_rust::root_args::{parse_root_invocation, should_use_clap};
 
 fn main() {
     if let Err(e) = run() {
-        eprintln!("Error: {}", e);
-        std::process::exit(1);
+        match e {
+            PyxError::Cancelled => std::process::exit(0),
+            _ => {
+                eprintln!("Error: {}", e);
+                std::process::exit(1);
+            }
+        }
     }
 }
 
