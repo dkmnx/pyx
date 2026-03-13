@@ -4,7 +4,9 @@ use crate::crypto::age::{decrypt_with_key, decrypt_with_passphrase};
 use crate::error::{PyxError, Result};
 use crate::keys::keyring::get_passphrase;
 use crate::keys::manager::KeyManager;
-use crate::pi::exec::{find_pi, install_pi, spawn_pi};
+use crate::pi::exec::{
+    find_pi, get_pi_version, install_completion, install_pi, platform_info, spawn_pi,
+};
 use crate::providers::provider_to_env_var;
 use crate::storage::database::Database;
 use std::collections::BTreeMap;
@@ -19,7 +21,7 @@ pub fn execute(provider: Option<&str>, session: Option<&str>, pi_args: &[String]
     }
 
     // Check if pi is installed, attempt auto-install if missing.
-    if find_pi().is_none() {
+    let pi_was_just_installed = if find_pi().is_none() {
         eprintln!("pi not found in PATH. Attempting installation...");
         install_pi()?;
 
@@ -27,6 +29,23 @@ pub fn execute(provider: Option<&str>, session: Option<&str>, pi_args: &[String]
             return Err(PyxError::CommandExecution(
                 "pi not found in PATH after installation attempt".to_string(),
             ));
+        }
+        true
+    } else {
+        false
+    };
+
+    // If pi was just installed, show platform info and install completions
+    if pi_was_just_installed {
+        eprintln!("Platform: {}", platform_info());
+        if let Ok(version) = get_pi_version() {
+            eprintln!("pi version: {}", version);
+        }
+        eprintln!();
+
+        // Install shell completion for detected shell
+        if let Err(e) = install_completion() {
+            eprintln!("Warning: failed to install shell completions: {}", e);
         }
     }
 

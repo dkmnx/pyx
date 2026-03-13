@@ -1,7 +1,44 @@
 //! Execute pi process
 
 use crate::error::{PyxError, Result};
+use std::env;
+use std::fs;
+use std::path::PathBuf;
 use std::process::Command;
+
+/// Shell type for completion installation
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShellType {
+    Bash,
+    Zsh,
+    Fish,
+    PowerShell,
+}
+
+impl std::fmt::Display for ShellType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ShellType::Bash => write!(f, "bash"),
+            ShellType::Zsh => write!(f, "zsh"),
+            ShellType::Fish => write!(f, "fish"),
+            ShellType::PowerShell => write!(f, "powershell"),
+        }
+    }
+}
+
+impl std::str::FromStr for ShellType {
+    type Err = PyxError;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "bash" => Ok(ShellType::Bash),
+            "zsh" => Ok(ShellType::Zsh),
+            "fish" => Ok(ShellType::Fish),
+            "powershell" | "pwsh" => Ok(ShellType::PowerShell),
+            _ => Err(PyxError::Validation(format!("Unknown shell type: {}", s))),
+        }
+    }
+}
 
 /// Check if pi is available in PATH
 pub fn find_pi() -> Option<String> {
@@ -114,6 +151,145 @@ pub fn get_pi_version() -> Result<String> {
 
     let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
     Ok(version)
+}
+
+/// Detect current shell type
+pub fn detect_current_shell() -> ShellType {
+    // Check SHELL environment variable
+    if let Ok(shell) = env::var("SHELL") {
+        let shell_path = PathBuf::from(&shell);
+        if let Some(name) = shell_path.file_name().and_then(|n| n.to_str()) {
+            match name {
+                "bash" => return ShellType::Bash,
+                "zsh" => return ShellType::Zsh,
+                "fish" => return ShellType::Fish,
+                _ => {}
+            }
+        }
+    }
+
+    // Check for fish-specific environment variable
+    if env::var("__FISH_VERSION_DIR").is_ok() {
+        return ShellType::Fish;
+    }
+
+    // Platform-specific defaults
+    #[cfg(unix)]
+    {
+        ShellType::Bash
+    }
+    #[cfg(windows)]
+    {
+        ShellType::PowerShell
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        ShellType::Bash
+    }
+}
+
+/// Get completion script install path for a shell type
+pub fn completion_script_install_path(shell: ShellType) -> Result<PathBuf> {
+    let home = dirs::home_dir()
+        .ok_or_else(|| PyxError::Config("Could not determine home directory".to_string()))?;
+
+    let path = match shell {
+        ShellType::Bash => home.join(".bash_completions").join("ply.bash"),
+        ShellType::Zsh => home.join(".zsh").join("completions").join("_ply"),
+        ShellType::Fish => home
+            .join(".config")
+            .join("fish")
+            .join("completions")
+            .join("ply.fish"),
+        ShellType::PowerShell => home.join("Documents").join("PowerShell").join("ply.ps1"),
+    };
+
+    Ok(path)
+}
+
+/// Install shell completion for pi using pyx
+pub fn install_completion() -> Result<()> {
+    let shell = detect_current_shell();
+
+    // Generate completion script using pyx
+    let output = Command::new("pyx")
+        .args(["completion", &shell.to_string()])
+        .output()
+        .map_err(|e| {
+            PyxError::CommandExecution(format!("Failed to generate completion script: {}", e))
+        })?;
+
+    if !output.status.success() {
+        return Err(PyxError::CommandExecution(format!(
+            "Failed to generate completion script: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+
+    // Get install path
+    let script_path = match completion_script_install_path(shell) {
+        Ok(path) => path,
+        Err(_) => {
+            println!("Completion installation not available for {} shell", shell);
+            return Ok(());
+        }
+    };
+
+    // Skip if already installed
+    if script_path.exists() {
+        return Ok(());
+    }
+
+    // Ensure directory exists
+    if let Some(parent) = script_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    // Write completion script
+    fs::write(&script_path, &output.stdout)?;
+
+    println!("✓ Completion script installed for {} shell", shell);
+    println!("  Script location: {}", script_path.display());
+
+    // Print activation instructions
+    match shell {
+        ShellType::Zsh => {
+            println!("  To enable completions, restart your shell or run:");
+            println!("    autoload -U compinit; compinit");
+        }
+        ShellType::Fish => {
+            println!("  To enable completions, restart your shell or run:");
+            println!("    source \"{}\"", script_path.display());
+        }
+        ShellType::PowerShell => {
+            println!("  To enable completions for every new session, add to your profile:");
+            println!(
+                "    Add-Content -Path $PROFILE -Value '. {}'",
+                script_path.display()
+            );
+        }
+        ShellType::Bash => {
+            println!("  Completions will be loaded automatically");
+        }
+    }
+
+    Ok(())
+}
+
+/// Platform info string (OS/ARCH)
+pub fn platform_info() -> String {
+    #[cfg(unix)]
+    {
+        format!("{}/{}", std::env::consts::OS, std::env::consts::ARCH)
+    }
+    #[cfg(windows)]
+    {
+        format!("{}/{}", std::env::consts::OS, std::env::consts::ARCH)
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        format!("{}/{}", std::env::consts::OS, std::env::consts::ARCH)
+    }
 }
 
 #[cfg(test)]

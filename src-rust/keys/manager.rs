@@ -6,9 +6,56 @@ use crate::keys::keyring;
 use crate::storage::paths::master_key_path;
 use secrecy::{ExposeSecret, SecretString};
 use std::fs;
+use std::sync::Mutex;
+use std::time::Instant;
 
 const LEGACY_PASSPHRASE: &str = "default";
 const ENV_PASSPHRASE: &str = "PLY_PASSPHRASE";
+const MAX_FAILED_ATTEMPTS: u32 = 5;
+const LOCKOUT_DURATION_SECS: u64 = 30;
+
+struct RateLimitState {
+    failed_attempts: u32,
+    last_failed_attempt: Option<Instant>,
+}
+
+static RATE_LIMIT: Mutex<RateLimitState> = Mutex::new(RateLimitState {
+    failed_attempts: 0,
+    last_failed_attempt: None,
+});
+
+fn check_rate_limit() -> Result<()> {
+    let mut state = RATE_LIMIT.lock().unwrap();
+    
+    if state.failed_attempts >= MAX_FAILED_ATTEMPTS {
+        if let Some(last) = state.last_failed_attempt {
+            let elapsed = last.elapsed().as_secs();
+            if elapsed < LOCKOUT_DURATION_SECS {
+                let remaining = LOCKOUT_DURATION_SECS - elapsed;
+                return Err(PyxError::Crypto(format!(
+                    "Too many failed attempts, please wait {} seconds before retrying",
+                    remaining
+                )));
+            }
+            state.failed_attempts = 0;
+            state.last_failed_attempt = None;
+        }
+    }
+    
+    Ok(())
+}
+
+fn record_failed_attempt() {
+    let mut state = RATE_LIMIT.lock().unwrap();
+    state.failed_attempts += 1;
+    state.last_failed_attempt = Some(Instant::now());
+}
+
+fn reset_failed_attempts() {
+    let mut state = RATE_LIMIT.lock().unwrap();
+    state.failed_attempts = 0;
+    state.last_failed_attempt = None;
+}
 
 /// Key manager - holds the decrypted master key
 pub struct KeyManager {
@@ -18,7 +65,11 @@ pub struct KeyManager {
 impl KeyManager {
     /// Load master key from encrypted file using passphrase resolution.
     /// Matches Go implementation: env var → keyring → legacy "default"
+    /// Includes rate limiting for failed decryption attempts.
     pub fn load() -> Result<Self> {
+        // Check rate limiting before attempting decryption
+        check_rate_limit()?;
+
         // Get passphrase (matches Go's getPassphrase priority)
         let primary_passphrase = keyring::get_passphrase()?
             .ok_or_else(|| PyxError::Keyring("No passphrase available".to_string()))?;
@@ -34,11 +85,16 @@ impl KeyManager {
         // Decrypt with fallback candidates (no interactive prompt - matches Go)
         let decrypted = decrypt_master_key_with_candidates(&encrypted_content, &passphrases)
             .map_err(|e| {
+                // Record failed attempt for rate limiting
+                record_failed_attempt();
                 PyxError::Crypto(format!(
                     "Failed to decrypt master key: {}. Run 'pyx setup' to reconfigure.",
                     e
                 ))
             })?;
+
+        // Reset failed attempts on success
+        reset_failed_attempts();
 
         // Convert to hex string for storage (avoiding binary data issues)
         let master_key_hex = hex::encode(&decrypted);
