@@ -15,15 +15,15 @@ date := `git log -1 --format=%aI 2>&1`
 
 # Build the application
 build:
-    @echo "Building {{app_name}}..."
+    @echo "Building {{ app_name }}..."
     cargo build
-    @echo "Built: target/debug/{{app_name}}"
+    @echo "Built: target/debug/{{ app_name }}"
 
 # Build for production (release mode)
 build-prod:
-    @echo "Building {{app_name}} (production)..."
+    @echo "Building {{ app_name }} (production)..."
     cargo build --release
-    @echo "Built: target/release/{{app_name}}"
+    @echo "Built: target/release/{{ app_name }}"
 
 # Run tests
 test:
@@ -38,7 +38,7 @@ test-v:
 # Run specific test
 test-run RUN:
     @echo "Running specific test..."
-    cargo test --lib -- {{RUN}}
+    cargo test --lib -- {{ RUN }}
 
 # Run integration tests
 test-integration:
@@ -65,7 +65,7 @@ clean:
 
 # Install binary
 install:
-    @echo "Installing {{app_name}}..."
+    @echo "Installing {{ app_name }}..."
     cargo install --path .
 
 # All checks before committing
@@ -76,19 +76,19 @@ check: fmt lint test-all
 [default]
 help:
     @echo "Available targets:"
-    @echo "  build           - Build the application (debug)"
-    @echo "  build-prod      - Build for production (release)"
-    @echo "  test            - Run unit tests"
-    @echo "  test-v          - Run tests with verbose output"
-    @echo "  test-run RUN    - Run specific test"
-    @echo "  test-integration - Run integration tests"
-    @echo "  test-all        - Run all tests (unit + integration)"
-    @echo "  fmt             - Format code"
-    @echo "  lint            - Lint code (clippy)"
-    @echo "  clean           - Clean build artifacts"
-    @echo "  install         - Install binary"
-    @echo "  check           - Run all checks (fmt, lint, test-all)"
-    @echo "  help            - Show this help message"
+    @echo "  build             - Build the application (debug)"
+    @echo "  build-prod        - Build for production (release)"
+    @echo "  test              - Run unit tests"
+    @echo "  test-v            - Run tests with verbose output"
+    @echo "  test-run RUN      - Run specific test"
+    @echo "  test-integration  - Run integration tests"
+    @echo "  test-all          - Run all tests (unit + integration)"
+    @echo "  fmt               - Format code"
+    @echo "  lint              - Lint code (clippy)"
+    @echo "  clean             - Clean build artifacts"
+    @echo "  install           - Install binary"
+    @echo "  check             - Run all checks (fmt, lint, test-all)"
+    @echo "  help              - Show this help message"
     @echo ""
     @echo "Examples:"
     @echo "  just build"
