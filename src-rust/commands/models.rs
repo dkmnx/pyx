@@ -8,7 +8,7 @@ use crate::storage::models_cache::ModelsCache;
 const DEFAULT_TTL_SECONDS: i64 = 24 * 60 * 60;
 
 /// Execute the models command
-pub fn execute(json: bool, refresh: bool) -> Result<()> {
+pub fn execute(json: bool, refresh: bool, provider: Option<&str>) -> Result<()> {
     // Try to load cached models
     let cache = match ModelsCache::load() {
         Ok(c) => c,
@@ -36,7 +36,7 @@ pub fn execute(json: bool, refresh: bool) -> Result<()> {
             Ok(new_cache) => {
                 new_cache.save()?;
                 println!("Models cache updated.");
-                return print_models(&new_cache, json);
+                return print_models(&new_cache, json, provider);
             }
             Err(e) => {
                 if refresh {
@@ -49,35 +49,75 @@ pub fn execute(json: bool, refresh: bool) -> Result<()> {
         }
     }
 
-    print_models(&cache, json)
+    print_models(&cache, json, provider)
 }
 
 /// Print models in text or JSON format
-fn print_models(cache: &ModelsCache, json: bool) -> Result<()> {
+fn print_models(cache: &ModelsCache, json: bool, provider_filter: Option<&str>) -> Result<()> {
+    // Validate provider filter if specified
+    if let Some(provider) = provider_filter {
+        if !cache.models.contains_key(provider) {
+            return Err(PyxError::Config(format!(
+                "Provider '{}' not found",
+                provider
+            )));
+        }
+    }
+
     if json {
+        let filtered_models: std::collections::HashMap<_, _> =
+            if let Some(provider) = provider_filter {
+                cache
+                    .models
+                    .iter()
+                    .filter(|(k, _)| *k == provider)
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect()
+            } else {
+                cache.models.clone()
+            };
+
         let output = serde_json::json!({
             "version": cache.version,
             "updated_at": cache.updated_at,
-            "models": cache.models,
+            "models": filtered_models,
         });
         println!("{}", output);
     } else {
-        println!("Models cache (version: {})", cache.version);
-        println!("Last updated: {}", cache.updated_at);
+        println!("Supported models:");
         println!();
 
         let mut providers: Vec<_> = cache.models.keys().collect();
         providers.sort();
 
-        for provider in providers {
-            let models = cache.models.get(provider).unwrap();
-            println!("{}:", provider);
-            for model in models {
-                println!("  - {}", model);
+        // Filter providers if specified
+        let providers: Vec<_> = if let Some(provider) = provider_filter {
+            providers.into_iter().filter(|p| *p == provider).collect()
+        } else {
+            providers
+        };
+
+        for provider in &providers {
+            let models = cache.models.get(*provider).unwrap();
+            if models.is_empty() {
+                continue;
             }
+            println!("  {} ({} models)", provider, models.len());
+            for model in models {
+                println!("    - {}", model);
+            }
+            println!();
         }
-        println!();
-        println!("Total: {} provider(s)", cache.models.len());
+
+        let total_models: usize = providers
+            .iter()
+            .map(|p| cache.models.get(*p).map(|m| m.len()).unwrap_or(0))
+            .sum();
+        println!(
+            "Total: {} providers, {} models",
+            providers.len(),
+            total_models
+        );
     }
 
     Ok(())

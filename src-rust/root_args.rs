@@ -15,7 +15,7 @@ const ROOT_SUBCOMMANDS: [&str; 10] = [
     "list",
     "delete",
     "models",
-    "pi-install",
+    "pi",
     "reset",
     "completion",
     "version",

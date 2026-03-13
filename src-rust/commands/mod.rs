@@ -4,6 +4,7 @@ pub mod completion;
 pub mod delete;
 pub mod list;
 pub mod models;
+pub mod pi;
 pub mod reset;
 pub mod root;
 pub mod setup;

@@ -29,14 +29,14 @@ type Database struct {
 }
 
 type ModelsCache struct {
-	Version   string            `json:"version"`
-	UpdatedAt time.Time         `json:"updated_at"`
+	Version   string              `json:"version"`
+	UpdatedAt time.Time           `json:"updated_at"`
 	Models    map[string][]string `json:"models"`
 }
 
 type Settings struct {
-	GitHubSource          *GitHubSource          `json:"github_source,omitempty"`
-	CustomProviderEnvVars map[string]string      `json:"customProviderEnvVars"`
+	GitHubSource          *GitHubSource     `json:"github_source,omitempty"`
+	CustomProviderEnvVars map[string]string `json:"customProviderEnvVars"`
 }
 
 type GitHubSource struct {
@@ -124,7 +124,7 @@ func generateFixtures(outputDir string) error {
 
 	// Generate models.json
 	models := ModelsCache{
-		Version: "v1.0.0",
+		Version:   "v1.0.0",
 		UpdatedAt: time.Now().UTC(),
 		Models: map[string][]string{
 			"openai": {
@@ -208,13 +208,13 @@ func encryptWithMasterKey(masterKey []byte, plaintext string) string {
 func verifyDecryption() {
 	passphrase := "test-passphrase"
 	testCiphertext := encryptWithPassphrase(passphrase, "test-plaintext")
-	
+
 	decrypted, err := crypto.Decrypt(passphrase, testCiphertext)
 	if err != nil {
 		panic(fmt.Sprintf("Decryption verification failed: %v", err))
 	}
 	defer decrypted.Zero()
-	
+
 	if string(decrypted) != "test-plaintext" {
 		panic("Decryption verification failed: plaintext mismatch")
 	}

@@ -43,13 +43,27 @@ pub enum Commands {
 
     /// Manage AI models
     Models {
+        /// Filter models by provider
+        #[arg(short = 'p', long = "provider")]
+        provider: Option<String>,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+
+        /// Force refresh from remote
+        #[arg(long)]
+        refresh: bool,
+
         #[command(subcommand)]
-        action: ModelsCommands,
+        action: Option<ModelsCommands>,
     },
 
-    /// Install pi if not already installed
-    #[command(name = "pi-install")]
-    PiInstall,
+    /// Manage pi installation
+    Pi {
+        #[command(subcommand)]
+        action: Option<PiCommands>,
+    },
 
     /// Reset pyx to initial state
     Reset,
@@ -76,15 +90,14 @@ pub enum Commands {
 pub enum ModelsCommands {
     /// Update models cache from remote
     Update,
+}
 
-    /// List available models
-    List {
-        /// Output as JSON
+#[derive(Subcommand)]
+pub enum PiCommands {
+    /// Install pi if not already installed
+    Install {
+        /// Auto-detect package manager without prompting
         #[arg(long)]
-        json: bool,
-
-        /// Force refresh from remote
-        #[arg(long)]
-        refresh: bool,
+        auto: bool,
     },
 }

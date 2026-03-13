@@ -34,35 +34,48 @@ pub fn spawn_pi(env_vars: &[(String, String)], args: &[String]) -> Result<i32> {
     Ok(status.code().unwrap_or(1))
 }
 
-/// Install pi if not already installed
-pub fn install_pi() -> Result<()> {
+/// Install pi if not already installed (auto-detect package manager)
+pub fn install_pi_auto() -> Result<()> {
+    install_pi_impl(None)
+}
+
+/// Install pi with package manager prompt
+pub fn install_pi_with_prompt() -> Result<()> {
+    // For now, auto-detect (prompt can be added later if needed)
+    install_pi_impl(None)
+}
+
+/// Install pi with optional specific package manager
+fn install_pi_impl(pm_override: Option<&str>) -> Result<()> {
     // Check if pi is already installed
     if find_pi().is_some() {
         println!("pi is already installed.");
+        if let Ok(version) = get_pi_version() {
+            println!("pi version: {}", version);
+        }
         return Ok(());
     }
 
-    // Detect package manager
-    let package_managers = ["npm", "pnpm", "yarn", "bun"];
-    let detected = package_managers.iter().find(|&pm| which::which(pm).is_ok());
-
-    let pm = detected.ok_or_else(|| {
-        PyxError::CommandExecution(
-            "No package manager found (npm, pnpm, yarn, bun). Please install one first."
-                .to_string(),
-        )
-    })?;
+    // Use specified package manager or detect
+    let pm = if let Some(pm) = pm_override {
+        pm.to_string()
+    } else {
+        detect_package_manager()?
+    };
 
     println!("Installing pi using {}...", pm);
 
     // Install pi globally
-    let status = Command::new(pm)
+    let status = Command::new(&pm)
         .args(["install", "-g", "@anthropics/pi"])
         .status()
         .map_err(|e| PyxError::CommandExecution(format!("Failed to run {}: {}", pm, e)))?;
 
     if status.success() {
-        println!("✓ pi installed successfully");
+        println!("✓ Installation complete");
+        if let Ok(version) = get_pi_version() {
+            println!("pi version: {}", version);
+        }
         Ok(())
     } else {
         Err(PyxError::CommandExecution(format!(
@@ -70,6 +83,23 @@ pub fn install_pi() -> Result<()> {
             status.code()
         )))
     }
+}
+
+fn detect_package_manager() -> Result<String> {
+    let package_managers = ["npm", "pnpm", "yarn", "bun"];
+    let detected = package_managers.iter().find(|&pm| which::which(pm).is_ok());
+
+    detected.map(|s| s.to_string()).ok_or_else(|| {
+        PyxError::CommandExecution(
+            "No package manager found (npm, pnpm, yarn, bun). Please install one first."
+                .to_string(),
+        )
+    })
+}
+
+/// Install pi if not already installed (legacy function for backward compatibility)
+pub fn install_pi() -> Result<()> {
+    install_pi_auto()
 }
 
 /// Check pi version
