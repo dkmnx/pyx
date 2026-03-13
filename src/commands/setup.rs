@@ -252,15 +252,3 @@ fn format_time_now() -> String {
     let secs = secs % 60;
     format!("{:02}:{:02}:{:02} UTC", hours, mins, secs)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    #[ignore = "Requires interactive input"]
-    fn test_prompt_for_passphrase() {
-        let result = prompt_new_passphrase();
-        assert!(result.is_ok());
-    }
-}

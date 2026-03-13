@@ -64,9 +64,7 @@ pub fn ensure_data_dir() -> Result<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Mutex;
-
-    static ENV_MUTEX: Mutex<()> = Mutex::new(());
+    use crate::ENV_MUTEX;
 
     #[test]
     fn test_get_data_dir_with_home() {

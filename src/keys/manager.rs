@@ -227,9 +227,8 @@ fn decrypt_master_key_with_candidates(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Mutex;
-
-    static ENV_MUTEX: Mutex<()> = Mutex::new(());
+    use crate::keys::keyring::{set_backend, reset_backend, MockKeyring};
+    use crate::ENV_MUTEX;
 
     #[test]
     fn test_decrypt_master_key_with_legacy_fallback() {
@@ -265,14 +264,38 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Requires keyring setup"]
-    fn test_generate_and_load() {
-        // This test requires keyring setup and should be run manually
+    fn test_generate_and_save_with_mock_keyring() {
+        use tempfile::tempdir;
+
+        let _guard = ENV_MUTEX.lock().unwrap();
+        let temp = tempdir().unwrap();
+        let _data_dir = temp.path().join("pyx");
+
+        // Set up test environment
+        set_backend(Box::new(MockKeyring::new()));
+        unsafe {
+            std::env::set_var("XDG_DATA_HOME", temp.path());
+        }
+
+        // Generate a new key manager
         let manager = KeyManager::generate().unwrap();
         let key_hex = manager.get_key_hex().to_string();
-
         assert_eq!(key_hex.len(), 64); // 32 bytes = 64 hex chars
 
-        // Save and reload would require keyring setup
+        // Set passphrase and save
+        let passphrase = SecretString::new("test-passphrase".to_string().into_boxed_str());
+        KeyManager::set_passphrase(&passphrase).unwrap();
+        manager.save().unwrap();
+
+        // Load the key back
+        let loaded = KeyManager::load().unwrap();
+        assert_eq!(loaded.get_key_hex(), key_hex);
+
+        // Cleanup
+        KeyManager::delete_master_key().unwrap();
+        unsafe {
+            std::env::remove_var("XDG_DATA_HOME");
+        }
+        reset_backend();
     }
 }

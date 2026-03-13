@@ -20,3 +20,7 @@ pub mod validation;
 pub use keys::manager::KeyManager;
 pub use storage::database::{Database, ProviderEntry};
 pub use storage::models_cache::ModelsCache;
+
+/// Global mutex for tests that modify environment variables
+#[cfg(test)]
+pub static ENV_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
