@@ -26,22 +26,22 @@ static RATE_LIMIT: Mutex<RateLimitState> = Mutex::new(RateLimitState {
 
 fn check_rate_limit() -> Result<()> {
     let mut state = RATE_LIMIT.lock().unwrap();
-    
-    if state.failed_attempts >= MAX_FAILED_ATTEMPTS {
-        if let Some(last) = state.last_failed_attempt {
-            let elapsed = last.elapsed().as_secs();
-            if elapsed < LOCKOUT_DURATION_SECS {
-                let remaining = LOCKOUT_DURATION_SECS - elapsed;
-                return Err(PyxError::Crypto(format!(
-                    "Too many failed attempts, please wait {} seconds before retrying",
-                    remaining
-                )));
-            }
-            state.failed_attempts = 0;
-            state.last_failed_attempt = None;
+
+    if state.failed_attempts >= MAX_FAILED_ATTEMPTS
+        && let Some(last) = state.last_failed_attempt
+    {
+        let elapsed = last.elapsed().as_secs();
+        if elapsed < LOCKOUT_DURATION_SECS {
+            let remaining = LOCKOUT_DURATION_SECS - elapsed;
+            return Err(PyxError::Crypto(format!(
+                "Too many failed attempts, please wait {} seconds before retrying",
+                remaining
+            )));
         }
+        state.failed_attempts = 0;
+        state.last_failed_attempt = None;
     }
-    
+
     Ok(())
 }
 

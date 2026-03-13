@@ -1,9 +1,7 @@
 //! Shared interactive prompt helpers.
 
 use crate::error::{PyxError, Result};
-use inquire::{
-    Autocomplete, Confirm, InquireError, Password, Text,
-};
+use inquire::{Autocomplete, Confirm, InquireError, Password, Text};
 
 pub struct SecretPromptOptions {
     pub prompt: String,
@@ -41,9 +39,7 @@ pub fn prompt_secret(options: SecretPromptOptions) -> Result<String> {
         password_prompt = password_prompt.without_confirmation();
     }
 
-    let value = password_prompt
-        .prompt()
-        .map_err(inquire_error_to_pyx)?;
+    let value = password_prompt.prompt().map_err(inquire_error_to_pyx)?;
 
     if !allow_empty && value.is_empty() {
         return Err(PyxError::Validation(empty_error));
@@ -74,7 +70,10 @@ impl ProviderCompletion {
 }
 
 impl Autocomplete for ProviderCompletion {
-    fn get_suggestions(&mut self, input: &str) -> std::result::Result<Vec<String>, Box<dyn std::error::Error + Send + Sync>> {
+    fn get_suggestions(
+        &mut self,
+        input: &str,
+    ) -> std::result::Result<Vec<String>, Box<dyn std::error::Error + Send + Sync>> {
         if input.is_empty() {
             return Ok(self.providers.clone());
         }
@@ -193,10 +192,7 @@ pub fn prompt_provider(providers: &[String]) -> Result<String> {
 
     if !prefix_matches.is_empty() {
         // Multiple prefix matches - pick shortest
-        return Ok(prefix_matches
-            .into_iter()
-            .min_by_key(|p| p.len())
-            .unwrap());
+        return Ok(prefix_matches.into_iter().min_by_key(|p| p.len()).unwrap());
     }
 
     // No prefix matches - pick shortest substring match

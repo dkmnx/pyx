@@ -55,13 +55,13 @@ pub fn execute(json: bool, refresh: bool, provider: Option<&str>) -> Result<()> 
 /// Print models in text or JSON format
 fn print_models(cache: &ModelsCache, json: bool, provider_filter: Option<&str>) -> Result<()> {
     // Validate provider filter if specified
-    if let Some(provider) = provider_filter {
-        if !cache.models.contains_key(provider) {
-            return Err(PyxError::Config(format!(
-                "Provider '{}' not found",
-                provider
-            )));
-        }
+    if let Some(provider) = provider_filter
+        && !cache.models.contains_key(provider)
+    {
+        return Err(PyxError::Config(format!(
+            "Provider '{}' not found",
+            provider
+        )));
     }
 
     if json {

@@ -65,5 +65,3 @@ fn root_forwards_pi_args_and_injects_provider_env() {
     let captured = fs::read_to_string(pi_output).unwrap();
     assert_eq!(captured.trim(), "sk-openai-integration|--model gpt-4");
 }
-
-

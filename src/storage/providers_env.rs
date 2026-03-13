@@ -34,7 +34,7 @@ pub struct ProviderEnvMapping {
 }
 
 /// Providers.json structure (schema format)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ProvidersEnvConfig {
     #[serde(rename = "schemaVersion", default)]
     pub schema_version: u32,
@@ -145,16 +145,6 @@ impl ProvidersEnvConfig {
         self.simple_map.insert(name, env_var);
 
         Ok(())
-    }
-}
-
-impl Default for ProvidersEnvConfig {
-    fn default() -> Self {
-        Self {
-            schema_version: 0,
-            providers: Vec::new(),
-            simple_map: HashMap::new(),
-        }
     }
 }
 

@@ -2,7 +2,7 @@
 
 use crate::error::Result;
 use clap::CommandFactory;
-use clap_complete::{generate, Shell};
+use clap_complete::{Shell, generate};
 use std::io;
 
 /// Generate shell completion script
