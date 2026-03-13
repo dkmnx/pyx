@@ -15,10 +15,6 @@ pub struct Cli {
     #[arg(short = 's', long = "session")]
     pub session: Option<String>,
 
-    /// Output format
-    #[arg(short, long, default_value = "text", value_parser = ["text", "json"])]
-    pub format: String,
-
     #[command(subcommand)]
     pub command: Option<Commands>,
 }
