@@ -4,7 +4,6 @@ use crate::error::{PyxError, Result};
 use secrecy::{ExposeSecret, SecretString};
 
 const SERVICE_NAME: &str = "pyx";
-const LEGACY_SERVICE_NAME: &str = "ply";
 const USER_NAME: &str = "master-key";
 const LEGACY_PASSPHRASE: &str = "default";
 const ENV_PASSPHRASE: &str = "PYX_PASSPHRASE";
@@ -16,25 +15,23 @@ fn env_passphrase() -> Option<SecretString> {
         .map(|v| SecretString::new(v.into_boxed_str()))
 }
 
-/// Get passphrase - matches Go implementation priority:
+/// Get passphrase - priority:
 /// 1. PYX_PASSPHRASE env var
-/// 2. OS Keyring (pyx service)
-/// 3. OS Keyring (legacy ply service - for migration)
-/// 4. Legacy "default" passphrase
+/// 2. OS Keyring
+/// 3. Legacy "default" passphrase
 pub fn get_passphrase() -> Result<Option<SecretString>> {
-    // 1. Try PYX_PASSPHRASE env var first (matches Go's getPassphrase)
+    // 1. Try PYX_PASSPHRASE env var
     if let Some(passphrase) = env_passphrase() {
         return Ok(Some(passphrase));
     }
 
-    // 2. Try to get from OS keyring (new pyx service)
+    // 2. Try OS keyring
     match keyring::Entry::new(SERVICE_NAME, USER_NAME) {
         Ok(entry) => match entry.get_password() {
-            Ok(password) => {
-                if !password.is_empty() {
-                    return Ok(Some(SecretString::new(password.into_boxed_str())));
-                }
+            Ok(password) if !password.is_empty() => {
+                return Ok(Some(SecretString::new(password.into_boxed_str())));
             }
+            Ok(_) => {}
             Err(keyring::Error::NoEntry) => {}
             Err(e) => {
                 return Err(PyxError::Keyring(format!(
@@ -51,40 +48,10 @@ pub fn get_passphrase() -> Result<Option<SecretString>> {
         }
     }
 
-    // 3. Try legacy ply keyring (for migration)
-    if let Some(passphrase) = get_legacy_passphrase()? {
-        // Migrate to new service
-        set_passphrase(&passphrase)?;
-        delete_legacy_passphrase()?;
-        return Ok(Some(passphrase));
-    }
-
-    // 4. Legacy fallback: "default" passphrase (matches Go's legacyPassphrase)
+    // 3. Legacy "default" passphrase
     Ok(Some(SecretString::new(
         LEGACY_PASSPHRASE.to_string().into_boxed_str(),
     )))
-}
-
-/// Get passphrase from legacy ply keyring service
-fn get_legacy_passphrase() -> Result<Option<SecretString>> {
-    match keyring::Entry::new(LEGACY_SERVICE_NAME, USER_NAME) {
-        Ok(entry) => match entry.get_password() {
-            Ok(password) if !password.is_empty() => {
-                return Ok(Some(SecretString::new(password.into_boxed_str())));
-            }
-            _ => {}
-        },
-        _ => {}
-    }
-    Ok(None)
-}
-
-/// Delete passphrase from legacy ply keyring service
-fn delete_legacy_passphrase() -> Result<()> {
-    if let Ok(entry) = keyring::Entry::new(LEGACY_SERVICE_NAME, USER_NAME) {
-        let _ = entry.delete_credential();
-    }
-    Ok(())
 }
 
 /// Store passphrase in OS keyring
@@ -104,7 +71,6 @@ pub fn clear_passphrase() -> Result<()> {
     let entry = keyring::Entry::new(SERVICE_NAME, USER_NAME)
         .map_err(|e| PyxError::Keyring(format!("Failed to create keyring entry: {}", e)))?;
 
-    // Delete by setting empty password (workaround for keyring crate)
     entry
         .set_password("")
         .map_err(|e| PyxError::Keyring(format!("Failed to clear password in keyring: {}", e)))?;
@@ -142,7 +108,6 @@ mod tests {
     #[test]
     #[ignore = "Requires actual keyring access"]
     fn test_keyring_roundtrip() {
-        // This test requires actual keyring access and should be run manually
         let passphrase = SecretString::new("test-passphrase".to_string().into_boxed_str());
 
         set_passphrase(&passphrase).unwrap();
