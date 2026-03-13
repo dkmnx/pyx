@@ -186,21 +186,10 @@ fn prompt_api_key(provider: &str) -> Result<String> {
     let api_key = prompt::prompt_secret(prompt::SecretPromptOptions {
         prompt: "API key".to_string(),
         helper: Some(format!("Enter API key for {} (input is hidden):", provider)),
-        confirmation: Some((
-            "Confirm API key".to_string(),
-            "API keys do not match".to_string(),
-        )),
+        confirmation: None,
         empty_error: "API key cannot be empty".to_string(),
         allow_empty: false,
     })?;
-
-    // Basic validation
-    if api_key.len() < 10 {
-        eprintln!(
-            "Warning: API key seems very short ({} characters)",
-            api_key.len()
-        );
-    }
 
     Ok(api_key)
 }
