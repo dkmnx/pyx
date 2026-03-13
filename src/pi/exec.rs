@@ -194,14 +194,14 @@ pub fn completion_script_install_path(shell: ShellType) -> Result<PathBuf> {
         .ok_or_else(|| PyxError::Config("Could not determine home directory".to_string()))?;
 
     let path = match shell {
-        ShellType::Bash => home.join(".bash_completions").join("ply.bash"),
-        ShellType::Zsh => home.join(".zsh").join("completions").join("_ply"),
+        ShellType::Bash => home.join(".bash_completions").join("pyx.bash"),
+        ShellType::Zsh => home.join(".zsh").join("completions").join("_pyx"),
         ShellType::Fish => home
             .join(".config")
             .join("fish")
             .join("completions")
-            .join("ply.fish"),
-        ShellType::PowerShell => home.join("Documents").join("PowerShell").join("ply.ps1"),
+            .join("pyx.fish"),
+        ShellType::PowerShell => home.join("Documents").join("PowerShell").join("pyx.ps1"),
     };
 
     Ok(path)

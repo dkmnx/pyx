@@ -4,15 +4,15 @@ version = "0.1.0"
 edition = "2024"
 
 [lib]
-path = "src-rust/lib.rs"
+path = "src/lib.rs"
 
 [[bin]]
 name = "pyx"
-path = "src-rust/main.rs"
+path = "src/main.rs"
 
 [[bin]]
 name = "crypto-spike"
-path = "src-rust/bin/crypto-spike.rs"
+path = "src/bin/crypto-spike.rs"
 
 [dependencies]
 # CLI parsing

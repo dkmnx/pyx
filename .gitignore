@@ -6,7 +6,6 @@
 *.dylib
 /bin/
 /dist/
-ply*
 
 # Test binary, built with `go test -c`
 *.test
@@ -62,7 +61,5 @@ temp/
 # Editor
 .zed/
 
-
-# Added by cargo
-
+# Rust
 /target

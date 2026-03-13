@@ -160,8 +160,8 @@ fn get_provider_list() -> Result<Vec<String>> {
 
     // Add custom providers from providers.json
     if let Ok(Some(config)) = ProvidersEnvConfig::load() {
-        for mapping in config.providers {
-            providers.insert(mapping.name);
+        for name in config.provider_names() {
+            providers.insert(name.to_string());
         }
     }
 

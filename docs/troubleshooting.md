@@ -1,219 +1,72 @@
 # Troubleshooting
 
-Common issues and their solutions.
-
 ## Installation
 
-### "command not found: ply"
+### "pyx: command not found"
 
-Ensure ply is in your PATH:
+Ensure pyx is in PATH:
 
 ```bash
-# Add to PATH (add to ~/.bashrc or ~/.zshrc)
-export PATH="$HOME/go/bin:$PATH"
-
-# Verify installation
-which ply
-ply version
+which pyx
+# Should show: /home/user/.cargo/bin/pyx
 ```
 
-### Permission Denied
-
-If you get permission errors during installation:
+Add Cargo bin to PATH:
 
 ```bash
-# Install to user-local bin
-mkdir -p ~/bin
-export PATH="$HOME/bin:$PATH"
-go install github.com/dkmnx/ply/cmd/ply@latest
+export PATH="$HOME/.cargo/bin:$PATH"
+```
+
+### Build fails on Linux
+
+Install libsecret for keyring support:
+
+```bash
+# Debian/Ubuntu
+sudo apt install libsecret-1-dev
+
+# Arch
+sudo pacman -S libsecret
 ```
 
 ## Configuration
 
-### "No providers configured"
+### "Pyx not initialized"
 
-Run `ply setup` to initialize configuration and add a provider:
-
-```bash
-ply setup
-```
-
-### "Error loading master key"
-
-The encryption key is missing or corrupted:
+Run setup:
 
 ```bash
-# This will regenerate the key but existing credentials will be lost
-ply setup
+pyx setup
 ```
 
-### "Error decrypting API key"
+### "No passphrase available"
 
-The master key and database are out of sync. This happens if:
+Check OS keyring or set env var:
 
-- The database was copied from another machine
-- The master key was regenerated
-- Files were manually modified
-
-**Recovery is not possible** - the encrypted data is permanently lost.
-
-## Provider Issues
+```bash
+export PYX_PASSPHRASE="your-passphrase"
+```
 
 ### "Provider not found"
 
-The specified provider label or ID doesn't exist:
+List configured providers:
 
 ```bash
-# List all providers
-ply config list
-```
-
-### "Unsupported provider"
-
-The provider name is not recognized:
-
-```bash
-# Check supported providers during setup
-ply setup
-> Select a provider:
->   1. anthropic
->   2. openai
->   ...
-```
-
-### "API key cannot be empty"
-
-The API key prompt requires input. Enter your actual API key.
-
-### Invalid API key format
-
-Some providers require specific key formats:
-
-- **Anthropic**: Starts with `sk-ant-...`
-- **OpenAI**: Starts with `sk-...`
-- **Google**: API key format varies by service
-
-## Shell Completion
-
-### Completion not working in Bash
-
-```bash
-# Verify completion is loaded
-type _ply_completion
-
-# Re-source completion
-source <(ply completion bash)
-```
-
-### Completion not working in Zsh
-
-```bash
-# Ensure compinit is loaded
-autoload -U compinit
-compinit
-
-# Verify completion file exists
-ls ${fpath[1]}
-```
-
-### Completion not working in Fish
-
-```bash
-# Verify completion directory exists
-ls ~/.config/fish/completions/
-
-# Re-source completions
-ply completion fish | source
-```
-
-## pi Integration
-
-### "Error running pi"
-
-Ensure pi is installed and in PATH:
-
-```bash
-which pi
-pi --help
+pyx list
 ```
 
 ## File Permissions
 
-### Permission issues on Linux
+Fix data directory permissions:
 
 ```bash
-# Fix ply data directory permissions
-chmod 700 ~/.local/share/ply
-chmod 600 ~/.local/share/ply/*
+chmod 700 ~/.local/share/pyx
+chmod 600 ~/.local/share/pyx/*
 ```
 
-### Permission issues on macOS
+## Reset Everything
 
 ```bash
-# Check and fix permissions
-ls -la ~/.local/share/ply/
-chmod 600 ~/.local/share/ply/*
+pyx reset
+pyx setup
 ```
-
-## Debug Mode
-
-Enable verbose output by checking command execution:
-
-```bash
-# Enable shell tracing
-set -x
-ply
-set +x
-```
-
-## Log Files
-
-Ply doesn't create log files by default. For debugging:
-
-```bash
-# Check ply version
-ply version
-
-# Check installed location
-which ply
-
-# Verify database contents (decrypted)
-# Not possible - data is encrypted
-```
-
-## Environment Variables
-
-### Check set variables
-
-```bash
-# After running ply, check current env
-env | grep -E 'ANTHROPIC|OPENAI|GEMINI|GROQ'
-```
-
-### Variables overwritten
-
-Other processes may set the same variables:
-
-```bash
-# Use -- to ensure ply sets variables last
-ply -- pi --help
-```
-
-## Resetting Everything
-
-To reset ply configuration (destroys all stored credentials):
-
-```bash
-# Backup if needed
-cp ~/.local/share/ply/database.json ~/ply-backup.json
-
-# Reset
-rm -rf ~/.local/share/ply
-ply setup
-```
-
-## Getting Help
-
-- Check this guide for your issue
-- Review command help: `ply --help`
-- Review subcommand help: `ply config --help`

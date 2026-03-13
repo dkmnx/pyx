@@ -1,237 +1,96 @@
-# Cross-platform justfile for ply
+# Cross-platform justfile for pyx
 # Works on Windows, macOS, and Linux
 
 # Set shell for Windows (PowerShell) only
 set windows-shell := ["pwsh", "-NoProfile", "-Command"]
 
 # Variables
-app_name := "ply"
-cmd_dir := "./cmd/ply"
-build_dir := "./bin"
-main_cmd := "cmd/ply/main.go"
-gopath := `go env GOPATH`
+app_name := "pyx"
+build_dir := "./target/release"
 
 # Version info - cross-platform
-# These commands work in both bash and PowerShell (git is an external command)
 version := `git describe --tags --always 2>&1`
 commit := `git rev-parse --short HEAD 2>&1`
-# Use git log for date in ISO 8601 format - works consistently across all platforms
 date := `git log -1 --format=%aI 2>&1`
 
-# Single ldflags used by all platforms
-ldflags := "-X github.com/dkmnx/ply/internal/cmd.version=" + version + " -X github.com/dkmnx/ply/internal/cmd.commit=" + commit + " -X github.com/dkmnx/ply/internal/cmd.date=" + date
-
 # Build the application
-[linux]
-[macos]
 build:
     @echo "Building {{app_name}}..."
-    @mkdir -p {{build_dir}}
-    @go build -ldflags "{{ldflags}}" -o {{build_dir}}/{{app_name}} {{main_cmd}}
-    @echo "Built: {{build_dir}}/{{app_name}}"
+    cargo build
+    @echo "Built: target/debug/{{app_name}}"
 
-[windows]
-build:
-    @echo "Building {{app_name}}..."
-    @if (!(Test-Path {{build_dir}})) { New-Item -ItemType Directory -Path {{build_dir}} | Out-Null }
-    @go build -ldflags "{{ldflags}}" -o {{build_dir}}/{{app_name}}.exe {{main_cmd}}
-    @echo "Built: {{build_dir}}/{{app_name}}.exe"
-
-# Build for production (stripped binary)
-[linux]
-[macos]
+# Build for production (release mode)
 build-prod:
     @echo "Building {{app_name}} (production)..."
-    @mkdir -p {{build_dir}}
-    @go build -ldflags "-s -w {{ldflags}}" -o {{build_dir}}/{{app_name}} {{main_cmd}}
-    @echo "Built: {{build_dir}}/{{app_name}}"
-
-[windows]
-build-prod:
-    @echo "Building {{app_name}} (production)..."
-    @if (!(Test-Path {{build_dir}})) { New-Item -ItemType Directory -Path {{build_dir}} | Out-Null }
-    @go build -ldflags "-s -w {{ldflags}}" -o {{build_dir}}/{{app_name}}.exe {{main_cmd}}
-    @echo "Built: {{build_dir}}/{{app_name}}.exe"
+    cargo build --release
+    @echo "Built: target/release/{{app_name}}"
 
 # Run tests
 test:
     @echo "Running tests..."
-    @go test ./... -race -cover
+    cargo test --lib
 
 # Run tests with verbose output
 test-v:
     @echo "Running tests (verbose)..."
-    @go test ./... -race -cover -v
+    cargo test --lib -- --nocapture
 
 # Run specific test
 test-run RUN:
     @echo "Running specific test..."
-    @go test ./... -race -cover -v -run {{RUN}}
+    cargo test --lib -- {{RUN}}
 
-# Run linter
-lint:
-    @echo "Running linters..."
-    @golangci-lint run --timeout 5m
+# Run integration tests
+test-integration:
+    @echo "Running integration tests..."
+    cargo test --test root_parity
+
+# Run all tests (lib + integration)
+test-all: test test-integration
 
 # Format code
 fmt:
     @echo "Formatting code..."
-    @go fmt ./...
-
-# Run go vet
-vet:
-    @echo "Running go vet..."
-    @go vet ./...
-
-# Clean build artifacts
-[linux]
-[macos]
-clean:
-    @echo "Cleaning..."
-    @rm -rf {{build_dir}}
-    @go clean
-
-[windows]
-clean:
-    @echo "Cleaning..."
-    @go clean
-    @if exist {{build_dir}} rmdir /s /q {{build_dir}}
-
-# Install locally
-[linux]
-[macos]
-install:
-    @echo "Installing {{app_name}}..."
-    @go build -ldflags "{{ldflags}}" -o {{gopath}}/bin/{{app_name}} {{main_cmd}}
-    @echo "Installed to {{gopath}}/bin/{{app_name}}"
-
-[windows]
-install:
-    @echo "Installing {{app_name}}..."
-    @go build -ldflags "{{ldflags}}" -o {{gopath}}/bin/{{app_name}}.exe {{main_cmd}}
-    @echo "Installed to {{gopath}}/bin/{{app_name}}.exe"
-
-# Run the application
-[linux]
-[macos]
-run ARGS="":
-    @echo "Running {{app_name}}..."
-    @go run -ldflags "{{ldflags}}" {{main_cmd}} {{ARGS}}
-
-[windows]
-run ARGS="":
-    @echo "Running {{app_name}}..."
-    @go run -ldflags "{{ldflags}}" {{main_cmd}} {{ARGS}}
-
-# All checks before committing
-check: fmt vet lint test
-    @echo "All checks passed!"
-
-# Run go mod tidy
-mod-tidy:
-    @echo "Running go mod tidy..."
-    @go mod tidy
-
-# Install required dependencies (modules and tools)
-deps:
-    @echo "Installing dependencies..."
-    @go mod download
-    @echo "Installing development tools..."
-    @go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-    @go install github.com/securego/gosec/v2/cmd/gosec@latest
-    @go install golang.org/x/vuln/cmd/govulncheck@latest
-    @echo "Dependencies installed successfully!"
-
-# Check for outdated dependencies
-deps-outdated:
-    @echo "Checking for outdated dependencies..."
-    @go list -u -m all
-
-# Run security checks
-security:
-    @echo "Running security checks..."
-    @echo "Running gosec..."
-    @gosec ./...
-    @echo "Running govulncheck..."
-    @govulncheck ./...
-
-# Show help
-help:
-    @echo "Available targets:"
-    @echo "  build          - Build the application"
-    @echo "  build-prod     - Build for production (stripped binary)"
-    @echo "  test           - Run all tests"
-    @echo "  test-v         - Run all tests with verbose output"
-    @echo "  test-run RUN   - Run specific test"
-    @echo "  lint           - Run linters"
-    @echo "  fmt            - Format code"
-    @echo "  vet            - Run go vet"
-    @echo "  clean          - Clean build artifacts"
-    @echo "  install        - Install locally"
-    @echo "  run ARGS       - Run the application"
-    @echo "  check          - Run all checks (fmt, vet, lint, test)"
-    @echo "  mod-tidy       - Run go mod tidy"
-    @echo "  deps           - Install dependencies (modules and tools)"
-    @echo "  deps-outdated  - Check for outdated dependencies"
-    @echo "  security       - Run security checks (gosec, govulncheck)"
-    @echo "  help           - Show this help message"
-    @echo ""
-    @echo "Examples:"
-    @echo "  just test"
-    @echo "  just test-run TestProviderEnvVar"
-    @echo "  just run --help"
-
-# =============================================================================
-# Rust (pyx) commands
-# =============================================================================
-
-# Build Rust implementation
-build-rust:
-    @echo "Building pyx (Rust)..."
-    cargo build
-
-# Build Rust for production
-build-rust-prod:
-    @echo "Building pyx (Rust, production)..."
-    cargo build --release
-
-# Run Rust tests
-test-rust:
-    @echo "Running pyx tests..."
-    cargo test --lib
-
-# Run Rust integration tests
-test-rust-integration:
-    @echo "Running pyx integration tests..."
-    cargo test --test root_parity
-
-# Run all Rust tests (lib + integration)
-test-rust-all: test-rust test-rust-integration
-
-# Run compatibility tests (requires Go fixtures)
-test-compat:
-    @echo "Running compatibility tests..."
-    cargo test --test root_parity
-
-# Format Rust code
-fmt-rust:
-    @echo "Formatting pyx code..."
     cargo fmt
 
-# Lint Rust code
-lint-rust:
-    @echo "Linting pyx code..."
+# Lint code
+lint:
+    @echo "Linting code..."
     cargo clippy -- -D warnings
 
-# Clean Rust build artifacts
-clean-rust:
-    @echo "Cleaning pyx..."
+# Clean build artifacts
+clean:
+    @echo "Cleaning..."
     cargo clean
 
-# Install Rust binary
-install-rust:
-    @echo "Installing pyx..."
+# Install binary
+install:
+    @echo "Installing {{app_name}}..."
     cargo install --path .
 
-# All Rust checks
-check-rust: fmt-rust lint-rust test-rust-all
+# All checks before committing
+check: fmt lint test-all
+    @echo "All checks passed!"
+
+# Show help
+[default]
+help:
+    @echo "Available targets:"
+    @echo "  build           - Build the application (debug)"
+    @echo "  build-prod      - Build for production (release)"
+    @echo "  test            - Run unit tests"
+    @echo "  test-v          - Run tests with verbose output"
+    @echo "  test-run RUN    - Run specific test"
+    @echo "  test-integration - Run integration tests"
+    @echo "  test-all        - Run all tests (unit + integration)"
+    @echo "  fmt             - Format code"
+    @echo "  lint            - Lint code (clippy)"
+    @echo "  clean           - Clean build artifacts"
+    @echo "  install         - Install binary"
+    @echo "  check           - Run all checks (fmt, lint, test-all)"
+    @echo "  help            - Show this help message"
+    @echo ""
+    @echo "Examples:"
+    @echo "  just build"
+    @echo "  just test"
+    @echo "  just test-run test_get_env_var"

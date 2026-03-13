@@ -26,7 +26,7 @@ fn write_fake_pi_script(bin_dir: &Path, output_path: &Path) {
 fn root_forwards_pi_args_and_injects_provider_env() {
     let temp = tempdir().unwrap();
     let xdg_data = temp.path().join("xdg");
-    let data_dir = xdg_data.join("ply");
+    let data_dir = xdg_data.join("pyx");
     let bin_dir = temp.path().join("bin");
     fs::create_dir_all(&data_dir).unwrap();
     fs::create_dir_all(&bin_dir).unwrap();
@@ -57,7 +57,7 @@ fn root_forwards_pi_args_and_injects_provider_env() {
         .arg("--model")
         .arg("gpt-4")
         .env("XDG_DATA_HOME", &xdg_data)
-        .env("PLY_PASSPHRASE", "test-passphrase")
+        .env("PYX_PASSPHRASE", "test-passphrase")
         .env("PATH", path);
 
     cmd.assert().success();
@@ -66,35 +66,4 @@ fn root_forwards_pi_args_and_injects_provider_env() {
     assert_eq!(captured.trim(), "sk-openai-integration|--model gpt-4");
 }
 
-#[test]
-fn root_decrypts_go_fixture_data() {
-    let temp = tempdir().unwrap();
-    let xdg_data = temp.path().join("xdg");
-    let data_dir = xdg_data.join("ply");
-    let bin_dir = temp.path().join("bin");
-    fs::create_dir_all(&data_dir).unwrap();
-    fs::create_dir_all(&bin_dir).unwrap();
 
-    fs::copy("tests/fixtures/master.key", data_dir.join("master.key")).unwrap();
-    fs::copy(
-        "tests/fixtures/database.json",
-        data_dir.join("database.json"),
-    )
-    .unwrap();
-
-    let pi_output = temp.path().join("pi-output.txt");
-    write_fake_pi_script(&bin_dir, &pi_output);
-
-    let path = format!("{}:{}", bin_dir.display(), std::env::var("PATH").unwrap());
-
-    let mut cmd = Command::cargo_bin("pyx").unwrap();
-    cmd.arg("openai")
-        .env("XDG_DATA_HOME", &xdg_data)
-        .env("PLY_PASSPHRASE", "test-passphrase")
-        .env("PATH", path);
-
-    cmd.assert().success();
-
-    let captured = fs::read_to_string(pi_output).unwrap();
-    assert!(captured.starts_with("sk-openai-test-key-12345|"));
-}

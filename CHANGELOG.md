@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
+
 - Provider name validation against pi's actual model list when using commands
 - Validation for `ply <provider>` to prevent invalid or typoed provider names
 - Validation for `ply config edit <provider>` to ensure provider names are valid
@@ -42,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Atomic save operations
 
 ### Changed
+
 - Improved error message for unknown providers to guide users to run `ply models update`
 - Provider validation now checks format (alphanumeric, hyphens, underscores) and rejects path traversal attempts
 - Refactored runSetup() in setup.go for better separation of concerns
@@ -122,10 +124,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Extracted label/ID lookup to GetEntryByLabelOrID helper
 
 ### Deprecated
+
 - Removed 'ply config' command hierarchy (replaced with 'ply delete')
 - Removed 'ply config list' command (replaced with 'ply list')
 
 ### Removed
+
 - Removed init command entirely
 - Removed automatic model filtering feature
 - Removed embedded models JSON file
@@ -136,6 +140,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed prompt label functionality
 
 ### Fixed
+
 - Minimized master key exposure by using byte-based encryption
 - Addressed immediate security issues from code review
 - Added input validation to EncodeCwd and DecodeCwd
@@ -165,6 +170,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed stuttering types and function names
 
 ### Security
+
 - Provider name validation prevents path traversal attacks by rejecting names containing `..` or path separators
 - Minimized master key exposure through byte-based encryption
 - Zeroed API key after encryption in storeProviderEntry

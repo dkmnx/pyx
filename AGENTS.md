@@ -2,21 +2,21 @@
 
 ## What
 
-Go CLI tool for securely managing AI provider API keys for the pi coding agent.
+Rust CLI tool for securely managing AI provider API keys for the pi coding agent.
 
-**Tech Stack**: Go 1.24+, Cobra, tap (interactive prompts), AES-256-GCM encryption
+**Tech Stack**: Rust 1.75+, clap, inquire (interactive prompts), age encryption
 
 **Key Directories**:
 
-- `cmd/ply/main.go` - Application entry point
-- `internal/cmd/` - CLI command implementations
-- `internal/crypto/` - Encryption (AES-256-GCM)
-- `internal/database/` - Encrypted credential storage
-- `internal/keys/` - Master key management (OS keyring)
-- `internal/prompt/` - Interactive prompts (tap library)
+- `src/main.rs` - Application entry point
+- `src/commands/` - CLI command implementations
+- `src/crypto/` - Encryption (age)
+- `src/storage/` - Encrypted credential storage
+- `src/keys/` - Master key management (OS keyring)
+- `src/prompt.rs` - Interactive prompts
 - `docs/` - Architecture, contributing, usage
 
-**Data**: `~/.local/share/ply/` (master.key, database.json - 0600 permissions)
+**Data**: `~/.local/share/pyx/` (master.key, database.json - 0600 permissions)
 
 ## Why
 
@@ -26,27 +26,27 @@ integration with pi by setting appropriate environment variables.
 ## How
 
 **Build/Install**:
-- `just build` - Build to `bin/ply`
-- `just build-prod` - Production build (stripped binary)
-- `just install` - Install to `$GOPATH/bin/ply`
-- `just run ARGS` - Run directly
+
+- `just build` - Build (debug)
+- `just build-prod` - Production build (release mode)
+- `just install` - Install to `$HOME/.cargo/bin/pyx`
 
 **Test**:
-- `just test` - Run all tests with race detection
-- `just test-v` - Verbose test output
-- `just test-run RUN=TestName` - Specific test
+
+- `just test` - Run unit tests
+- `just test-integration` - Run integration tests
+- `just test-all` - Run all tests
+- `just test-run TestName` - Specific test
 
 **Lint/Format**:
-- `just fmt` - Format code
-- `just vet` - Run go vet
-- `just lint` - Run golangci-lint
-- `just check` - All checks (fmt, vet, lint, test)
 
-**Security/Maintenance**:
-- `just security` - Run gosec and govulncheck
-- `just mod-tidy` - Tidy go modules
+- `just fmt` - Format code
+- `just lint` - Run clippy
+- `just check` - All checks (fmt, lint, test-all)
+
+**Maintenance**:
+
 - `just clean` - Remove build artifacts
-- `just deps` - Install dependencies
 
 ## Docs
 
