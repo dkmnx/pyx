@@ -1,15 +1,21 @@
 //! Provider environment variable configuration
 //!
-//! This module handles the new providers.json file for extension-backed providers.
-//! Schema version 1 format:
+//! Supports two formats:
+//!
+//! 1. Simple format (recommended):
+//! ```json
+//! {
+//!   "qwen-cli": "QWEN_CLI_API_KEY",
+//!   "my-provider": "MY_PROVIDER_API_KEY"
+//! }
+//! ```
+//!
+//! 2. Schema format:
 //! ```json
 //! {
 //!   "schemaVersion": 1,
 //!   "providers": [
-//!     {
-//!       "name": "qwen-cli",
-//!       "envVar": "QWEN_CLI_API_KEY"
-//!     }
+//!     { "name": "qwen-cli", "envVar": "QWEN_CLI_API_KEY" }
 //!   ]
 //! }
 //! ```
@@ -18,6 +24,7 @@ use crate::error::{PyxError, Result};
 use crate::providers::validation::{validate_env_var, validate_provider_name};
 use crate::storage::paths::providers_env_path;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Provider environment variable mapping
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -26,12 +33,16 @@ pub struct ProviderEnvMapping {
     pub env_var: String,
 }
 
-/// Providers.json structure
+/// Providers.json structure (schema format)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProvidersEnvConfig {
-    #[serde(rename = "schemaVersion")]
+    #[serde(rename = "schemaVersion", default)]
     pub schema_version: u32,
+    #[serde(default)]
     pub providers: Vec<ProviderEnvMapping>,
+    /// Internal map for simple format
+    #[serde(flatten, default)]
+    simple_map: HashMap<String, String>,
 }
 
 impl ProvidersEnvConfig {
@@ -44,10 +55,25 @@ impl ProvidersEnvConfig {
         }
 
         let content = std::fs::read_to_string(&path)?;
+
+        // Try to parse as simple format first
+        let simple: std::result::Result<HashMap<String, String>, _> =
+            serde_json::from_str(&content);
+        if let Ok(map) = simple {
+            let mut config = Self::default();
+            for (name, env_var) in map {
+                validate_provider_name(&name)?;
+                validate_env_var(&env_var)?;
+                config.simple_map.insert(name, env_var);
+            }
+            return Ok(Some(config));
+        }
+
+        // Try schema format
         let config: Self = serde_json::from_str(&content)?;
 
         // Validate schema version
-        if config.schema_version != 1 {
+        if config.schema_version > 0 && config.schema_version != 1 {
             return Err(PyxError::Validation(format!(
                 "Unsupported providers.json schema version: {}",
                 config.schema_version
@@ -63,19 +89,17 @@ impl ProvidersEnvConfig {
         Ok(Some(config))
     }
 
-    /// Save providers.json to disk
+    /// Save providers.json to disk (uses simple format)
     pub fn save(&self) -> Result<()> {
         let path = providers_env_path()?;
 
-        // Ensure parent directory exists
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
 
-        let content = serde_json::to_string_pretty(self)?;
+        let content = serde_json::to_string_pretty(&self.simple_map)?;
         std::fs::write(&path, content)?;
 
-        // Set file permissions (Unix only)
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -87,10 +111,26 @@ impl ProvidersEnvConfig {
 
     /// Find environment variable for a provider name
     pub fn get_env_var(&self, provider_name: &str) -> Option<&str> {
+        // Check simple map first
+        if let Some(env_var) = self.simple_map.get(provider_name) {
+            return Some(env_var);
+        }
+        // Then check providers array
         self.providers
             .iter()
             .find(|p| p.name == provider_name)
             .map(|p| p.env_var.as_str())
+    }
+
+    /// Get all provider names
+    pub fn provider_names(&self) -> Vec<&str> {
+        let mut names: Vec<&str> = self.simple_map.keys().map(|s| s.as_str()).collect();
+        for p in &self.providers {
+            if !names.contains(&p.name.as_str()) {
+                names.push(&p.name);
+            }
+        }
+        names
     }
 
     /// Add or update a provider mapping
@@ -98,11 +138,11 @@ impl ProvidersEnvConfig {
         validate_provider_name(&name)?;
         validate_env_var(&env_var)?;
 
-        // Remove existing entry
+        // Remove from providers array
         self.providers.retain(|p| p.name != name);
 
-        // Add new entry
-        self.providers.push(ProviderEnvMapping { name, env_var });
+        // Add to simple map
+        self.simple_map.insert(name, env_var);
 
         Ok(())
     }
@@ -111,8 +151,9 @@ impl ProvidersEnvConfig {
 impl Default for ProvidersEnvConfig {
     fn default() -> Self {
         Self {
-            schema_version: 1,
+            schema_version: 0,
             providers: Vec::new(),
+            simple_map: HashMap::new(),
         }
     }
 }
@@ -129,6 +170,7 @@ mod tests {
                 name: "qwen-cli".to_string(),
                 env_var: "QWEN_CLI_API_KEY".to_string(),
             }],
+            simple_map: HashMap::new(),
         };
 
         assert!(config.providers.iter().all(|p| {
@@ -138,15 +180,25 @@ mod tests {
 
     #[test]
     fn test_get_env_var() {
-        let config = ProvidersEnvConfig {
-            schema_version: 1,
-            providers: vec![ProviderEnvMapping {
-                name: "openai".to_string(),
-                env_var: "OPENAI_API_KEY".to_string(),
-            }],
-        };
+        let mut config = ProvidersEnvConfig::default();
+        config
+            .simple_map
+            .insert("openai".to_string(), "OPENAI_API_KEY".to_string());
 
         assert_eq!(config.get_env_var("openai"), Some("OPENAI_API_KEY"));
         assert_eq!(config.get_env_var("anthropic"), None);
+    }
+
+    #[test]
+    fn test_simple_format() {
+        let mut config = ProvidersEnvConfig::default();
+        config
+            .simple_map
+            .insert("my-provider".to_string(), "MY_PROVIDER_API_KEY".to_string());
+
+        assert_eq!(
+            config.get_env_var("my-provider"),
+            Some("MY_PROVIDER_API_KEY")
+        );
     }
 }

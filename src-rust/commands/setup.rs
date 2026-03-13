@@ -9,6 +9,8 @@ use crate::prompt;
 use crate::storage::database::{Database, ProviderEntry};
 use crate::storage::models_cache::ModelsCache;
 use crate::storage::paths::ensure_data_dir;
+use crate::storage::providers_env::ProvidersEnvConfig;
+use std::collections::HashSet;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 /// Execute the setup command
@@ -145,12 +147,27 @@ fn fetch_providers() -> Result<()> {
     Ok(())
 }
 
-/// Get provider list from cache.
+/// Get provider list from cache + custom providers from providers.json.
 fn get_provider_list() -> Result<Vec<String>> {
-    let cache = ModelsCache::load()?;
-    let mut providers: Vec<String> = cache.models.keys().cloned().collect();
-    providers.sort();
-    Ok(providers)
+    let mut providers: HashSet<String> = HashSet::new();
+
+    // Add providers from models cache
+    if let Ok(cache) = ModelsCache::load() {
+        for provider in cache.models.keys() {
+            providers.insert(provider.clone());
+        }
+    }
+
+    // Add custom providers from providers.json
+    if let Ok(Some(config)) = ProvidersEnvConfig::load() {
+        for mapping in config.providers {
+            providers.insert(mapping.name);
+        }
+    }
+
+    let mut list: Vec<String> = providers.into_iter().collect();
+    list.sort();
+    Ok(list)
 }
 
 /// Prompt for provider selection, handling override confirmation.
