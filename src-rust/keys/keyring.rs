@@ -4,6 +4,7 @@ use crate::error::{PyxError, Result};
 use secrecy::{ExposeSecret, SecretString};
 
 const SERVICE_NAME: &str = "pyx";
+const LEGACY_SERVICE_NAME: &str = "ply";
 const USER_NAME: &str = "master-key";
 const LEGACY_PASSPHRASE: &str = "default";
 const ENV_PASSPHRASE: &str = "PYX_PASSPHRASE";
@@ -17,15 +18,16 @@ fn env_passphrase() -> Option<SecretString> {
 
 /// Get passphrase - matches Go implementation priority:
 /// 1. PYX_PASSPHRASE env var
-/// 2. OS Keyring
-/// 3. Legacy "default" passphrase
+/// 2. OS Keyring (pyx service)
+/// 3. OS Keyring (legacy ply service - for migration)
+/// 4. Legacy "default" passphrase
 pub fn get_passphrase() -> Result<Option<SecretString>> {
     // 1. Try PYX_PASSPHRASE env var first (matches Go's getPassphrase)
     if let Some(passphrase) = env_passphrase() {
         return Ok(Some(passphrase));
     }
 
-    // 2. Try to get from OS keyring
+    // 2. Try to get from OS keyring (new pyx service)
     match keyring::Entry::new(SERVICE_NAME, USER_NAME) {
         Ok(entry) => match entry.get_password() {
             Ok(password) => {
@@ -49,10 +51,40 @@ pub fn get_passphrase() -> Result<Option<SecretString>> {
         }
     }
 
-    // 3. Legacy fallback: "default" passphrase (matches Go's legacyPassphrase)
+    // 3. Try legacy ply keyring (for migration)
+    if let Some(passphrase) = get_legacy_passphrase()? {
+        // Migrate to new service
+        set_passphrase(&passphrase)?;
+        delete_legacy_passphrase()?;
+        return Ok(Some(passphrase));
+    }
+
+    // 4. Legacy fallback: "default" passphrase (matches Go's legacyPassphrase)
     Ok(Some(SecretString::new(
         LEGACY_PASSPHRASE.to_string().into_boxed_str(),
     )))
+}
+
+/// Get passphrase from legacy ply keyring service
+fn get_legacy_passphrase() -> Result<Option<SecretString>> {
+    match keyring::Entry::new(LEGACY_SERVICE_NAME, USER_NAME) {
+        Ok(entry) => match entry.get_password() {
+            Ok(password) if !password.is_empty() => {
+                return Ok(Some(SecretString::new(password.into_boxed_str())));
+            }
+            _ => {}
+        },
+        _ => {}
+    }
+    Ok(None)
+}
+
+/// Delete passphrase from legacy ply keyring service
+fn delete_legacy_passphrase() -> Result<()> {
+    if let Ok(entry) = keyring::Entry::new(LEGACY_SERVICE_NAME, USER_NAME) {
+        let _ = entry.delete_credential();
+    }
+    Ok(())
 }
 
 /// Store passphrase in OS keyring
