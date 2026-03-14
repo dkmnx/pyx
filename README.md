@@ -13,7 +13,7 @@ Pyx provides secure storage and management of API keys for AI providers. It encr
 
 ```bash
 # Install
-cargo install --path .
+just install
 
 # Initialize configuration and add a provider
 pyx setup
@@ -27,19 +27,19 @@ pyx
 
 ## Commands
 
-| Command                                        | Description                                 |
-| ---------------------------------------------- | ------------------------------------------- |
-| `pyx setup`                                    | Initialize and configure pyx with providers |
-| `pyx list`                                     | List all configured providers               |
-| `pyx delete <provider>`                        | Delete a provider                           |
-| `pyx models`                                   | List supported AI models                    |
-| `pyx models update`                            | Update models from remote                   |
-| `pyx pi-install`                               | Install pi coding agent                     |
-| `pyx reset`                                    | Reset pyx configuration                     |
-| `pyx <provider>`                               | Run pi with a specific provider             |
-| `pyx`                                          | Run pi with all configured providers        |
-| `pyx completion [bash\|zsh\|fish\|powershell]` | Generate shell completion                   |
-| `pyx version`                                  | Print version information                   |
+| Command                                           | Description                                 |
+| ------------------------------------------------- | ------------------------------------------- |
+| `pyx setup`                                       | Initialize and configure pyx with providers |
+| `pyx list`                                        | List all configured providers               |
+| `pyx delete <provider>`                           | Delete a provider                           |
+| `pyx models`                                      | List supported AI models                    |
+| `pyx models update`                               | Update models from remote                   |
+| `pyx pi-install`                                  | Install pi coding agent                     |
+| `pyx reset`                                       | Reset pyx configuration                     |
+| `pyx <provider>`                                  | Run pi with a specific provider             |
+| `pyx`                                             | Run pi with all configured providers        |
+| `pyx completion [bash\| zsh\| fish\| powershell]` | Generate shell completion                   |
+| `pyx version`                                     | Print version information                   |
 
 ## Features
 
@@ -93,17 +93,17 @@ Environment variables are resolved with this precedence:
 
 ```bash
 # Build
-cargo build --release
+just build-prod
 
 # Test
-cargo test --lib
+just test
 
 # Format & lint
-cargo fmt
-cargo clippy
+just fmt
+just lint
 
 # Install
-cargo install --path .
+just install
 ```
 
 ## Documentation

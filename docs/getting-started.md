@@ -11,7 +11,7 @@
 ```bash
 git clone https://github.com/dkmnx/pyx.git
 cd pyx
-cargo install --path .
+just install
 ```
 
 ## Setup
