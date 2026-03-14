@@ -1,0 +1,134 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # Validate tag matches version
+  validate:
+    name: Validate tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version from tag
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Check Cargo.toml version
+        run: |
+          cargo_version=$(grep -m1 '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+          if [ "$cargo_version" != "${{ steps.version.outputs.version }}" ]; then
+            echo "Tag version (${{ steps.version.outputs.version }}) does not match Cargo.toml version ($cargo_version)"
+            exit 1
+          fi
+          echo "Version match: $cargo_version"
+
+  # Build and release
+  release:
+    name: Release ${{ matrix.target }}
+    needs: validate
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            ext: tar.gz
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            ext: tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            ext: zip
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          target: ${{ matrix.target }}
+
+      - name: Install just
+        uses: taiki-e/install-action@v2
+        with:
+          tool: just
+
+      - name: Install Linux dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y libsecret-1-dev
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "pyx-release"
+          cache-targets: true
+
+      - name: Build release
+        run: just build-prod
+        env:
+          CARGO_BUILD_TARGET: ${{ matrix.target }}
+
+      - name: Package binary
+        shell: bash
+        run: |
+          cd target/release
+          if [ "${{ matrix.ext }}" = "tar.gz" ]; then
+            tar -czvf ../../pyx-${{ needs.validate.outputs.version }}-${{ matrix.target }}.tar.gz pyx
+          elif [ "${{ matrix.ext }}" = "zip" ]; then
+            powershell -Command "Compress-Archive -Path 'pyx.exe' -DestinationPath '../../pyx-${{ needs.validate.outputs.version }}-${{ matrix.target }}.zip'"
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pyx-${{ matrix.target }}
+          path: |
+            pyx-${{ needs.validate.outputs.version }}-${{ matrix.target }}.${{ matrix.ext }}
+          retention-days: 5
+
+  # Create GitHub Release
+  create-release:
+    name: Create release
+    needs: [validate, release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Generate checksums
+        run: |
+          cd artifacts
+          sha256sum * > SHA256SUMS.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.validate.outputs.version }}
+          name: Release v${{ needs.validate.outputs.version }}
+          draft: false
+          generate_release_notes: true
+          files: |
+            artifacts/**/pyx-${{ needs.validate.outputs.version }}-*
+            artifacts/**/SHA256SUMS.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

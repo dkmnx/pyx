@@ -4,6 +4,8 @@ A CLI tool for securely managing AI provider API keys for the pi coding agent.
 
 [![Rust](https://img.shields.io/badge/Rust-1.75+-orange?style=flat&logo=rust)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![CI](https://github.com/dkmnx/pyx/actions/workflows/ci.yml/badge.svg)](https://github.com/dkmnx/pyx/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/dkmnx/pyx)](https://github.com/dkmnx/pyx/releases/latest)
 
 ## Overview
 

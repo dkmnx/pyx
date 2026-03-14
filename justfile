@@ -54,6 +54,11 @@ fmt:
     @echo "Formatting code..."
     cargo fmt
 
+# Check formatting (non-mutating, for CI)
+fmt-check:
+    @echo "Checking formatting..."
+    cargo fmt -- --check
+
 # Lint code
 lint:
     @echo "Linting code..."
@@ -69,9 +74,13 @@ install:
     @echo "Installing {{ app_name }}..."
     cargo install --path . --force
 
-# All checks before committing
+# All checks before committing (mutates files via fmt)
 check: fmt lint test-all
     @echo "All checks passed!"
+
+# CI-friendly checks (non-mutating, for CI pipelines)
+check-ci: fmt-check lint test-all
+    @echo "All CI checks passed!"
 
 # Install git hooks
 hooks:
@@ -93,10 +102,12 @@ help:
     @echo "  test-integration  - Run integration tests"
     @echo "  test-all          - Run all tests (unit + integration)"
     @echo "  fmt               - Format code"
+    @echo "  fmt-check         - Check formatting (non-mutating, for CI)"
     @echo "  lint              - Lint code (clippy)"
     @echo "  clean             - Clean build artifacts"
     @echo "  install           - Install binary"
     @echo "  check             - Run all checks (fmt, lint, test-all)"
+    @echo "  check-ci          - CI checks (fmt-check, lint, test-all)"
     @echo "  help              - Show this help message"
     @echo ""
     @echo "Examples:"
