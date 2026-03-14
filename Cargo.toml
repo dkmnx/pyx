@@ -55,7 +55,7 @@ once_cell = "1.20"
 # Hex encoding/decoding
 hex = "0.4"
 # Random number generation
-getrandom = "0.3"
+getrandom = "0.4"
 # Temp dirs/files for atomic writes
 tempfile = "3.15"
 # Base64 encoding (matches Go implementation format)
