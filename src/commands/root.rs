@@ -7,7 +7,7 @@ use crate::keys::manager::KeyManager;
 use crate::pi::exec::{
     find_pi, get_pi_version, install_completion, install_pi, platform_info, spawn_pi,
 };
-use crate::providers::provider_to_env_var;
+use crate::providers::mapping::ProviderEnvResolver;
 use crate::storage::database::Database;
 use std::collections::BTreeMap;
 
@@ -70,6 +70,9 @@ pub fn execute(provider: Option<&str>, session: Option<&str>, pi_args: &[String]
     let manager = KeyManager::load()?;
     let mut master_key = manager.get_key_bytes()?;
 
+    // Create provider env resolver once (avoid repeated disk loads)
+    let resolver = ProviderEnvResolver::new()?;
+
     // Build environment variables with conflict detection
     let mut env_map: BTreeMap<String, String> = BTreeMap::new();
     for provider_name in &providers_to_use {
@@ -100,8 +103,8 @@ pub fn execute(provider: Option<&str>, session: Option<&str>, pi_args: &[String]
 
         let api_key = String::from_utf8_lossy(&api_key_bytes).to_string();
 
-        // Resolve env var for this provider
-        let env_var = provider_to_env_var(provider_name)?;
+        // Resolve env var for this provider using cached resolver
+        let env_var = resolver.get_env_var(provider_name)?;
 
         if let Some(existing) = env_map.get(&env_var) {
             if existing != &api_key {
