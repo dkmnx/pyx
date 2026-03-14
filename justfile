@@ -79,7 +79,7 @@ hooks:
     @cp .githooks/pre-commit .git/hooks/pre-commit
     @chmod +x .git/hooks/pre-commit
     @echo "Git hooks installed successfully!"
-    @echo "Pre-commit hook will run: fmt, lint, test"
+    @echo "Pre-commit hook runs: fmt --check, lint, tests (if src/ changed)"
 
 # Show help
 [default]
