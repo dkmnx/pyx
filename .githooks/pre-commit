@@ -16,11 +16,11 @@ fi
 # Run all checks (fmt, lint, test-all)
 if ! just check; then
     echo ""
-    echo "❌ Pre-commit checks failed."
+    echo "Pre-commit checks failed."
     echo "Please fix the issues above and try again."
     exit 1
 fi
 
 echo ""
-echo "✅ All pre-commit checks passed!"
+echo "All pre-commit checks passed!"
 exit 0
