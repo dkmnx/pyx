@@ -90,10 +90,22 @@ fn load_or_create_master_key() -> Result<KeyManager> {
                 return KeyManager::load();
             }
             None => {
-                // No passphrase available - this shouldn't happen normally
-                return Err(PyxError::Keyring(
-                    "No passphrase available. Run 'pyx reset' to reconfigure.".to_string(),
-                ));
+                // No passphrase in keyring - prompt user
+                // This can happen if OS keyring is unavailable or wasn't persisted
+                println!("Passphrase not found in OS keyring.");
+                println!("Enter the passphrase you used during initial setup:");
+                println!();
+
+                let passphrase = prompt_existing_passphrase()?;
+
+                // Try to load with the provided passphrase
+                return KeyManager::load_with_passphrase(&passphrase).map_err(|e| {
+                    PyxError::Crypto(format!(
+                        "Failed to decrypt master key: {}. \
+                         If you forgot your passphrase, run 'pyx reset' to start fresh.",
+                        e
+                    ))
+                });
             }
         }
     }
@@ -132,6 +144,19 @@ fn prompt_new_passphrase() -> Result<secrecy::SecretString> {
             "Confirm passphrase".to_string(),
             "Passphrases do not match".to_string(),
         )),
+        empty_error: "Passphrase cannot be empty".to_string(),
+        allow_empty: false,
+    })?;
+
+    Ok(secrecy::SecretString::new(passphrase.into_boxed_str()))
+}
+
+/// Prompt for an existing passphrase (no confirmation).
+fn prompt_existing_passphrase() -> Result<secrecy::SecretString> {
+    let passphrase = prompt::prompt_secret(prompt::SecretPromptOptions {
+        prompt: "Passphrase".to_string(),
+        helper: Some("Enter your passphrase (input is hidden):".to_string()),
+        confirmation: None,
         empty_error: "Passphrase cannot be empty".to_string(),
         allow_empty: false,
     })?;

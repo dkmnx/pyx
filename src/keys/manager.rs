@@ -104,6 +104,36 @@ impl KeyManager {
         })
     }
 
+    /// Load master key using a provided passphrase directly.
+    /// Used when passphrase isn't available from keyring/env.
+    pub fn load_with_passphrase(passphrase: &SecretString) -> Result<Self> {
+        // Check rate limiting before attempting decryption
+        check_rate_limit()?;
+
+        // Read encrypted master.key
+        let path = master_key_path()?;
+        let encrypted_content = fs::read_to_string(&path)
+            .map_err(|e| PyxError::Config(format!("Failed to read master.key: {}", e)))?;
+
+        // Build passphrase candidates (includes env var if set, and legacy if enabled)
+        let passphrases = build_passphrase_candidates(passphrase);
+
+        // Decrypt with fallback candidates
+        let decrypted = decrypt_master_key_with_candidates(&encrypted_content, &passphrases)
+            .map_err(|e| {
+                record_failed_attempt();
+                PyxError::Crypto(format!("Failed to decrypt master key: {}", e))
+            })?;
+
+        reset_failed_attempts();
+
+        let master_key_hex = hex::encode(&decrypted);
+
+        Ok(Self {
+            key: SecretString::new(master_key_hex.into_boxed_str()),
+        })
+    }
+
     /// Generate a new random master key
     pub fn generate() -> Result<Self> {
         // Generate 32 random bytes using getrandom crate
