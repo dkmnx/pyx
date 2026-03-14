@@ -108,13 +108,13 @@ fn load_or_create_master_key() -> Result<KeyManager> {
     println!("Generating master key...");
     let manager = KeyManager::generate()?;
 
-    // Store passphrase in keyring
+    // Save encrypted master key (using passphrase directly, before keyring storage)
+    println!("Saving encrypted master key...");
+    manager.save_with_passphrase(&passphrase)?;
+
+    // Store passphrase in keyring (after master key is saved successfully)
     println!("Storing passphrase in OS keyring...");
     keyring::set_passphrase(&passphrase)?;
-
-    // Save encrypted master key
-    println!("Saving encrypted master key...");
-    manager.save()?;
 
     println!();
     println!("Master key initialized!");

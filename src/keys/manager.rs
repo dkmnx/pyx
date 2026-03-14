@@ -119,18 +119,14 @@ impl KeyManager {
         })
     }
 
-    /// Save encrypted master key to disk
-    pub fn save(&self) -> Result<()> {
-        // Get passphrase
-        let passphrase = keyring::get_passphrase()?
-            .ok_or_else(|| PyxError::Keyring("No passphrase available".to_string()))?;
-
+    /// Save encrypted master key to disk using the provided passphrase
+    pub fn save_with_passphrase(&self, passphrase: &SecretString) -> Result<()> {
         // Decode hex to bytes
         let key_bytes = hex::decode(self.key.expose_secret())
             .map_err(|e| PyxError::Crypto(format!("Invalid master key hex: {}", e)))?;
 
         // Encrypt with passphrase
-        let encrypted = encrypt_with_passphrase(&key_bytes, &passphrase)
+        let encrypted = encrypt_with_passphrase(&key_bytes, passphrase)
             .map_err(|e| PyxError::Crypto(format!("Failed to encrypt master key: {}", e)))?;
 
         // Write to file
@@ -149,6 +145,15 @@ impl KeyManager {
         }
 
         Ok(())
+    }
+
+    /// Save encrypted master key to disk using passphrase from keyring/env
+    pub fn save(&self) -> Result<()> {
+        // Get passphrase
+        let passphrase = keyring::get_passphrase()?
+            .ok_or_else(|| PyxError::Keyring("No passphrase available".to_string()))?;
+
+        self.save_with_passphrase(&passphrase)
     }
 
     /// Get the master key as hex string
