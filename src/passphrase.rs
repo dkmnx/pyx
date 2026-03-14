@@ -52,9 +52,7 @@ pub fn load_key_manager_with_fallback() -> Result<crate::keys::manager::KeyManag
         Err(PyxError::Keyring(msg)) if msg.contains("No passphrase available") => {
             // Keyring unavailable - prompt user
             eprintln!("Passphrase not found in OS keyring.");
-            let passphrase = prompt_existing_passphrase(Some(
-                "Enter your pyx passphrase",
-            ))?;
+            let passphrase = prompt_existing_passphrase(Some("Enter your pyx passphrase"))?;
             KeyManager::load_with_passphrase(&passphrase).map_err(|e| {
                 PyxError::Crypto(format!(
                     "Failed to decrypt master key: {}. \

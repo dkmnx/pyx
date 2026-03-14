@@ -102,7 +102,9 @@ pub fn decrypt_with_passphrase(ciphertext: &str, passphrase: &SecretString) -> R
     // Decrypt with identity iterator
     let mut reader = decryptor
         .decrypt(std::iter::once(&identity as &dyn age::Identity))
-        .map_err(|_| PyxError::Crypto("Decryption failed. Please check your passphrase.".to_string()))?;
+        .map_err(|_| {
+            PyxError::Crypto("Decryption failed. Please check your passphrase.".to_string())
+        })?;
 
     // Read decrypted data
     let mut decrypted = Vec::new();

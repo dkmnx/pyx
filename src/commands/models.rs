@@ -98,7 +98,9 @@ fn print_models(cache: &ModelsCache, json: bool, provider_filter: Option<&str>) 
         };
 
         for provider in &providers {
-            let models = cache.models.get(*provider)
+            let models = cache
+                .models
+                .get(*provider)
                 .expect("provider should exist after validation check");
             if models.is_empty() {
                 continue;

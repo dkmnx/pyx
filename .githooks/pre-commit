@@ -1,0 +1,47 @@
+#!/bin/bash
+# Pre-commit hook for pyx
+# Runs formatter, linter, and tests before allowing commit
+
+set -e
+
+echo "Running pre-commit checks..."
+echo ""
+
+# Check if just is installed
+if ! command -v just &> /dev/null; then
+    echo "Error: 'just' is not installed. Please install just first."
+    exit 1
+fi
+
+# Run formatter
+echo "1/3 Running formatter..."
+if ! just fmt; then
+    echo ""
+    echo "❌ Formatter failed. Please run 'just fmt' and commit the changes."
+    exit 1
+fi
+echo "✓ Formatter passed"
+echo ""
+
+# Run linter
+echo "2/3 Running linter..."
+if ! just lint; then
+    echo ""
+    echo "❌ Linter failed. Please run 'just lint' and fix all warnings."
+    exit 1
+fi
+echo "✓ Linter passed"
+echo ""
+
+# Run tests
+echo "3/3 Running tests..."
+if ! just test; then
+    echo ""
+    echo "❌ Tests failed. Please fix failing tests before committing."
+    exit 1
+fi
+echo "✓ Tests passed"
+echo ""
+
+echo "✅ All pre-commit checks passed!"
+exit 0

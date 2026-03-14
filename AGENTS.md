@@ -47,6 +47,7 @@ integration with pi by setting appropriate environment variables.
 **Maintenance**:
 
 - `just clean` - Remove build artifacts
+- `just hooks` - Install git pre-commit hooks
 
 ## Rules
 

@@ -72,6 +72,14 @@ install:
 check: fmt lint test-all
     @echo "All checks passed!"
 
+# Install git hooks
+hooks:
+    @echo "Installing git hooks..."
+    @cp .githooks/pre-commit .git/hooks/pre-commit
+    @chmod +x .git/hooks/pre-commit
+    @echo "Git hooks installed successfully!"
+    @echo "Pre-commit hook will run: fmt, lint, test"
+
 # Show help
 [default]
 help:

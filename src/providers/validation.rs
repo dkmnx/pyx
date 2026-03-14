@@ -6,8 +6,9 @@ use regex::Regex;
 /// Validate provider name
 /// Must match: ^[a-zA-Z0-9_-]{1,50}$
 pub fn validate_provider_name(name: &str) -> Result<()> {
-    static PROVIDER_REGEX: once_cell::sync::Lazy<Regex> =
-        once_cell::sync::Lazy::new(|| Regex::new(r"^[a-zA-Z0-9_-]{1,50}$").expect("provider regex should be valid"));
+    static PROVIDER_REGEX: once_cell::sync::Lazy<Regex> = once_cell::sync::Lazy::new(|| {
+        Regex::new(r"^[a-zA-Z0-9_-]{1,50}$").expect("provider regex should be valid")
+    });
 
     if PROVIDER_REGEX.is_match(name) {
         Ok(())
@@ -22,8 +23,9 @@ pub fn validate_provider_name(name: &str) -> Result<()> {
 /// Validate environment variable name
 /// Must match: ^[A-Z_][A-Z0-9_]*$
 pub fn validate_env_var(name: &str) -> Result<()> {
-    static ENV_VAR_REGEX: once_cell::sync::Lazy<Regex> =
-        once_cell::sync::Lazy::new(|| Regex::new(r"^[A-Z_][A-Z0-9_]*$").expect("env var regex should be valid"));
+    static ENV_VAR_REGEX: once_cell::sync::Lazy<Regex> = once_cell::sync::Lazy::new(|| {
+        Regex::new(r"^[A-Z_][A-Z0-9_]*$").expect("env var regex should be valid")
+    });
 
     if ENV_VAR_REGEX.is_match(name) {
         Ok(())
