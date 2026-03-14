@@ -48,6 +48,12 @@ integration with pi by setting appropriate environment variables.
 
 - `just clean` - Remove build artifacts
 
+## Rules
+
+- **Always use existing justfile targets** - Never run `cargo` commands directly when a `just` target exists
+- Use `just check` before committing (runs fmt, lint, and all tests)
+- Follow the project's established patterns and conventions
+
 ## Docs
 
 Read these for details:

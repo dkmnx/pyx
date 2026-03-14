@@ -7,22 +7,23 @@ Development guidelines for pyx.
 ```bash
 git clone https://github.com/dkmnx/pyx.git
 cd pyx
-cargo build
+just build
 ```
 
 ## Commands
 
 ```bash
-cargo build              # Debug build
-cargo build --release    # Release build
-cargo test --lib         # Run tests
-cargo fmt                # Format code
-cargo clippy             # Lint
+just build              # Debug build
+just build-prod         # Release build
+just test               # Run tests
+just fmt                # Format code
+just lint               # Lint
+just check              # Run all checks (fmt, lint, test-all)
 ```
 
 ## Code Style
 
-- Run `cargo fmt` before committing
+- Run `just fmt` before committing
 - Address all clippy warnings
 - Document public functions
 
@@ -46,7 +47,8 @@ src/
 
 ## Pull Requests
 
-1. Ensure tests pass: `cargo test --lib`
-2. Format code: `cargo fmt`
-3. Fix warnings: `cargo clippy`
-4. Create PR with descriptive message
+1. Ensure tests pass: `just test`
+2. Format code: `just fmt`
+3. Fix warnings: `just lint`
+4. Run all checks: `just check`
+5. Create PR with descriptive message

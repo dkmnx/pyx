@@ -192,9 +192,11 @@ fn set_passphrase_file(passphrase: &SecretString) -> Result<()> {
 
     // Encrypt with machine-derived key
     let machine_key = derive_machine_key();
-    let encrypted =
-        crate::crypto::age::encrypt_with_passphrase(passphrase.expose_secret().as_bytes(), &machine_key)
-            .map_err(|e| PyxError::Crypto(format!("Failed to encrypt passphrase file: {}", e)))?;
+    let encrypted = crate::crypto::age::encrypt_with_passphrase(
+        passphrase.expose_secret().as_bytes(),
+        &machine_key,
+    )
+    .map_err(|e| PyxError::Crypto(format!("Failed to encrypt passphrase file: {}", e)))?;
 
     std::fs::write(&path, &encrypted)?;
 
@@ -247,6 +249,8 @@ fn delete_passphrase_file() -> Result<()> {
 /// 2. OS Keyring
 /// 3. File fallback (~/.local/share/pyx/.passphrase)
 /// 4. None
+///
+/// Returns Ok(None) if no passphrase is found (user needs to enter one).
 pub fn get_passphrase() -> Result<Option<SecretString>> {
     // 1. Try PYX_PASSPHRASE env var
     if let Some(passphrase) = env_passphrase() {
@@ -291,10 +295,7 @@ pub fn clear_passphrase() -> Result<()> {
 /// Check if a passphrase entry exists (checks keyring, file, and legacy ply)
 pub fn has_entry() -> bool {
     // Check file first (most reliable)
-    if passphrase_path()
-        .map(|p| p.exists())
-        .unwrap_or(false)
-    {
+    if passphrase_path().map(|p| p.exists()).unwrap_or(false) {
         return true;
     }
 

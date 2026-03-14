@@ -192,11 +192,17 @@ pub fn prompt_provider(providers: &[String]) -> Result<String> {
 
     if !prefix_matches.is_empty() {
         // Multiple prefix matches - pick shortest
-        return Ok(prefix_matches.into_iter().min_by_key(|p| p.len()).unwrap());
+        return Ok(prefix_matches
+            .into_iter()
+            .min_by_key(|p| p.len())
+            .expect("prefix_matches is non-empty, so min_by_key should return Some"));
     }
 
     // No prefix matches - pick shortest substring match
-    Ok(matches.into_iter().min_by_key(|p| p.len()).unwrap())
+    Ok(matches
+        .into_iter()
+        .min_by_key(|p| p.len())
+        .expect("matches is non-empty, so min_by_key should return Some"))
 }
 
 /// Prompt user for confirmation.

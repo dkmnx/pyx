@@ -5,6 +5,7 @@ use crate::error::{PyxError, Result};
 use crate::keys::keyring;
 use crate::keys::manager::KeyManager;
 use crate::models::fetch::fetch_models_from_remote;
+use crate::passphrase;
 use crate::prompt;
 use crate::storage::database::{Database, ProviderEntry};
 use crate::storage::models_cache::ModelsCache;
@@ -96,7 +97,7 @@ fn load_or_create_master_key() -> Result<KeyManager> {
                 println!("Enter the passphrase you used during initial setup:");
                 println!();
 
-                let passphrase = prompt_existing_passphrase()?;
+                let passphrase = passphrase::prompt_existing_passphrase(Some("Passphrase"))?;
 
                 // Try to load with the provided passphrase
                 return KeyManager::load_with_passphrase(&passphrase).map_err(|e| {
@@ -114,7 +115,7 @@ fn load_or_create_master_key() -> Result<KeyManager> {
     println!();
 
     // Prompt for passphrase
-    let passphrase = prompt_new_passphrase()?;
+    let passphrase = passphrase::prompt_new_passphrase()?;
 
     // Generate master key
     println!("Generating master key...");
@@ -133,35 +134,6 @@ fn load_or_create_master_key() -> Result<KeyManager> {
     println!();
 
     Ok(manager)
-}
-
-/// Prompt for a new passphrase with confirmation.
-fn prompt_new_passphrase() -> Result<secrecy::SecretString> {
-    let passphrase = prompt::prompt_secret(prompt::SecretPromptOptions {
-        prompt: "Passphrase".to_string(),
-        helper: Some("Choose a password to encrypt your API keys (input is hidden):".to_string()),
-        confirmation: Some((
-            "Confirm passphrase".to_string(),
-            "Passphrases do not match".to_string(),
-        )),
-        empty_error: "Passphrase cannot be empty".to_string(),
-        allow_empty: false,
-    })?;
-
-    Ok(secrecy::SecretString::new(passphrase.into_boxed_str()))
-}
-
-/// Prompt for an existing passphrase (no confirmation).
-fn prompt_existing_passphrase() -> Result<secrecy::SecretString> {
-    let passphrase = prompt::prompt_secret(prompt::SecretPromptOptions {
-        prompt: "Passphrase".to_string(),
-        helper: Some("Enter your passphrase (input is hidden):".to_string()),
-        confirmation: None,
-        empty_error: "Passphrase cannot be empty".to_string(),
-        allow_empty: false,
-    })?;
-
-    Ok(secrecy::SecretString::new(passphrase.into_boxed_str()))
 }
 
 /// Fetch providers from remote and cache them.

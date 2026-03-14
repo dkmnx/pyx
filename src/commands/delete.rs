@@ -22,7 +22,8 @@ pub fn execute(provider_name: &str) -> Result<()> {
     }
 
     // Remove provider
-    let removed = db.remove(provider_name).unwrap();
+    let removed = db.remove(provider_name)
+        .expect("provider should exist after has_provider check");
 
     // Save database
     db.save()?;

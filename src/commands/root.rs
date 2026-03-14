@@ -4,47 +4,17 @@ use crate::crypto::age::{decrypt_with_key, decrypt_with_passphrase};
 use crate::error::{PyxError, Result};
 use crate::keys::keyring::get_passphrase;
 use crate::keys::manager::KeyManager;
+use crate::passphrase;
 use crate::pi::exec::{
     find_pi, get_pi_version, install_completion, install_pi, platform_info, spawn_pi,
 };
-use crate::prompt;
 use crate::providers::mapping::ProviderEnvResolver;
 use crate::storage::database::Database;
-use secrecy::SecretString;
 use std::collections::BTreeMap;
-
-/// Prompt for passphrase when keyring unavailable
-fn prompt_passphrase() -> Result<SecretString> {
-    let passphrase = prompt::prompt_secret(prompt::SecretPromptOptions {
-        prompt: "Passphrase".to_string(),
-        helper: Some("Enter your pyx passphrase (input is hidden):".to_string()),
-        confirmation: None,
-        empty_error: "Passphrase cannot be empty".to_string(),
-        allow_empty: false,
-    })?;
-
-    Ok(SecretString::new(passphrase.into_boxed_str()))
-}
 
 /// Load key manager with passphrase fallback
 fn load_key_manager() -> Result<KeyManager> {
-    // First try normal load (uses keyring/env)
-    match KeyManager::load() {
-        Ok(manager) => Ok(manager),
-        Err(PyxError::Keyring(msg)) if msg.contains("No passphrase available") => {
-            // Keyring unavailable - prompt user
-            eprintln!("Passphrase not found in OS keyring.");
-            let passphrase = prompt_passphrase()?;
-            KeyManager::load_with_passphrase(&passphrase).map_err(|e| {
-                PyxError::Crypto(format!(
-                    "Failed to decrypt master key: {}. \
-                     If you forgot your passphrase, run 'pyx reset' to start fresh.",
-                    e
-                ))
-            })
-        }
-        Err(e) => Err(e),
-    }
+    passphrase::load_key_manager_with_fallback()
 }
 
 /// Execute the root command (run pi with providers)

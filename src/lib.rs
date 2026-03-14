@@ -8,6 +8,7 @@ pub mod crypto;
 pub mod error;
 pub mod keys;
 pub mod models;
+pub mod passphrase;
 pub mod pi;
 pub mod prompt;
 pub mod providers;
