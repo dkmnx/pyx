@@ -297,9 +297,37 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_find_pi() {
-        // This test will pass or fail depending on whether pi is installed
+    fn test_find_pi_returns_option() {
+        // find_pi returns Option<String> - verify the interface works
+        // The actual result depends on whether pi is in PATH
         let result = find_pi();
-        println!("pi found: {:?}", result.is_some());
+        // Should return Some(path) if pi is installed, None otherwise
+        // Just verify it doesn't panic and returns correct type
+        match result {
+            Some(path) => {
+                // If found, verify it's a non-empty string
+                assert!(!path.is_empty());
+            }
+            None => {
+                // If not found, that's also valid (pi not installed)
+            }
+        }
+    }
+
+    #[test]
+    fn test_platform_info_known_values() {
+        let info = platform_info();
+        // Platform info should be non-empty and contain OS/arch format
+        assert!(!info.is_empty());
+        assert!(info.contains('/'));
+    }
+
+    #[test]
+    fn test_detect_current_shell() {
+        let shell = detect_current_shell();
+        // Should return a valid shell type
+        match shell {
+            ShellType::Bash | ShellType::Zsh | ShellType::Fish | ShellType::PowerShell => {}
+        }
     }
 }

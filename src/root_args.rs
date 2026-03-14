@@ -9,9 +9,8 @@ pub struct RootInvocation {
     pub pi_args: Vec<String>,
 }
 
-const ROOT_SUBCOMMANDS: [&str; 10] = [
+const ROOT_SUBCOMMANDS: [&str; 9] = [
     "setup",
-    "add",
     "list",
     "delete",
     "models",
@@ -158,5 +157,8 @@ mod tests {
         assert!(should_use_clap(&vecs(&["list"])));
         assert!(should_use_clap(&vecs(&["--help"])));
         assert!(!should_use_clap(&vecs(&["openai", "--model"])));
+
+        // "add" is not a subcommand - it should be treated as provider name
+        assert!(!should_use_clap(&vecs(&["add"])));
     }
 }
