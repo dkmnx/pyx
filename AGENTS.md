@@ -52,9 +52,7 @@ integration with pi by setting appropriate environment variables.
 ## Rules
 
 - **Always use existing justfile targets** - Never run `cargo` commands directly when a `just` target exists
-- **Always run formatter before committing** - Execute `just fmt` to ensure consistent code style
-- **Always run linter before committing** - Execute `just lint` and fix all warnings (no suppressed warnings)
-- **Use `just check` before committing** - Runs fmt, lint, and all tests in one command
+- **Always use `just check` before committing** - Runs fmt, lint, and all tests in one command
 - **Fix all lint errors** - Never use suppressions or ignore directives to bypass warnings
 - Follow the project's established patterns and conventions
 
