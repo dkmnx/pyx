@@ -28,7 +28,7 @@ pub fn prompt_new_passphrase() -> Result<SecretString> {
 /// Used when loading an existing passphrase (e.g., during setup or root command).
 pub fn prompt_existing_passphrase(prompt_text: Option<&str>) -> Result<SecretString> {
     let prompt_text = prompt_text.unwrap_or("Passphrase");
-    let helper_text = format!("Enter your passphrase (input is hidden):");
+    let helper_text = "Enter your passphrase (input is hidden):".to_string();
 
     let passphrase = prompt::prompt_secret(prompt::SecretPromptOptions {
         prompt: prompt_text.to_string(),

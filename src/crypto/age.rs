@@ -25,7 +25,7 @@ fn get_scrypt_work_factor() -> u8 {
     std::env::var("PYX_SCRYPT_WORK_FACTOR")
         .ok()
         .and_then(|v| v.parse().ok())
-        .filter(|&n| n >= 14 && n <= 30)
+        .filter(|&n| (14..=30).contains(&n))
         .unwrap_or(DEFAULT_SCRYPT_WORK_FACTOR)
 }
 /// Maximum accepted scrypt work factor for decryption (age library limit of 2^63)
@@ -41,7 +41,7 @@ fn get_scrypt_salt_len() -> usize {
     std::env::var("PYX_SCRYPT_SALT_LEN")
         .ok()
         .and_then(|v| v.parse().ok())
-        .filter(|&n| n >= 8 && n <= 32)
+        .filter(|&n| (8..=32).contains(&n))
         .unwrap_or(DEFAULT_SCRYPT_SALT_LEN)
 }
 /// File key length (32 bytes) + AES-GCM tag (16 bytes)
