@@ -1,6 +1,10 @@
 //! Keyring backend abstraction for testability
+//!
+//! On Linux with KDE/kwallet, the OS keyring may not persist credentials
+//! across Entry instances. We use a file-based fallback for reliability.
 
 use crate::error::{PyxError, Result};
+use crate::storage::paths::passphrase_path;
 use secrecy::{ExposeSecret, SecretString};
 use std::sync::{Mutex, MutexGuard};
 
@@ -144,43 +148,105 @@ fn env_passphrase() -> Option<SecretString> {
         .map(|v| SecretString::new(v.into_boxed_str()))
 }
 
+// File-based passphrase storage (fallback for systems where OS keyring is unreliable)
+
+/// Store passphrase to file with restricted permissions
+fn set_passphrase_file(passphrase: &SecretString) -> Result<()> {
+    let path = passphrase_path()?;
+    
+    // Ensure parent directory exists
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    
+    std::fs::write(&path, passphrase.expose_secret())?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))?;
+    }
+    Ok(())
+}
+
+/// Get passphrase from file
+fn get_passphrase_file() -> Result<Option<SecretString>> {
+    let path = passphrase_path()?;
+    if path.exists() {
+        let content = std::fs::read_to_string(&path)?;
+        if !content.is_empty() {
+            return Ok(Some(SecretString::new(content.into_boxed_str())));
+        }
+    }
+    Ok(None)
+}
+
+/// Delete passphrase file
+fn delete_passphrase_file() -> Result<()> {
+    let path = passphrase_path()?;
+    if path.exists() {
+        std::fs::remove_file(&path)?;
+    }
+    Ok(())
+}
+
 /// Get passphrase - priority:
 /// 1. PYX_PASSPHRASE env var
 /// 2. OS Keyring
-/// 3. None (no legacy fallback - caller must handle migration explicitly)
-///
-/// Note: Legacy passphrase fallback is intentionally NOT provided here.
-/// Caller must use PYX_ALLOW_LEGACY_PASSPHRASE=1 to enable legacy fallback
-/// (handled in keys/manager.rs for explicit migration).
+/// 3. File fallback (~/.local/share/pyx/.passphrase)
+/// 4. None
 pub fn get_passphrase() -> Result<Option<SecretString>> {
     // 1. Try PYX_PASSPHRASE env var
     if let Some(passphrase) = env_passphrase() {
         return Ok(Some(passphrase));
     }
 
-    // 2. Try keyring backend
-    let password = with_backend(|b| b.get_password(SERVICE_NAME, USER_NAME))?;
-    if let Some(pw) = password {
+    // 2. Try OS keyring
+    if let Some(pw) = with_backend(|b| b.get_password(SERVICE_NAME, USER_NAME))? {
         return Ok(Some(SecretString::new(pw.into_boxed_str())));
     }
 
-    // 3. No fallback to legacy passphrase - return None to let caller handle migration
-    // Legacy passphrase handling is now explicit via PYX_ALLOW_LEGACY_PASSPHRASE in manager.rs
+    // 3. Try file fallback (for systems where keyring doesn't persist)
+    if let Some(pw) = get_passphrase_file()? {
+        return Ok(Some(pw));
+    }
+
     Ok(None)
 }
 
-/// Store passphrase in keyring
+/// Store passphrase in keyring AND file (for reliability across systems)
 pub fn set_passphrase(passphrase: &SecretString) -> Result<()> {
-    with_backend(|b| b.set_password(SERVICE_NAME, USER_NAME, passphrase.expose_secret()))
+    // Always write to file fallback (ensures persistence on all systems)
+    set_passphrase_file(passphrase)?;
+
+    // Also try OS keyring (may fail silently on some systems)
+    let _ = with_backend(|b| b.set_password(SERVICE_NAME, USER_NAME, passphrase.expose_secret()));
+
+    Ok(())
 }
 
-/// Clear passphrase from keyring
+/// Clear passphrase from both keyring and file
 pub fn clear_passphrase() -> Result<()> {
-    with_backend(|b| b.delete_password(SERVICE_NAME, USER_NAME))
+    // Delete from file
+    delete_passphrase_file()?;
+
+    // Delete from keyring
+    let _ = with_backend(|b| b.delete_password(SERVICE_NAME, USER_NAME));
+
+    Ok(())
 }
 
-/// Check if a keyring entry exists (checks both pyx and legacy ply)
+/// Check if a passphrase entry exists (checks keyring, file, and legacy ply)
 pub fn has_entry() -> bool {
+    // Check file first (most reliable)
+    if passphrase_path()
+        .map(|p| p.exists())
+        .unwrap_or(false)
+    {
+        return true;
+    }
+
+    // Check keyring
     with_backend(|b| {
         b.get_password(SERVICE_NAME, USER_NAME)
             .ok()
@@ -194,6 +260,7 @@ pub fn has_entry() -> bool {
 mod tests {
     use super::*;
     use crate::ENV_MUTEX;
+    use tempfile::tempdir;
 
     #[test]
     fn test_env_passphrase_reads_non_empty() {
@@ -216,34 +283,69 @@ mod tests {
     }
 
     #[test]
-    fn test_mock_keyring_roundtrip() {
+    fn test_file_passphrase_roundtrip() {
         let _guard = ENV_MUTEX.lock().unwrap();
-        set_backend(Box::new(MockKeyring::new()));
+        let temp = tempdir().unwrap();
+
+        unsafe {
+            std::env::set_var("XDG_DATA_HOME", temp.path());
+        }
 
         let passphrase = SecretString::new("test-passphrase".to_string().into_boxed_str());
 
-        set_passphrase(&passphrase).unwrap();
+        // Set passphrase (writes to file)
+        set_passphrase_file(&passphrase).unwrap();
 
-        let retrieved = get_passphrase().unwrap();
+        // Get passphrase (reads from file)
+        let retrieved = get_passphrase_file().unwrap();
         assert!(retrieved.is_some());
         assert_eq!(retrieved.unwrap().expose_secret(), "test-passphrase");
 
-        clear_passphrase().unwrap();
+        // Delete
+        delete_passphrase_file().unwrap();
+        let retrieved = get_passphrase_file().unwrap();
+        assert!(retrieved.is_none());
 
-        // After clearing, should return None (no legacy fallback - explicit opt-in required)
-        let retrieved = get_passphrase().unwrap();
-        assert!(
-            retrieved.is_none(),
-            "Expected None after clearing passphrase, no automatic legacy fallback"
-        );
-
-        reset_backend();
+        unsafe {
+            std::env::remove_var("XDG_DATA_HOME");
+        }
     }
 
     #[test]
-    fn test_mock_keyring_has_entry() {
+    fn test_set_passphrase_writes_to_file() {
         let _guard = ENV_MUTEX.lock().unwrap();
+        let temp = tempdir().unwrap();
+
+        unsafe {
+            std::env::set_var("XDG_DATA_HOME", temp.path());
+        }
+
         set_backend(Box::new(MockKeyring::new()));
+
+        let passphrase = SecretString::new("file-test".to_string().into_boxed_str());
+        set_passphrase(&passphrase).unwrap();
+
+        // Should be retrievable (from file)
+        let retrieved = get_passphrase().unwrap();
+        assert!(retrieved.is_some());
+        assert_eq!(retrieved.unwrap().expose_secret(), "file-test");
+
+        clear_passphrase().unwrap();
+        reset_backend();
+
+        unsafe {
+            std::env::remove_var("XDG_DATA_HOME");
+        }
+    }
+
+    #[test]
+    fn test_has_entry_checks_file() {
+        let _guard = ENV_MUTEX.lock().unwrap();
+        let temp = tempdir().unwrap();
+
+        unsafe {
+            std::env::set_var("XDG_DATA_HOME", temp.path());
+        }
 
         assert!(!has_entry());
 
@@ -255,6 +357,8 @@ mod tests {
         clear_passphrase().unwrap();
         assert!(!has_entry());
 
-        reset_backend();
+        unsafe {
+            std::env::remove_var("XDG_DATA_HOME");
+        }
     }
 }

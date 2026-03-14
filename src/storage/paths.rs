@@ -44,6 +44,11 @@ pub fn providers_env_path() -> Result<PathBuf> {
     Ok(get_data_dir()?.join("providers.json"))
 }
 
+/// Get path to passphrase file (fallback when OS keyring unavailable)
+pub fn passphrase_path() -> Result<PathBuf> {
+    Ok(get_data_dir()?.join(".passphrase"))
+}
+
 /// Ensure data directory exists with proper permissions
 pub fn ensure_data_dir() -> Result<PathBuf> {
     let dir = get_data_dir()?;
