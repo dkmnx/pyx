@@ -66,7 +66,7 @@ clean:
 # Install binary
 install:
     @echo "Installing {{ app_name }}..."
-    cargo install --path .
+    cargo install --path . --force
 
 # All checks before committing
 check: fmt lint test-all
