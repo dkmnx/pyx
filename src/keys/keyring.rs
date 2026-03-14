@@ -135,7 +135,6 @@ where
 
 const SERVICE_NAME: &str = "pyx";
 const USER_NAME: &str = "master-key";
-const LEGACY_PASSPHRASE: &str = "default";
 const ENV_PASSPHRASE: &str = "PYX_PASSPHRASE";
 
 fn env_passphrase() -> Option<SecretString> {
@@ -148,7 +147,11 @@ fn env_passphrase() -> Option<SecretString> {
 /// Get passphrase - priority:
 /// 1. PYX_PASSPHRASE env var
 /// 2. OS Keyring
-/// 3. Legacy "default" passphrase
+/// 3. None (no legacy fallback - caller must handle migration explicitly)
+///
+/// Note: Legacy passphrase fallback is intentionally NOT provided here.
+/// Caller must use PYX_ALLOW_LEGACY_PASSPHRASE=1 to enable legacy fallback
+/// (handled in keys/manager.rs for explicit migration).
 pub fn get_passphrase() -> Result<Option<SecretString>> {
     // 1. Try PYX_PASSPHRASE env var
     if let Some(passphrase) = env_passphrase() {
@@ -161,10 +164,9 @@ pub fn get_passphrase() -> Result<Option<SecretString>> {
         return Ok(Some(SecretString::new(pw.into_boxed_str())));
     }
 
-    // 3. Legacy "default" passphrase
-    Ok(Some(SecretString::new(
-        LEGACY_PASSPHRASE.to_string().into_boxed_str(),
-    )))
+    // 3. No fallback to legacy passphrase - return None to let caller handle migration
+    // Legacy passphrase handling is now explicit via PYX_ALLOW_LEGACY_PASSPHRASE in manager.rs
+    Ok(None)
 }
 
 /// Store passphrase in keyring
@@ -228,9 +230,12 @@ mod tests {
 
         clear_passphrase().unwrap();
 
-        // After clearing, should fall back to legacy passphrase
+        // After clearing, should return None (no legacy fallback - explicit opt-in required)
         let retrieved = get_passphrase().unwrap();
-        assert_eq!(retrieved.unwrap().expose_secret(), LEGACY_PASSPHRASE);
+        assert!(
+            retrieved.is_none(),
+            "Expected None after clearing passphrase, no automatic legacy fallback"
+        );
 
         reset_backend();
     }
