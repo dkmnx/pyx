@@ -1623,7 +1623,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "pyx-rust"
+name = "pyx-rs"
 version = "0.1.0"
 dependencies = [
  "age",

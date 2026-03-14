@@ -1,9 +1,9 @@
 //! Pyx Rust CLI - Secure API key management for pi
 
 use clap::Parser;
-use pyx_rust::cli::{Cli, Commands, ModelsCommands, PiCommands};
-use pyx_rust::error::{PyxError, Result};
-use pyx_rust::root_args::{parse_root_invocation, should_use_clap};
+use pyx_rs::cli::{Cli, Commands, ModelsCommands, PiCommands};
+use pyx_rs::error::{PyxError, Result};
+use pyx_rs::root_args::{parse_root_invocation, should_use_clap};
 
 fn main() {
     if let Err(e) = run() {
@@ -25,7 +25,7 @@ fn run() -> Result<()> {
     }
 
     let invocation = parse_root_invocation(&raw_args)?;
-    let exit_code = pyx_rust::commands::root::execute(
+    let exit_code = pyx_rs::commands::root::execute(
         invocation.provider.as_deref(),
         invocation.session.as_deref(),
         &invocation.pi_args,
@@ -43,17 +43,17 @@ fn run_subcommand_mode() -> Result<()> {
 
     match cli.command {
         Some(Commands::Setup) => {
-            pyx_rust::commands::setup::execute()?;
+            pyx_rs::commands::setup::execute()?;
         }
         Some(Commands::List { json }) => {
             if json {
-                pyx_rust::commands::list::execute_json()?;
+                pyx_rs::commands::list::execute_json()?;
             } else {
-                pyx_rust::commands::list::execute()?;
+                pyx_rs::commands::list::execute()?;
             }
         }
         Some(Commands::Delete { provider }) => {
-            pyx_rust::commands::delete::execute(&provider)?;
+            pyx_rs::commands::delete::execute(&provider)?;
         }
         Some(Commands::Models {
             provider,
@@ -62,39 +62,39 @@ fn run_subcommand_mode() -> Result<()> {
             action,
         }) => match action {
             Some(ModelsCommands::Update) => {
-                pyx_rust::commands::models::execute_update()?;
+                pyx_rs::commands::models::execute_update()?;
             }
             None => {
-                pyx_rust::commands::models::execute(json, refresh, provider.as_deref())?;
+                pyx_rs::commands::models::execute(json, refresh, provider.as_deref())?;
             }
         },
         Some(Commands::Pi { action }) => match action {
             Some(PiCommands::Install { auto }) => {
-                pyx_rust::commands::pi::execute_install(auto)?;
+                pyx_rs::commands::pi::execute_install(auto)?;
             }
             None => {
                 println!("Usage: pyx pi install");
             }
         },
         Some(Commands::Reset) => {
-            pyx_rust::commands::reset::execute()?;
+            pyx_rs::commands::reset::execute()?;
         }
         Some(Commands::Completion { shell, install }) => {
             if install {
-                pyx_rust::commands::completion::print_install_instructions(&shell);
+                pyx_rs::commands::completion::print_install_instructions(&shell);
             } else {
-                pyx_rust::commands::completion::generate_completion(&shell)?;
+                pyx_rs::commands::completion::generate_completion(&shell)?;
             }
         }
         Some(Commands::Version { json }) => {
             if json {
-                pyx_rust::commands::version::execute_json()?;
+                pyx_rs::commands::version::execute_json()?;
             } else {
-                pyx_rust::commands::version::execute()?;
+                pyx_rs::commands::version::execute()?;
             }
         }
         None => {
-            let exit_code = pyx_rust::commands::root::execute(
+            let exit_code = pyx_rs::commands::root::execute(
                 cli.provider.as_deref(),
                 cli.session.as_deref(),
                 &[],

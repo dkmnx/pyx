@@ -36,11 +36,11 @@ fn root_forwards_pi_args_and_injects_provider_env() {
     let master_key = b"integration-master-key";
 
     let master_cipher =
-        pyx_rust::crypto::age::encrypt_with_passphrase(master_key, &passphrase).unwrap();
+        pyx_rs::crypto::age::encrypt_with_passphrase(master_key, &passphrase).unwrap();
     fs::write(data_dir.join("master.key"), master_cipher).unwrap();
 
     let provider_cipher =
-        pyx_rust::crypto::age::encrypt_with_key(b"sk-openai-integration", master_key).unwrap();
+        pyx_rs::crypto::age::encrypt_with_key(b"sk-openai-integration", master_key).unwrap();
     let db_content = format!(
         "[{{\n  \"provider\": \"openai\",\n  \"cipher\": \"{}\",\n  \"created_at\": \"2026-01-01T00:00:00Z\",\n  \"updated_at\": \"2026-01-01T00:00:00Z\"\n}}]",
         provider_cipher
