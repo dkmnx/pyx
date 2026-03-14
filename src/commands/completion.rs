@@ -1,6 +1,7 @@
 //! Completion command implementation
 
 use crate::error::Result;
+use crate::pi::exec::{install_completion_for_shell, ShellType};
 use clap::CommandFactory;
 use clap_complete::{generate, Shell};
 use std::io;
@@ -24,32 +25,10 @@ pub fn generate_completion(shell: &str) -> Result<()> {
     Ok(())
 }
 
-/// Print installation instructions for completion scripts
-pub fn print_install_instructions(shell: &str) {
-    println!("To install {} completions, run:", shell);
-    println!();
-
-    match shell {
-        "bash" => {
-            println!("  # Add to ~/.bashrc:");
-            println!("  echo 'source <(pyx completion bash)' >> ~/.bashrc");
-            println!("  source ~/.bashrc");
-        }
-        "zsh" => {
-            println!("  # Add to ~/.zshrc:");
-            println!("  echo 'source <(pyx completion zsh)' >> ~/.zshrc");
-            println!("  source ~/.zshrc");
-        }
-        "fish" => {
-            println!("  # Generate completion file:");
-            println!("  pyx completion fish > ~/.config/fish/completions/pyx.fish");
-        }
-        "powershell" => {
-            println!("  # Add to PowerShell profile:");
-            println!("  pyx completion powershell | Out-String | Invoke-Expression");
-        }
-        _ => {}
-    }
+/// Install completion script for the specified shell
+pub fn install_completion(shell: &str) -> Result<()> {
+    let shell_type: ShellType = shell.parse()?;
+    install_completion_for_shell(shell_type)
 }
 
 #[cfg(test)]

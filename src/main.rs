@@ -81,7 +81,7 @@ fn run_subcommand_mode() -> Result<()> {
         }
         Some(Commands::Completion { shell, install }) => {
             if install {
-                pyx_rs::commands::completion::print_install_instructions(&shell);
+                pyx_rs::commands::completion::install_completion(&shell)?;
             } else {
                 pyx_rs::commands::completion::generate_completion(&shell)?;
             }

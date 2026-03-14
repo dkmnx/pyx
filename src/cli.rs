@@ -64,12 +64,12 @@ pub enum Commands {
     /// Reset pyx to initial state
     Reset,
 
-    /// Generate shell completion script
+    /// Install shell completion script
     Completion {
         /// Shell type (bash, zsh, fish, powershell)
         shell: String,
 
-        /// Show installation instructions
+        /// Install completion script to shell config
         #[arg(long)]
         install: bool,
     },

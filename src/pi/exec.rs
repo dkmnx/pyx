@@ -207,10 +207,8 @@ pub fn completion_script_install_path(shell: ShellType) -> Result<PathBuf> {
     Ok(path)
 }
 
-/// Install shell completion for pi using pyx
-pub fn install_completion() -> Result<()> {
-    let shell = detect_current_shell();
-
+/// Install shell completion for the specified shell
+pub fn install_completion_for_shell(shell: ShellType) -> Result<()> {
     // Generate completion script using pyx
     let output = Command::new("pyx")
         .args(["completion", &shell.to_string()])
@@ -227,18 +225,7 @@ pub fn install_completion() -> Result<()> {
     }
 
     // Get install path
-    let script_path = match completion_script_install_path(shell) {
-        Ok(path) => path,
-        Err(_) => {
-            println!("Completion installation not available for {} shell", shell);
-            return Ok(());
-        }
-    };
-
-    // Skip if already installed
-    if script_path.exists() {
-        return Ok(());
-    }
+    let script_path = completion_script_install_path(shell)?;
 
     // Ensure directory exists
     if let Some(parent) = script_path.parent() {
@@ -254,14 +241,22 @@ pub fn install_completion() -> Result<()> {
     // Print activation instructions
     match shell {
         ShellType::Zsh => {
-            println!("  To enable completions, restart your shell or run:");
+            println!();
+            println!("  To enable completions, add to ~/.zshrc:");
+            println!(
+                "    fpath=({} $fpath)",
+                script_path.parent().unwrap().display()
+            );
+            println!();
+            println!("  Then restart your shell or run:");
             println!("    autoload -U compinit; compinit");
         }
         ShellType::Fish => {
-            println!("  To enable completions, restart your shell or run:");
-            println!("    source \"{}\"", script_path.display());
+            println!();
+            println!("  Completions will be loaded automatically in new shell sessions.");
         }
         ShellType::PowerShell => {
+            println!();
             println!("  To enable completions for every new session, add to your profile:");
             println!(
                 "    Add-Content -Path $PROFILE -Value '. {}'",
@@ -269,11 +264,23 @@ pub fn install_completion() -> Result<()> {
             );
         }
         ShellType::Bash => {
-            println!("  Completions will be loaded automatically");
+            println!();
+            println!("  To enable completions, add to ~/.bashrc:");
+            println!(
+                "    [ -f {} ] && source {}",
+                script_path.display(),
+                script_path.display()
+            );
         }
     }
 
     Ok(())
+}
+
+/// Install shell completion for pi using pyx (auto-detect current shell)
+pub fn install_completion() -> Result<()> {
+    let shell = detect_current_shell();
+    install_completion_for_shell(shell)
 }
 
 /// Platform info string (OS/ARCH)
