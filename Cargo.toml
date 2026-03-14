@@ -13,6 +13,12 @@ path = "src/main.rs"
 [[bin]]
 name = "crypto-spike"
 path = "src/bin/crypto-spike.rs"
+required-features = ["spike"]
+
+[features]
+default = []
+# Enable crypto compatibility spike binary (Phase 0.1 exploratory code)
+spike = []
 
 [dependencies]
 # CLI parsing
@@ -50,15 +56,15 @@ once_cell = "1.20"
 hex = "0.4"
 # Random number generation
 getrandom = "0.3"
-# Temp dirs/files for testing
+# Temp dirs/files for atomic writes
 tempfile = "3.15"
-# Testing utilities
-assert_cmd = "2.0"
-predicates = "3.1"
 # Base64 encoding (matches Go implementation format)
 base64 = "0.22.1"
 
 [dev-dependencies]
+# Testing utilities
+assert_cmd = "2.0"
+predicates = "3.1"
 # Snapshot testing
 insta = "1.42"
 # HTTP mocking
