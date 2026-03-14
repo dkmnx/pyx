@@ -62,9 +62,17 @@ pub struct ProviderEnvResolver {
 impl ProviderEnvResolver {
     /// Create a new provider resolver
     pub fn new() -> Result<Self> {
+        // Load settings - fail if file exists but is corrupted
+        let settings = Settings::load().map_err(|e| {
+            crate::error::PyxError::Config(format!(
+                "Failed to load settings (may be corrupted): {}",
+                e
+            ))
+        })?;
+
         Ok(Self {
             providers_config: ProvidersEnvConfig::load()?,
-            settings: Settings::load().unwrap_or_default(),
+            settings,
             builtin_mappings: get_builtin_mappings(),
         })
     }

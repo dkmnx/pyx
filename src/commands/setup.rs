@@ -8,10 +8,32 @@ use crate::models::fetch::fetch_models_from_remote;
 use crate::prompt;
 use crate::storage::database::{Database, ProviderEntry};
 use crate::storage::models_cache::ModelsCache;
+use crate::storage::paths::database_path;
 use crate::storage::paths::ensure_data_dir;
 use crate::storage::providers_env::ProvidersEnvConfig;
 use std::collections::HashSet;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
+
+/// Load database, creating new if none exists, but erroring if file exists but is corrupted.
+/// This prevents silent data loss from corrupted configuration files.
+fn load_or_create_database() -> Result<Database> {
+    let path = database_path()?;
+
+    if !path.exists() {
+        // No existing database - create fresh one
+        return Ok(Database::default());
+    }
+
+    // Database file exists - try to load it
+    // Fail loudly if it's corrupted rather than silently overwriting
+    Database::load_from_path(&path).map_err(|e| {
+        PyxError::Config(format!(
+            "Failed to load existing database (may be corrupted): {}. \
+             Run 'pyx reset' to start fresh if this persists.",
+            e
+        ))
+    })
+}
 
 /// Execute the setup command
 pub fn execute() -> Result<()> {
@@ -27,8 +49,8 @@ pub fn execute() -> Result<()> {
     // Load or create master key
     let manager = load_or_create_master_key()?;
 
-    // Load database (or create default)
-    let mut db = Database::load().unwrap_or_default();
+    // Load database - fail if exists but corrupted, create new if doesn't exist
+    let mut db = load_or_create_database()?;
 
     // Fetch and cache provider models
     fetch_providers()?;
