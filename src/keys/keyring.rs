@@ -149,17 +149,54 @@ fn env_passphrase() -> Option<SecretString> {
 }
 
 // File-based passphrase storage (fallback for systems where OS keyring is unreliable)
+// Uses encryption with a machine-derived key for security
 
-/// Store passphrase to file with restricted permissions
+/// Derive a machine-specific encryption key from /etc/machine-id and username
+/// This binds the encrypted passphrase to this specific machine/user
+fn derive_machine_key() -> SecretString {
+    // Try to get machine-id (Linux)
+    let machine_id = std::fs::read_to_string("/etc/machine-id")
+        .unwrap_or_else(|_| {
+            // Fallback: use OS info + a fixed string
+            // This is less secure but still provides some protection
+            format!(
+                "fallback-{}-{:?}",
+                std::env::consts::OS,
+                std::env::consts::ARCH
+            )
+        })
+        .trim()
+        .to_string();
+
+    // Get username
+    let user = std::env::var("USER")
+        .or_else(|_| std::env::var("USERNAME"))
+        .unwrap_or_else(|_| "unknown-user".to_string());
+
+    // Combine to create unique key for this machine/user
+    // Simple deterministic transformation to create a passphrase
+    let combined = format!("pyx-passphrase:{}:{}", machine_id, user);
+    let hash = hex::encode(combined.as_bytes());
+
+    SecretString::new(hash.into_boxed_str())
+}
+
+/// Store passphrase to encrypted file with restricted permissions
 fn set_passphrase_file(passphrase: &SecretString) -> Result<()> {
     let path = passphrase_path()?;
-    
+
     // Ensure parent directory exists
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    
-    std::fs::write(&path, passphrase.expose_secret())?;
+
+    // Encrypt with machine-derived key
+    let machine_key = derive_machine_key();
+    let encrypted =
+        crate::crypto::age::encrypt_with_passphrase(passphrase.expose_secret().as_bytes(), &machine_key)
+            .map_err(|e| PyxError::Crypto(format!("Failed to encrypt passphrase file: {}", e)))?;
+
+    std::fs::write(&path, &encrypted)?;
 
     #[cfg(unix)]
     {
@@ -169,16 +206,31 @@ fn set_passphrase_file(passphrase: &SecretString) -> Result<()> {
     Ok(())
 }
 
-/// Get passphrase from file
+/// Get passphrase from encrypted file
 fn get_passphrase_file() -> Result<Option<SecretString>> {
     let path = passphrase_path()?;
-    if path.exists() {
-        let content = std::fs::read_to_string(&path)?;
-        if !content.is_empty() {
-            return Ok(Some(SecretString::new(content.into_boxed_str())));
+    if !path.exists() {
+        return Ok(None);
+    }
+
+    let encrypted = std::fs::read_to_string(&path)?;
+    if encrypted.is_empty() {
+        return Ok(None);
+    }
+
+    // Decrypt with machine-derived key
+    let machine_key = derive_machine_key();
+    match crate::crypto::age::decrypt_with_passphrase(&encrypted, &machine_key) {
+        Ok(decrypted) => {
+            let passphrase = String::from_utf8_lossy(&decrypted).to_string();
+            Ok(Some(SecretString::new(passphrase.into_boxed_str())))
+        }
+        Err(_) => {
+            // Decryption failed - file may be corrupted or from different machine
+            // Return None to trigger re-prompt
+            Ok(None)
         }
     }
-    Ok(None)
 }
 
 /// Delete passphrase file
