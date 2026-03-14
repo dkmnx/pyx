@@ -7,9 +7,45 @@ use crate::keys::manager::KeyManager;
 use crate::pi::exec::{
     find_pi, get_pi_version, install_completion, install_pi, platform_info, spawn_pi,
 };
+use crate::prompt;
 use crate::providers::mapping::ProviderEnvResolver;
 use crate::storage::database::Database;
+use secrecy::SecretString;
 use std::collections::BTreeMap;
+
+/// Prompt for passphrase when keyring unavailable
+fn prompt_passphrase() -> Result<SecretString> {
+    let passphrase = prompt::prompt_secret(prompt::SecretPromptOptions {
+        prompt: "Passphrase".to_string(),
+        helper: Some("Enter your pyx passphrase (input is hidden):".to_string()),
+        confirmation: None,
+        empty_error: "Passphrase cannot be empty".to_string(),
+        allow_empty: false,
+    })?;
+
+    Ok(SecretString::new(passphrase.into_boxed_str()))
+}
+
+/// Load key manager with passphrase fallback
+fn load_key_manager() -> Result<KeyManager> {
+    // First try normal load (uses keyring/env)
+    match KeyManager::load() {
+        Ok(manager) => Ok(manager),
+        Err(PyxError::Keyring(msg)) if msg.contains("No passphrase available") => {
+            // Keyring unavailable - prompt user
+            eprintln!("Passphrase not found in OS keyring.");
+            let passphrase = prompt_passphrase()?;
+            KeyManager::load_with_passphrase(&passphrase).map_err(|e| {
+                PyxError::Crypto(format!(
+                    "Failed to decrypt master key: {}. \
+                     If you forgot your passphrase, run 'pyx reset' to start fresh.",
+                    e
+                ))
+            })
+        }
+        Err(e) => Err(e),
+    }
+}
 
 /// Execute the root command (run pi with providers)
 pub fn execute(provider: Option<&str>, session: Option<&str>, pi_args: &[String]) -> Result<i32> {
@@ -66,8 +102,8 @@ pub fn execute(provider: Option<&str>, session: Option<&str>, pi_args: &[String]
     // Determine which providers to use
     let providers_to_use = determine_providers(provider, &db)?;
 
-    // Load master key once
-    let manager = KeyManager::load()?;
+    // Load master key once (with passphrase fallback if keyring unavailable)
+    let manager = load_key_manager()?;
     let mut master_key = manager.get_key_bytes()?;
 
     // Create provider env resolver once (avoid repeated disk loads)
