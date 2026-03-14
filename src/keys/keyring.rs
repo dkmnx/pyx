@@ -292,7 +292,7 @@ pub fn clear_passphrase() -> Result<()> {
     Ok(())
 }
 
-/// Check if a passphrase entry exists (checks keyring, file, and legacy ply)
+/// Check if a passphrase entry exists (checks keyring and file)
 pub fn has_entry() -> bool {
     // Check file first (most reliable)
     if passphrase_path().map(|p| p.exists()).unwrap_or(false) {
@@ -305,7 +305,6 @@ pub fn has_entry() -> bool {
             .ok()
             .flatten()
             .is_some()
-            || b.get_password("ply", "master-key").ok().flatten().is_some()
     })
 }
 

@@ -92,22 +92,18 @@ fn delete_file(description: &str, path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Check if keyring has an entry (check both pyx and legacy ply)
+/// Check if keyring has an entry
 fn keyring_has_entry() -> bool {
     use keyring::Entry;
 
-    // Check current pyx entry
+    // Check pyx entry
     if let Ok(entry) = Entry::new("pyx", "master-key") {
         if entry.get_password().is_ok() {
             return true;
         }
     }
 
-    // Check legacy ply entry
-    match Entry::new("ply", "master-key") {
-        Ok(entry) => entry.get_password().is_ok(),
-        Err(_) => false,
-    }
+    false
 }
 
 #[cfg(test)]
