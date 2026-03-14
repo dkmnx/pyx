@@ -14,8 +14,12 @@ use secrecy::{ExposeSecret, SecretString};
 use std::collections::HashSet;
 use std::io::{Read, Write};
 
-/// Scrypt work factor for encryption (N = 2^18 = 262144 iterations)
-const SCRYPT_WORK_FACTOR: u8 = 18;
+/// Scrypt work factor for encryption (N = 2^14 = 16384 iterations)
+/// Lowered from 18 to 14 for better performance while maintaining adequate security.
+/// For passphrase-based encryption, this provides a good balance between security and usability.
+/// Individual provider key encryption uses separate random keys, so this work factor
+/// primarily affects initial setup and master key operations.
+const SCRYPT_WORK_FACTOR: u8 = 14;
 /// Maximum accepted scrypt work factor for decryption (age library limit of 2^63)
 const MAX_ACCEPTED_SCRYPT_WORK_FACTOR: u8 = 63;
 const SCRYPT_TAG: &str = "scrypt";
