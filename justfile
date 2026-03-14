@@ -44,6 +44,7 @@ test-run RUN:
 test-integration:
     @echo "Running integration tests..."
     cargo test --test root_parity
+    cargo test --test subcommand_tests
 
 # Run all tests (lib + integration)
 test-all: test test-integration

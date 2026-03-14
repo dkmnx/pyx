@@ -34,7 +34,7 @@ pyx
 | `pyx delete <provider>`                           | Delete a provider                           |
 | `pyx models`                                      | List supported AI models                    |
 | `pyx models update`                               | Update models from remote                   |
-| `pyx pi-install`                                  | Install pi coding agent                     |
+| `pyx pi install`                                  | Install pi coding agent                     |
 | `pyx reset`                                       | Reset pyx configuration                     |
 | `pyx <provider>`                                  | Run pi with a specific provider             |
 | `pyx`                                             | Run pi with all configured providers        |

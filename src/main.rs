@@ -73,7 +73,7 @@ fn run_subcommand_mode() -> Result<()> {
                 pyx_rs::commands::pi::execute_install(auto)?;
             }
             None => {
-                println!("Usage: pyx pi install");
+                pyx_rs::commands::pi::execute_status()?;
             }
         },
         Some(Commands::Reset) => {

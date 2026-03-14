@@ -153,6 +153,27 @@ pub fn get_pi_version() -> Result<String> {
     Ok(version)
 }
 
+/// Show pi status (installed/not installed, version)
+pub fn show_pi_status() -> Result<()> {
+    match find_pi() {
+        Some(path) => {
+            println!("pi is installed");
+            println!("  Path: {}", path);
+            if let Ok(version) = get_pi_version() {
+                println!("  Version: {}", version);
+            }
+            println!("  Platform: {}", platform_info());
+        }
+        None => {
+            println!("pi is not installed");
+            println!();
+            println!("To install pi, run:");
+            println!("  pyx pi install");
+        }
+    }
+    Ok(())
+}
+
 /// Detect current shell type
 pub fn detect_current_shell() -> ShellType {
     // Check SHELL environment variable

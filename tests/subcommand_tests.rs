@@ -290,8 +290,8 @@ fn reset_subcommand_requires_confirmation() {
 }
 
 #[test]
-fn pi_subcommand_without_pyx_installed() {
-    // This test verifies that pi command handles missing pi gracefully
+fn pi_subcommand_shows_status_when_not_installed() {
+    // This test verifies that pi command shows status when pi is not installed
     let temp = tempdir().unwrap();
     let (_data_dir, xdg_data) = setup_pox_env(&temp);
     let xdg_data_str = xdg_data.to_string_lossy().to_string();
@@ -302,6 +302,8 @@ fn pi_subcommand_without_pyx_installed() {
         .env("PYX_PASSPHRASE", "test-passphrase")
         // Remove pi from PATH to simulate not installed
         .env("PATH", "/nonexistent");
-    // Should fail with helpful error about pi not found
-    cmd.assert().failure();
+    // Should succeed and show status
+    cmd.assert()
+        .success()
+        .stdout(predicates::str::contains("pi is not installed"));
 }
