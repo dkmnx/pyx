@@ -9,52 +9,68 @@ const DEFAULT_TTL_SECONDS: i64 = 24 * 60 * 60;
 
 /// Execute the models command
 pub fn execute(json: bool, refresh: bool, provider: Option<&str>) -> Result<()> {
-    // Try to load cached models
-    let cache = match ModelsCache::load() {
-        Ok(c) => c,
-        Err(PyxError::Config(_)) => {
-            if refresh {
-                return Err(PyxError::Config(
-                    "No models cache found. Run 'pyx models update' first.".to_string(),
-                ));
-            }
-            println!("No models cache found. Run 'pyx models update' to fetch models.");
-            return Ok(());
-        }
-        Err(e) => return Err(e),
-    };
+    let cache = load_cache_or_error(refresh)?;
 
-    // Check if refresh is needed
     if refresh || cache.is_stale(DEFAULT_TTL_SECONDS) {
-        if refresh {
-            println!("Refreshing models cache...");
-        } else {
-            println!("Cache is stale, fetching updated models...");
-        }
-
-        match fetch_models_from_remote() {
-            Ok(new_cache) => {
-                new_cache.save()?;
-                println!("Models cache updated.");
-                return print_models(&new_cache, json, provider);
-            }
-            Err(e) => {
-                if refresh {
-                    return Err(e);
-                }
-                // If not explicit refresh, fall back to stale cache
-                eprintln!("Warning: Failed to fetch updated models: {}", e);
-                eprintln!("Using cached models (last updated: {})", cache.updated_at);
-            }
-        }
+        return handle_refresh(&cache, json, refresh, provider);
     }
 
     print_models(&cache, json, provider)
 }
 
+/// Load models cache, returning appropriate error for missing cache.
+fn load_cache_or_error(refresh: bool) -> Result<ModelsCache> {
+    match ModelsCache::load() {
+        Ok(cache) => Ok(cache),
+        Err(PyxError::Config(_)) => {
+            if refresh {
+                Err(PyxError::Config(
+                    "No models cache found. Run 'pyx models update' first.".to_string(),
+                ))
+            } else {
+                println!("No models cache found. Run 'pyx models update' to fetch models.");
+                Err(PyxError::Cancelled)
+            }
+        }
+        Err(e) => Err(e),
+    }
+}
+
+/// Handle cache refresh, with fallback to stale cache on network error.
+fn handle_refresh(
+    stale_cache: &ModelsCache,
+    json: bool,
+    explicit_refresh: bool,
+    provider: Option<&str>,
+) -> Result<()> {
+    if explicit_refresh {
+        println!("Refreshing models cache...");
+    } else {
+        println!("Cache is stale, fetching updated models...");
+    }
+
+    match fetch_models_from_remote() {
+        Ok(new_cache) => {
+            new_cache.save()?;
+            println!("Models cache updated.");
+            print_models(&new_cache, json, provider)
+        }
+        Err(e) => {
+            if explicit_refresh {
+                return Err(e);
+            }
+            eprintln!("Warning: Failed to fetch updated models: {}", e);
+            eprintln!(
+                "Using cached models (last updated: {})",
+                stale_cache.updated_at
+            );
+            print_models(stale_cache, json, provider)
+        }
+    }
+}
+
 /// Print models in text or JSON format
 fn print_models(cache: &ModelsCache, json: bool, provider_filter: Option<&str>) -> Result<()> {
-    // Validate provider filter if specified
     if let Some(provider) = provider_filter {
         if !cache.models.contains_key(provider) {
             return Err(PyxError::Config(format!(
@@ -65,63 +81,81 @@ fn print_models(cache: &ModelsCache, json: bool, provider_filter: Option<&str>) 
     }
 
     if json {
-        let filtered_models: std::collections::HashMap<_, _> =
-            if let Some(provider) = provider_filter {
-                cache
-                    .models
-                    .iter()
-                    .filter(|(k, _)| *k == provider)
-                    .map(|(k, v)| (k.clone(), v.clone()))
-                    .collect()
-            } else {
-                cache.models.clone()
-            };
+        return print_models_json(cache, provider_filter);
+    }
 
-        let output = serde_json::json!({
-            "version": cache.version,
-            "updated_at": cache.updated_at,
-            "models": filtered_models,
-        });
-        println!("{}", output);
+    print_models_text(cache, provider_filter)
+}
+
+/// Print models in JSON format
+fn print_models_json(cache: &ModelsCache, provider_filter: Option<&str>) -> Result<()> {
+    let filtered_models: std::collections::HashMap<_, _> = if let Some(provider) = provider_filter {
+        cache
+            .models
+            .iter()
+            .filter(|(key, _)| *key == provider)
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect()
     } else {
-        println!("Supported models:");
-        println!();
+        cache.models.clone()
+    };
 
-        let mut providers: Vec<_> = cache.models.keys().collect();
-        providers.sort();
+    let output = serde_json::json!({
+        "version": cache.version,
+        "updated_at": cache.updated_at,
+        "models": filtered_models,
+    });
+    println!("{}", output);
+    Ok(())
+}
 
-        // Filter providers if specified
-        let providers: Vec<_> = if let Some(provider) = provider_filter {
-            providers.into_iter().filter(|p| *p == provider).collect()
-        } else {
-            providers
-        };
+/// Print models in text format
+fn print_models_text(cache: &ModelsCache, provider_filter: Option<&str>) -> Result<()> {
+    println!("Supported models:");
+    println!();
 
-        for provider in &providers {
-            let models = cache
-                .models
-                .get(*provider)
-                .expect("provider should exist after validation check");
-            if models.is_empty() {
-                continue;
-            }
-            println!("  {} ({} models)", provider, models.len());
-            for model in models {
-                println!("    - {}", model);
-            }
-            println!();
+    let mut providers: Vec<_> = cache.models.keys().collect();
+    providers.sort();
+
+    let providers: Vec<_> = if let Some(filter) = provider_filter {
+        providers.into_iter().filter(|p| *p == filter).collect()
+    } else {
+        providers
+    };
+
+    for provider in &providers {
+        let models = cache
+            .models
+            .get(*provider)
+            .expect("provider should exist after validation check");
+
+        if models.is_empty() {
+            continue;
         }
 
-        let total_models: usize = providers
-            .iter()
-            .map(|p| cache.models.get(*p).map(|m| m.len()).unwrap_or(0))
-            .sum();
-        println!(
-            "Total: {} providers, {} models",
-            providers.len(),
-            total_models
-        );
+        println!("  {} ({} models)", provider, models.len());
+        for model in models {
+            println!("    - {}", model);
+        }
+        println!();
     }
+
+    let total_models: usize = providers
+        .iter()
+        .map(|provider| {
+            cache
+                .models
+                .get(*provider)
+                .map(|models| models.len())
+                .unwrap_or(0)
+        })
+        .sum();
+
+    println!(
+        "Total: {} providers, {} models",
+        providers.len(),
+        total_models
+    );
 
     Ok(())
 }

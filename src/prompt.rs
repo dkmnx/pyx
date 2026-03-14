@@ -141,30 +141,39 @@ impl Autocomplete for ProviderCompletion {
 /// Prompt user for provider selection with autocomplete.
 /// Matches Go's PromptProvider behavior with tap.Autocomplete.
 pub fn prompt_provider(providers: &[String]) -> Result<String> {
-    let completion = ProviderCompletion::new(providers.to_vec());
+    let input = prompt_provider_input(providers)?;
 
-    let input = Text::new("Select a provider")
-        .with_autocomplete(completion)
-        .prompt()
-        .map_err(inquire_error_to_pyx)?;
-
-    // Empty input means cancelled (Ctrl+C)
     if input.is_empty() {
         return Err(PyxError::Validation("operation cancelled".to_string()));
     }
 
-    // Find the selected provider (case-insensitive match)
+    resolve_provider_match(providers, &input)
+}
+
+/// Prompt for provider input with autocomplete.
+fn prompt_provider_input(providers: &[String]) -> Result<String> {
+    let completion = ProviderCompletion::new(providers.to_vec());
+
+    Text::new("Select a provider")
+        .with_autocomplete(completion)
+        .prompt()
+        .map_err(inquire_error_to_pyx)
+}
+
+/// Resolve user input to a provider name.
+/// Handles exact matches, substring matches, and prefix matches.
+fn resolve_provider_match(providers: &[String], input: &str) -> Result<String> {
+    // Try exact match (case-insensitive)
     for provider in providers {
-        if provider.eq_ignore_ascii_case(&input) {
+        if provider.eq_ignore_ascii_case(input) {
             return Ok(provider.clone());
         }
     }
 
-    // Filter matches like Go does
     let input_lower = input.to_lowercase();
     let matches: Vec<String> = providers
         .iter()
-        .filter(|p| p.to_lowercase().contains(&input_lower))
+        .filter(|provider| provider.to_lowercase().contains(&input_lower))
         .cloned()
         .collect();
 
@@ -179,10 +188,15 @@ pub fn prompt_provider(providers: &[String]) -> Result<String> {
         return Ok(matches[0].clone());
     }
 
-    // Multiple matches - prefer prefix match, then shortest
+    // Multiple matches: prefer prefix match, then shortest
+    resolve_multiple_matches(&matches, &input_lower)
+}
+
+/// Resolve multiple matches by preferring prefix matches, then shortest.
+fn resolve_multiple_matches(matches: &[String], input_lower: &str) -> Result<String> {
     let prefix_matches: Vec<String> = matches
         .iter()
-        .filter(|p| p.to_lowercase().starts_with(&input_lower))
+        .filter(|provider| provider.to_lowercase().starts_with(input_lower))
         .cloned()
         .collect();
 
@@ -190,19 +204,17 @@ pub fn prompt_provider(providers: &[String]) -> Result<String> {
         return Ok(prefix_matches[0].clone());
     }
 
-    if !prefix_matches.is_empty() {
-        // Multiple prefix matches - pick shortest
-        return Ok(prefix_matches
-            .into_iter()
-            .min_by_key(|p| p.len())
-            .expect("prefix_matches is non-empty, so min_by_key should return Some"));
-    }
+    let candidates = if prefix_matches.is_empty() {
+        matches
+    } else {
+        &prefix_matches
+    };
 
-    // No prefix matches - pick shortest substring match
-    Ok(matches
-        .into_iter()
-        .min_by_key(|p| p.len())
-        .expect("matches is non-empty, so min_by_key should return Some"))
+    Ok(candidates
+        .iter()
+        .min_by_key(|provider| provider.len())
+        .expect("candidates is non-empty")
+        .clone())
 }
 
 /// Prompt user for confirmation.

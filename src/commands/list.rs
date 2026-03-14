@@ -1,17 +1,11 @@
 //! List command implementation
 
-use crate::error::{PyxError, Result};
+use crate::error::Result;
 use crate::storage::database::Database;
 
 /// Execute the list command
 pub fn execute() -> Result<()> {
-    // Load database
-    let db = Database::load().map_err(|e| match e {
-        PyxError::Config(_) => {
-            PyxError::Config("No providers configured. Run 'pyx setup' first.".to_string())
-        }
-        _ => e,
-    })?;
+    let db = Database::load_or_error()?;
 
     if db.is_empty() {
         println!("No providers configured. Run 'pyx setup' to add providers.");
@@ -30,12 +24,7 @@ pub fn execute() -> Result<()> {
 
 /// Execute list command with JSON output
 pub fn execute_json() -> Result<()> {
-    let db = Database::load().map_err(|e| match e {
-        PyxError::Config(_) => {
-            PyxError::Config("No providers configured. Run 'pyx setup' first.".to_string())
-        }
-        _ => e,
-    })?;
+    let db = Database::load_or_error()?;
 
     let providers: Vec<&str> = db.get_provider_names().iter().map(|s| s.as_str()).collect();
     let output = serde_json::json!({

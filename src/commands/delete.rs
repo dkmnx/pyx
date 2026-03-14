@@ -5,15 +5,8 @@ use crate::storage::database::Database;
 
 /// Execute the delete command
 pub fn execute(provider_name: &str) -> Result<()> {
-    // Load database
-    let mut db = Database::load().map_err(|e| match e {
-        PyxError::Config(_) => {
-            PyxError::Config("No providers configured. Run 'pyx setup' first.".to_string())
-        }
-        _ => e,
-    })?;
+    let mut db = Database::load_or_error()?;
 
-    // Check if provider exists
     if !db.has_provider(provider_name) {
         return Err(PyxError::ProviderNotFound(format!(
             "Provider '{}' not found. Run 'pyx list' to see configured providers.",
@@ -21,12 +14,10 @@ pub fn execute(provider_name: &str) -> Result<()> {
         )));
     }
 
-    // Remove provider
     let removed = db
         .remove(provider_name)
         .expect("provider should exist after has_provider check");
 
-    // Save database
     db.save()?;
 
     println!("✓ Removed provider: {}", removed.provider);

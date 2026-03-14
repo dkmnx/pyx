@@ -51,6 +51,17 @@ impl Database {
         Self::load_from_path(&path)
     }
 
+    /// Load database with user-friendly error message.
+    /// Use this in commands to provide helpful guidance when not initialized.
+    pub fn load_or_error() -> Result<Self> {
+        Self::load().map_err(|e| match e {
+            PyxError::Config(_) => {
+                PyxError::Config("No providers configured. Run 'pyx setup' first.".to_string())
+            }
+            _ => e,
+        })
+    }
+
     /// Load database from specific path (for testing)
     pub fn load_from_path(path: &Path) -> Result<Self> {
         if !path.exists() {
@@ -91,7 +102,8 @@ impl Database {
     /// Add or update a provider entry
     pub fn upsert(&mut self, entry: ProviderEntry) {
         // Remove existing entry for this provider
-        self.providers.retain(|p| p.provider != entry.provider);
+        self.providers
+            .retain(|existing| existing.provider != entry.provider);
         // Add new entry
         self.providers.push(entry);
     }
@@ -101,7 +113,7 @@ impl Database {
         if let Some(pos) = self
             .providers
             .iter()
-            .position(|p| p.provider == provider_name)
+            .position(|entry| entry.provider == provider_name)
         {
             Some(self.providers.remove(pos))
         } else {
@@ -111,17 +123,21 @@ impl Database {
 
     /// Get a provider entry by name
     pub fn get(&self, provider_name: &str) -> Option<&ProviderEntry> {
-        self.providers.iter().find(|p| p.provider == provider_name)
+        self.providers
+            .iter()
+            .find(|entry| entry.provider == provider_name)
     }
 
     /// Get all provider names
     pub fn get_provider_names(&self) -> Vec<&String> {
-        self.providers.iter().map(|p| &p.provider).collect()
+        self.providers.iter().map(|entry| &entry.provider).collect()
     }
 
     /// Check if database has a provider
     pub fn has_provider(&self, provider_name: &str) -> bool {
-        self.providers.iter().any(|p| p.provider == provider_name)
+        self.providers
+            .iter()
+            .any(|entry| entry.provider == provider_name)
     }
 
     /// Get number of providers
