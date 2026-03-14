@@ -184,10 +184,7 @@ pub fn has_entry() -> bool {
             .ok()
             .flatten()
             .is_some()
-            || b.get_password("ply", "master-key")
-                .ok()
-                .flatten()
-                .is_some()
+            || b.get_password("ply", "master-key").ok().flatten().is_some()
     })
 }
 

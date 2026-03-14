@@ -6,7 +6,7 @@
 //
 // This is the Phase 0.1 crypto spike to validate whether Rust can decrypt Go-generated data.
 
-use age::{Decryptor, scrypt};
+use age::{scrypt, Decryptor};
 use std::env;
 use std::fs;
 use std::io::Read;
@@ -184,5 +184,9 @@ fn decrypt_provider_ciphers(database_path: &str, master_key_hex: &str) {
 }
 
 fn min(a: usize, b: usize) -> usize {
-    if a < b { a } else { b }
+    if a < b {
+        a
+    } else {
+        b
+    }
 }
