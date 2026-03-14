@@ -73,10 +73,10 @@ impl ProviderEnvResolver {
     /// Returns the first match according to precedence rules
     pub fn get_env_var(&self, provider_name: &str) -> Result<String> {
         // 1. Check providers.json (highest priority)
-        if let Some(ref config) = self.providers_config
-            && let Some(env_var) = config.get_env_var(provider_name)
-        {
-            return Ok(env_var.to_string());
+        if let Some(ref config) = self.providers_config {
+            if let Some(env_var) = config.get_env_var(provider_name) {
+                return Ok(env_var.to_string());
+            }
         }
 
         // 2. Check settings.json customProviderEnvVars (legacy)
@@ -96,10 +96,10 @@ impl ProviderEnvResolver {
     /// Check if a provider has an explicit mapping (not derived)
     pub fn has_explicit_mapping(&self, provider_name: &str) -> bool {
         // Check providers.json
-        if let Some(ref config) = self.providers_config
-            && config.get_env_var(provider_name).is_some()
-        {
-            return true;
+        if let Some(ref config) = self.providers_config {
+            if config.get_env_var(provider_name).is_some() {
+                return true;
+            }
         }
 
         // Check settings.json

@@ -27,19 +27,19 @@ static RATE_LIMIT: Mutex<RateLimitState> = Mutex::new(RateLimitState {
 fn check_rate_limit() -> Result<()> {
     let mut state = RATE_LIMIT.lock().unwrap();
 
-    if state.failed_attempts >= MAX_FAILED_ATTEMPTS
-        && let Some(last) = state.last_failed_attempt
-    {
-        let elapsed = last.elapsed().as_secs();
-        if elapsed < LOCKOUT_DURATION_SECS {
-            let remaining = LOCKOUT_DURATION_SECS - elapsed;
-            return Err(PyxError::Crypto(format!(
-                "Too many failed attempts, please wait {} seconds before retrying",
-                remaining
-            )));
+    if state.failed_attempts >= MAX_FAILED_ATTEMPTS {
+        if let Some(last) = state.last_failed_attempt {
+            let elapsed = last.elapsed().as_secs();
+            if elapsed < LOCKOUT_DURATION_SECS {
+                let remaining = LOCKOUT_DURATION_SECS - elapsed;
+                return Err(PyxError::Crypto(format!(
+                    "Too many failed attempts, please wait {} seconds before retrying",
+                    remaining
+                )));
+            }
+            state.failed_attempts = 0;
+            state.last_failed_attempt = None;
         }
-        state.failed_attempts = 0;
-        state.last_failed_attempt = None;
     }
 
     Ok(())
@@ -190,11 +190,10 @@ impl KeyManager {
 fn build_passphrase_candidates(primary: &SecretString) -> Vec<SecretString> {
     let mut candidates: Vec<SecretString> = vec![primary.clone()];
 
-    if let Ok(env_value) = std::env::var(ENV_PASSPHRASE)
-        && !env_value.is_empty()
-        && env_value != primary.expose_secret()
-    {
-        candidates.push(SecretString::new(env_value.into_boxed_str()));
+    if let Ok(env_value) = std::env::var(ENV_PASSPHRASE) {
+        if !env_value.is_empty() && env_value != primary.expose_secret() {
+            candidates.push(SecretString::new(env_value.into_boxed_str()));
+        }
     }
 
     if primary.expose_secret() != LEGACY_PASSPHRASE {
@@ -227,7 +226,7 @@ fn decrypt_master_key_with_candidates(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::keys::keyring::{set_backend, reset_backend, MockKeyring};
+    use crate::keys::keyring::{reset_backend, set_backend, MockKeyring};
     use crate::ENV_MUTEX;
 
     #[test]

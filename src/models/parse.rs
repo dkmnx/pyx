@@ -49,13 +49,13 @@ pub fn parse_models(content: &str) -> Result<HashMap<String, Vec<String>>> {
             continue;
         }
 
-        if let Some(model_match) = MODEL_ID_PATTERN.captures(trimmed)
-            && let Some(model_id_match) = model_match.get(1)
-        {
-            let model_id = model_id_match.as_str().to_string();
-            let models = result.entry(current_provider.clone()).or_default();
-            if !models.iter().any(|existing| existing == &model_id) {
-                models.push(model_id);
+        if let Some(model_match) = MODEL_ID_PATTERN.captures(trimmed) {
+            if let Some(model_id_match) = model_match.get(1) {
+                let model_id = model_id_match.as_str().to_string();
+                let models = result.entry(current_provider.clone()).or_default();
+                if !models.iter().any(|existing| existing == &model_id) {
+                    models.push(model_id);
+                }
             }
         }
     }

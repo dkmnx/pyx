@@ -97,10 +97,10 @@ fn keyring_has_entry() -> bool {
     use keyring::Entry;
 
     // Check current pyx entry
-    if let Ok(entry) = Entry::new("pyx", "master-key")
-        && entry.get_password().is_ok()
-    {
-        return true;
+    if let Ok(entry) = Entry::new("pyx", "master-key") {
+        if entry.get_password().is_ok() {
+            return true;
+        }
     }
 
     // Check legacy ply entry

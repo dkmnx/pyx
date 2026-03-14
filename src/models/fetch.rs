@@ -165,10 +165,10 @@ fn load_source_config() -> Result<SourceConfig> {
 }
 
 fn apply_env_override(env_key: &str, target: &mut String) {
-    if let Ok(value) = env::var(env_key)
-        && let Some(normalized) = normalize_optional_string(&value)
-    {
-        *target = normalized;
+    if let Ok(value) = env::var(env_key) {
+        if let Some(normalized) = normalize_optional_string(&value) {
+            *target = normalized;
+        }
     }
 }
 

@@ -20,6 +20,7 @@ pub struct ProviderEntry {
 
 impl ProviderEntry {
     /// Create a new provider entry
+    #[must_use]
     pub fn new(provider: String, cipher: String) -> Self {
         let now = OffsetDateTime::now_utc();
         Self {

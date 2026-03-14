@@ -6,21 +6,27 @@
 use crate::error::{PyxError, Result};
 use age::scrypt::{Identity, Recipient};
 use age::{DecryptError, Decryptor, EncryptError, Encryptor};
-use age_core::format::{FILE_KEY_BYTES, FileKey, Stanza};
+use age_core::format::{FileKey, Stanza, FILE_KEY_BYTES};
 use age_core::primitives::{aead_decrypt, aead_encrypt};
 use base64::Engine;
-use scrypt::{Params as ScryptParams, scrypt};
+use scrypt::{scrypt, Params as ScryptParams};
 use secrecy::{ExposeSecret, SecretString};
 use std::collections::HashSet;
 use std::io::{Read, Write};
 
-const GO_SCRYPT_WORK_FACTOR: u8 = 18;
+/// Scrypt work factor for encryption (N = 2^18 = 262144 iterations)
+const SCRYPT_WORK_FACTOR: u8 = 18;
+/// Maximum accepted scrypt work factor for decryption (age library limit of 2^63)
 const MAX_ACCEPTED_SCRYPT_WORK_FACTOR: u8 = 63;
 const SCRYPT_TAG: &str = "scrypt";
 const SCRYPT_SALT_LABEL: &[u8] = b"age-encryption.org/v1/scrypt";
+/// 16-byte salt for scrypt key derivation
 const SCRYPT_SALT_LEN: usize = 16;
+/// File key length (32 bytes) + AES-GCM tag (16 bytes)
 const ENCRYPTED_FILE_KEY_BYTES: usize = FILE_KEY_BYTES + 16;
+/// Scrypt block size parameter (CPU/memory cost multiplier)
 const SCRYPT_R: u32 = 8;
+/// Scrypt parallelization parameter
 const SCRYPT_P: u32 = 1;
 const RAW_SCRYPT_LABEL: &str = "raw-scrypt";
 
@@ -30,7 +36,7 @@ const RAW_SCRYPT_LABEL: &str = "raw-scrypt";
 pub fn encrypt_with_passphrase(plaintext: &[u8], passphrase: &SecretString) -> Result<String> {
     // Create scrypt recipient with explicit Go-compatible work factor.
     let mut recipient = Recipient::new(passphrase.clone());
-    recipient.set_work_factor(GO_SCRYPT_WORK_FACTOR);
+    recipient.set_work_factor(SCRYPT_WORK_FACTOR);
 
     // Encrypt to binary
     let mut encrypted = Vec::new();
@@ -231,7 +237,7 @@ fn decrypt_with_raw_key_identity(ciphertext: &str, key: &[u8]) -> Result<Vec<u8>
 }
 
 fn encrypt_with_raw_key_recipient(plaintext: &[u8], key: &[u8]) -> Result<String> {
-    let recipient = RawScryptRecipient::new(key.to_vec(), GO_SCRYPT_WORK_FACTOR);
+    let recipient = RawScryptRecipient::new(key.to_vec(), SCRYPT_WORK_FACTOR);
 
     let mut encrypted = Vec::new();
     let mut encryptor =
