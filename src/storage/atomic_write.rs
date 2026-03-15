@@ -29,6 +29,9 @@ pub fn atomic_write_with_backup<P: AsRef<Path>>(
     let mut temp_file = NamedTempFile::new_in(path.parent().unwrap_or_else(|| Path::new(".")))?;
     temp_file.write_all(data)?;
 
+    #[cfg(not(unix))]
+    let _ = permissions;
+
     // Set permissions (Unix only)
     #[cfg(unix)]
     {
