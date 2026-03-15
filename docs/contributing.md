@@ -73,12 +73,4 @@ just check-ci  # Non-mutating checks (fmt-check, lint, tests)
 
 ### Creating a Release
 
-1. Update version in `Cargo.toml`
-2. Create an annotated tag:
-
-```bash
-git tag -a v0.1.0 -m "Release v0.1.0"
-git push origin v0.1.0
-```
-
-The release workflow will build binaries for Linux, macOS, and Windows, then create a GitHub Release.
+Only the maintainer can update the version and create a release tag.
