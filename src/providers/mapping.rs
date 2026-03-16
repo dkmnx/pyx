@@ -34,7 +34,7 @@ fn get_builtin_mappings() -> HashMap<&'static str, &'static str> {
     map.insert("openai", "OPENAI_API_KEY");
     map.insert("openai-codex", "OPENAI_API_KEY");
     map.insert("opencode", "OPENCODE_API_KEY");
-    map.insert("opencode-zen", "OPENCODE_API_KEY");
+    map.insert("opencode-go", "OPENCODE_API_KEY");
     map.insert("openrouter", "OPENROUTER_API_KEY");
     map.insert("qwen", "QWEN_API_KEY");
     map.insert("vercel-ai-gateway", "AI_GATEWAY_API_KEY");
