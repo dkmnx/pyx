@@ -38,8 +38,7 @@ fn load_or_create_database() -> Result<Database> {
 
 /// Execute the setup command
 pub fn execute() -> Result<()> {
-    println!();
-    println!("=== Pyx Setup ===");
+    println!("Pyx Setup");
     println!();
 
     // Ensure data directory exists
@@ -195,7 +194,7 @@ fn prompt_provider_selection(providers: &[String], db: &Database) -> Result<Stri
     let provider = match prompt::prompt_provider(providers) {
         Ok(p) => p,
         Err(PyxError::Validation(msg)) if msg.contains("cancelled") => {
-            println!("Setup cancelled!");
+            println!("\n\nSetup cancelled!");
             return Err(PyxError::Cancelled);
         }
         Err(e) => return Err(e),
