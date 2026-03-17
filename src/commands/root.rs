@@ -1,5 +1,7 @@
 //! Root command execution - run pi with configured providers
 
+use owo_colors::OwoColorize;
+
 use crate::crypto::age::{decrypt_with_key, decrypt_with_passphrase};
 use crate::error::{PyxError, Result};
 use crate::keys::keyring::get_passphrase;
@@ -181,7 +183,10 @@ fn display_session_hint() {
     };
 
     eprintln!("  ██████  ██");
-    eprintln!("  ██  ██  ██    To continue this session, run:");
+    eprintln!(
+        "  ██  ██  ██    {}",
+        "To continue this session, run:".white().dimmed()
+    );
     eprintln!("  ████  ██  ██  pyx -s {}", uuid);
     eprintln!("  ██    ██  ██\n");
 }
