@@ -187,7 +187,10 @@ fn display_session_hint() {
         "  ██  ██  ██    {}",
         "To continue this session, run:".white().dimmed()
     );
-    eprintln!("  ████  ██  ██  pyx -s {}", uuid);
+    eprintln!(
+        "  ████  ██  ██  {}",
+        format!("pyx -s {}", uuid).yellow()
+    );
     eprintln!("  ██    ██  ██\n");
 }
 
