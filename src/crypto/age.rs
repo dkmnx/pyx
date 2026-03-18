@@ -115,6 +115,10 @@ pub fn decrypt_with_passphrase(ciphertext: &str, passphrase: &SecretString) -> R
     Ok(decrypted)
 }
 
+/// WARNING: This implements age's Recipient trait using internal details.
+/// This is fragile and may break if the age crate changes its internal API.
+/// Used for Go compatibility and key-based encryption where passphrase string
+/// conversion would be lossy.
 #[derive(Clone)]
 struct RawScryptRecipient {
     passphrase: Vec<u8>,
@@ -162,6 +166,10 @@ impl age::Recipient for RawScryptRecipient {
     }
 }
 
+/// WARNING: This implements age's Identity trait using internal details.
+/// This is fragile and may break if the age crate changes its internal API.
+/// Used for Go compatibility and key-based decryption where passphrase string
+/// conversion would be lossy.
 #[derive(Clone)]
 struct RawScryptIdentity {
     passphrase: Vec<u8>,

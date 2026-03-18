@@ -14,6 +14,10 @@ const ENV_PASSPHRASE: &str = "PYX_PASSPHRASE";
 const MAX_FAILED_ATTEMPTS: u32 = 5;
 const LOCKOUT_DURATION_SECS: u64 = 30;
 
+/// Master key length in bytes (256 bits)
+/// This is used throughout the codebase for consistent key generation
+pub const MASTER_KEY_BYTES: usize = 32;
+
 struct RateLimitState {
     failed_attempts: u32,
     last_failed_attempt: Option<Instant>,
@@ -134,8 +138,8 @@ impl KeyManager {
 
     /// Generate a new random master key
     pub fn generate() -> Result<Self> {
-        // Generate 32 random bytes using getrandom crate
-        let mut key_bytes = vec![0u8; 32];
+        // Generate random bytes for master key using getrandom crate
+        let mut key_bytes = vec![0u8; MASTER_KEY_BYTES];
         getrandom::fill(&mut key_bytes)
             .map_err(|e| PyxError::Crypto(format!("Failed to generate random key: {e}")))?;
 

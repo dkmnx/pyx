@@ -263,12 +263,11 @@ fn reset_subcommand_requires_confirmation() {
     let (_data_dir, xdg_data) = setup_pox_env(&temp);
     let xdg_data_str = xdg_data.to_string_lossy().to_string();
 
-    // Reset without confirmation should fail or prompt
+    // Reset requires interactive confirmation; in non-TTY test env it fails
     let mut cmd = Command::cargo_bin("pyx").unwrap();
     cmd.arg("reset")
         .env("XDG_DATA_HOME", &xdg_data_str)
         .env("PYX_PASSPHRASE", "test-passphrase");
-    // Reset requires interactive confirmation, so it will fail in test env
     cmd.assert().failure();
 }
 

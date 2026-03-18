@@ -22,7 +22,7 @@ pub fn execute() -> Result<()> {
     // Confirm deletion
     if !confirm_reset()? {
         println!("Reset cancelled.");
-        return Ok(());
+        return Err(PyxError::Cancelled);
     }
 
     println!();
