@@ -165,7 +165,9 @@ jobs:
       - name: Generate checksums
         run: |
           cd artifacts
-          sha256sum * > SHA256SUMS.txt
+          # Find all archive files in subdirectories and generate checksums
+          find . -type f \( -name "*.tar.gz" -o -name "*.zip" \) -exec sha256sum {} \; > SHA256SUMS.txt
+          cat SHA256SUMS.txt
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
