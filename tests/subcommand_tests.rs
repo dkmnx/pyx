@@ -84,23 +84,6 @@ fn version_subcommand_shows_version() {
 }
 
 #[test]
-fn version_subcommand_json_output() {
-    let temp = tempdir().unwrap();
-    let (_data_dir, xdg_data) = setup_pox_env(&temp);
-    let xdg_data_str = xdg_data.to_string_lossy().to_string();
-
-    let mut cmd = Command::cargo_bin("pyx").unwrap();
-    cmd.arg("version")
-        .arg("--json")
-        .env("XDG_DATA_HOME", &xdg_data_str)
-        .env("PYX_PASSPHRASE", "test-passphrase");
-
-    cmd.assert()
-        .success()
-        .stdout(predicates::str::contains("\"version\":"));
-}
-
-#[test]
 fn list_subcommand_empty_database() {
     let temp = tempdir().unwrap();
     let xdg_data = temp.path();

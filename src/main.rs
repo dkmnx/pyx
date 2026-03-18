@@ -86,12 +86,8 @@ fn run_subcommand_mode() -> Result<()> {
                 pyx_rs::commands::completion::generate_completion(&shell)?;
             }
         }
-        Some(Commands::Version { json }) => {
-            if json {
-                pyx_rs::commands::version::execute_json()?;
-            } else {
-                pyx_rs::commands::version::execute()?;
-            }
+        Some(Commands::Version) => {
+            pyx_rs::commands::version::execute()?;
         }
         None => {
             let exit_code = pyx_rs::commands::root::execute(

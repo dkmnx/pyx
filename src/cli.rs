@@ -75,11 +75,7 @@ pub enum Commands {
     },
 
     /// Print version information
-    Version {
-        /// Output as JSON
-        #[arg(long)]
-        json: bool,
-    },
+    Version,
 }
 
 #[derive(Subcommand)]
