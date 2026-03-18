@@ -123,7 +123,9 @@ jobs:
           if [ "${{ matrix.ext }}" = "tar.gz" ]; then
             tar -czvf "pyx-${{ needs.validate.outputs.version }}-${{ matrix.target }}.tar.gz" -C "$(dirname "$binary_path")" "$(basename "$binary_path")"
           elif [ "${{ matrix.ext }}" = "zip" ]; then
-            powershell -Command "Compress-Archive -Path '$binary_path' -DestinationPath 'pyx-${{ needs.validate.outputs.version }}-${{ matrix.target }}.zip'"
+            # Use printf to safely handle the path with potential spaces
+            printf -v ps_cmd 'Compress-Archive -Path "%s" -DestinationPath "pyx-%s-%s.zip"' "$binary_path" "${{ needs.validate.outputs.version }}" "${{ matrix.target }}"
+            powershell -Command "$ps_cmd"
           fi
 
       - name: Upload artifacts
