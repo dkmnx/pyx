@@ -26,38 +26,35 @@ impl KeyringBackend for OsKeyring {
                 Ok(_) => Ok(None),
                 Err(keyring::Error::NoEntry) => Ok(None),
                 Err(e) => Err(PyxError::Keyring(format!(
-                    "Failed to get password from keyring: {}",
-                    e
+                    "Failed to get password from keyring: {e}"
                 ))),
             },
             Err(e) => Err(PyxError::Keyring(format!(
-                "Failed to create keyring entry: {}",
-                e
+                "Failed to create keyring entry: {e}"
             ))),
         }
     }
 
     fn set_password(&self, service: &str, username: &str, password: &str) -> Result<()> {
         let entry = keyring::Entry::new(service, username)
-            .map_err(|e| PyxError::Keyring(format!("Failed to create keyring entry: {}", e)))?;
+            .map_err(|e| PyxError::Keyring(format!("Failed to create keyring entry: {e}")))?;
 
         entry
             .set_password(password)
-            .map_err(|e| PyxError::Keyring(format!("Failed to set password in keyring: {}", e)))?;
+            .map_err(|e| PyxError::Keyring(format!("Failed to set password in keyring: {e}")))?;
 
         Ok(())
     }
 
     fn delete_password(&self, service: &str, username: &str) -> Result<()> {
         let entry = keyring::Entry::new(service, username)
-            .map_err(|e| PyxError::Keyring(format!("Failed to create keyring entry: {}", e)))?;
+            .map_err(|e| PyxError::Keyring(format!("Failed to create keyring entry: {e}")))?;
 
         match entry.delete_credential() {
             Ok(()) => Ok(()),
             Err(keyring::Error::NoEntry) => Ok(()), // Already gone, that's fine
             Err(e) => Err(PyxError::Keyring(format!(
-                "Failed to delete password from keyring: {}",
-                e
+                "Failed to delete password from keyring: {e}"
             ))),
         }
     }
@@ -75,7 +72,7 @@ impl MockKeyring {
     }
 
     fn key(service: &str, username: &str) -> String {
-        format!("{}:{}", service, username)
+        format!("{service}:{username}")
     }
 }
 
@@ -175,7 +172,7 @@ fn derive_machine_key() -> SecretString {
 
     // Combine to create unique key for this machine/user
     // Simple deterministic transformation to create a passphrase
-    let combined = format!("pyx-passphrase:{}:{}", machine_id, user);
+    let combined = format!("pyx-passphrase:{machine_id}:{user}");
     let hash = hex::encode(combined.as_bytes());
 
     SecretString::new(hash.into_boxed_str())
@@ -196,7 +193,7 @@ fn set_passphrase_file(passphrase: &SecretString) -> Result<()> {
         passphrase.expose_secret().as_bytes(),
         &machine_key,
     )
-    .map_err(|e| PyxError::Crypto(format!("Failed to encrypt passphrase file: {}", e)))?;
+    .map_err(|e| PyxError::Crypto(format!("Failed to encrypt passphrase file: {e}")))?;
 
     std::fs::write(&path, &encrypted)?;
 

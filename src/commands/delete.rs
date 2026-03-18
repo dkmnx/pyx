@@ -9,8 +9,7 @@ pub fn execute(provider_name: &str) -> Result<()> {
 
     if !db.has_provider(provider_name) {
         return Err(PyxError::ProviderNotFound(format!(
-            "Provider '{}' not found. Run 'pyx list' to see configured providers.",
-            provider_name
+            "Provider '{provider_name}' not found. Run 'pyx list' to see configured providers."
         )));
     }
 

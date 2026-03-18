@@ -44,7 +44,7 @@ pub fn atomic_write_with_backup<P: AsRef<Path>>(
     // Atomically rename
     temp_file
         .persist(path)
-        .map_err(|e| PyxError::TempFilePersist(format!("Failed to persist temp file: {}", e)))?;
+        .map_err(|e| PyxError::TempFilePersist(format!("Failed to persist temp file: {e}")))?;
 
     Ok(())
 }

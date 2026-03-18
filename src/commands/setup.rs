@@ -29,9 +29,8 @@ fn load_or_create_database() -> Result<Database> {
     // Fail loudly if it's corrupted rather than silently overwriting
     Database::load_from_path(&path).map_err(|e| {
         PyxError::Config(format!(
-            "Failed to load existing database (may be corrupted): {}. \
-             Run 'pyx reset' to start fresh if this persists.",
-            e
+            "Failed to load existing database (may be corrupted): {e}. \
+             Run 'pyx reset' to start fresh if this persists."
         ))
     })
 }
@@ -101,9 +100,8 @@ fn load_or_create_master_key() -> Result<KeyManager> {
                 // Try to load with the provided passphrase
                 return KeyManager::load_with_passphrase(&passphrase).map_err(|e| {
                     PyxError::Crypto(format!(
-                        "Failed to decrypt master key: {}. \
-                         If you forgot your passphrase, run 'pyx reset' to start fresh.",
-                        e
+                        "Failed to decrypt master key: {e}. \
+                         If you forgot your passphrase, run 'pyx reset' to start fresh."
                     ))
                 });
             }
@@ -154,8 +152,7 @@ fn fetch_providers() -> Result<()> {
             } else {
                 println!("failed");
                 return Err(PyxError::Network(format!(
-                    "Failed to fetch providers and no cache available: {}",
-                    e
+                    "Failed to fetch providers and no cache available: {e}"
                 )));
             }
         }
@@ -204,8 +201,7 @@ fn prompt_provider_selection(providers: &[String], db: &Database) -> Result<Stri
 
     if db.has_provider(&provider) {
         let confirm = prompt::prompt_confirm(&format!(
-            "Provider '{}' already configured. Override?",
-            provider
+            "Provider '{provider}' already configured. Override?"
         ))?;
         if !confirm {
             println!("\nProvider already configured!\n");
@@ -220,7 +216,7 @@ fn prompt_provider_selection(providers: &[String], db: &Database) -> Result<Stri
 fn prompt_api_key(provider: &str) -> Result<String> {
     let api_key = prompt::prompt_secret(prompt::SecretPromptOptions {
         prompt: "API key".to_string(),
-        helper: Some(format!("Enter API key for {} (input is hidden):", provider)),
+        helper: Some(format!("Enter API key for {provider} (input is hidden):")),
         confirmation: None,
         empty_error: "API key cannot be empty".to_string(),
         allow_empty: false,
@@ -241,7 +237,7 @@ fn store_provider_entry(
 
     // Encrypt API key
     let cipher = encrypt_with_key(api_key.as_bytes(), &master_key)
-        .map_err(|e| PyxError::Crypto(format!("Failed to encrypt API key: {}", e)))?;
+        .map_err(|e| PyxError::Crypto(format!("Failed to encrypt API key: {e}")))?;
 
     // Zero master key after use
     master_key.fill(0);
@@ -268,5 +264,5 @@ fn format_time_now() -> String {
     let hours = (secs % 86400) / 3600;
     let mins = (secs % 3600) / 60;
     let secs = secs % 60;
-    format!("{:02}:{:02}:{:02} UTC", hours, mins, secs)
+    format!("{hours:02}:{mins:02}:{secs:02} UTC")
 }

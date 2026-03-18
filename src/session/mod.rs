@@ -15,10 +15,10 @@ pub fn parse_session_filename(filename: &str) -> Result<(String, String)> {
     let pattern = Regex::new(
         r"^(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z)_([[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12})\.jsonl$",
     )
-    .map_err(|e| PyxError::Validation(format!("Invalid session filename regex: {}", e)))?;
+    .map_err(|e| PyxError::Validation(format!("Invalid session filename regex: {e}")))?;
 
     let captures = pattern.captures(filename).ok_or_else(|| {
-        PyxError::Validation(format!("Invalid session filename format: {}", filename))
+        PyxError::Validation(format!("Invalid session filename format: {filename}"))
     })?;
 
     let timestamp = captures
@@ -90,7 +90,7 @@ pub fn encode_cwd(cwd: &str) -> Result<String> {
     let normalized = cwd.replace('\\', "/");
     let trimmed = normalized.trim_start_matches('/');
     let encoded = trimmed.replace(['/', ':'], "-");
-    Ok(format!("--{}--", encoded))
+    Ok(format!("--{encoded}--"))
 }
 
 /// Resolve session directory for a working directory.

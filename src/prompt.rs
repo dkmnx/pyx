@@ -21,7 +21,7 @@ pub fn prompt_secret(options: SecretPromptOptions) -> Result<String> {
     } = options;
 
     if let Some(helper_text) = helper {
-        println!("{}", helper_text);
+        println!("{helper_text}");
         println!();
     }
 
@@ -53,7 +53,7 @@ fn inquire_error_to_pyx(err: InquireError) -> PyxError {
         InquireError::OperationCanceled | InquireError::OperationInterrupted => {
             PyxError::Validation("operation cancelled".to_string())
         }
-        _ => PyxError::Validation(format!("Failed to read input: {}", err)),
+        _ => PyxError::Validation(format!("Failed to read input: {err}")),
     }
 }
 
@@ -179,8 +179,7 @@ fn resolve_provider_match(providers: &[String], input: &str) -> Result<String> {
 
     if matches.is_empty() {
         return Err(PyxError::Validation(format!(
-            "unknown provider '{}'. Run 'pyx models update' to refresh",
-            input
+            "unknown provider '{input}'. Run 'pyx models update' to refresh"
         )));
     }
 
@@ -222,5 +221,5 @@ pub fn prompt_confirm(message: &str) -> Result<bool> {
     Confirm::new(message)
         .with_default(false)
         .prompt()
-        .map_err(|e| PyxError::Validation(format!("Failed to read confirmation: {}", e)))
+        .map_err(|e| PyxError::Validation(format!("Failed to read confirmation: {e}")))
 }

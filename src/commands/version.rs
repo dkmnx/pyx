@@ -15,7 +15,7 @@ pub fn execute_json() -> Result<()> {
         "version": env!("CARGO_PKG_VERSION"),
         "rust_version": env!("CARGO_PKG_RUST_VERSION"),
     });
-    println!("{}", version_info);
+    println!("{version_info}");
     Ok(())
 }
 

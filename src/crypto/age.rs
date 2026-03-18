@@ -64,17 +64,17 @@ pub fn encrypt_with_passphrase(plaintext: &[u8], passphrase: &SecretString) -> R
     let mut encrypted = Vec::new();
     let mut encryptor =
         Encryptor::with_recipients(std::iter::once(&recipient as &dyn age::Recipient))
-            .map_err(|e| PyxError::Crypto(format!("Failed to create encryptor: {}", e)))?
+            .map_err(|e| PyxError::Crypto(format!("Failed to create encryptor: {e}")))?
             .wrap_output(&mut encrypted)
-            .map_err(|e| PyxError::Crypto(format!("Failed to wrap output: {}", e)))?;
+            .map_err(|e| PyxError::Crypto(format!("Failed to wrap output: {e}")))?;
 
     encryptor
         .write_all(plaintext)
-        .map_err(|e| PyxError::Crypto(format!("Encryption write failed: {}", e)))?;
+        .map_err(|e| PyxError::Crypto(format!("Encryption write failed: {e}")))?;
 
     encryptor
         .finish()
-        .map_err(|e| PyxError::Crypto(format!("Encryption finish failed: {}", e)))?;
+        .map_err(|e| PyxError::Crypto(format!("Encryption finish failed: {e}")))?;
 
     // Encode as base64 (matches Go implementation)
     Ok(base64::Engine::encode(
@@ -89,7 +89,7 @@ pub fn encrypt_with_passphrase(plaintext: &[u8], passphrase: &SecretString) -> R
 pub fn decrypt_with_passphrase(ciphertext: &str, passphrase: &SecretString) -> Result<Vec<u8>> {
     // Decode base64
     let encrypted = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, ciphertext)
-        .map_err(|e| PyxError::Crypto(format!("Base64 decode failed: {}", e)))?;
+        .map_err(|e| PyxError::Crypto(format!("Base64 decode failed: {e}")))?;
 
     // Create scrypt identity and accept high work factors from Go-generated data.
     let mut identity = Identity::new(passphrase.clone());
@@ -97,7 +97,7 @@ pub fn decrypt_with_passphrase(ciphertext: &str, passphrase: &SecretString) -> R
 
     // Create decryptor
     let decryptor = Decryptor::new(encrypted.as_slice())
-        .map_err(|e| PyxError::Crypto(format!("Failed to create decryptor: {}", e)))?;
+        .map_err(|e| PyxError::Crypto(format!("Failed to create decryptor: {e}")))?;
 
     // Decrypt with identity iterator
     let mut reader = decryptor
@@ -110,7 +110,7 @@ pub fn decrypt_with_passphrase(ciphertext: &str, passphrase: &SecretString) -> R
     let mut decrypted = Vec::new();
     reader
         .read_to_end(&mut decrypted)
-        .map_err(|e| PyxError::Crypto(format!("Decryption read failed: {}", e)))?;
+        .map_err(|e| PyxError::Crypto(format!("Decryption read failed: {e}")))?;
 
     Ok(decrypted)
 }
@@ -231,11 +231,11 @@ impl age::Identity for RawScryptIdentity {
 
 fn derive_scrypt_key(inner_salt: &[u8], log_n: u8, passphrase: &[u8]) -> Result<[u8; 32]> {
     let params = ScryptParams::new(log_n, SCRYPT_R, SCRYPT_P, 32)
-        .map_err(|e| PyxError::Crypto(format!("Invalid scrypt params: {}", e)))?;
+        .map_err(|e| PyxError::Crypto(format!("Invalid scrypt params: {e}")))?;
 
     let mut output = [0u8; 32];
     scrypt(passphrase, inner_salt, &params, &mut output)
-        .map_err(|e| PyxError::Crypto(format!("Scrypt key derivation failed: {}", e)))?;
+        .map_err(|e| PyxError::Crypto(format!("Scrypt key derivation failed: {e}")))?;
 
     Ok(output)
 }
@@ -243,20 +243,20 @@ fn derive_scrypt_key(inner_salt: &[u8], log_n: u8, passphrase: &[u8]) -> Result<
 fn decrypt_with_raw_key_identity(ciphertext: &str, key: &[u8]) -> Result<Vec<u8>> {
     let encrypted = base64::engine::general_purpose::STANDARD
         .decode(ciphertext)
-        .map_err(|e| PyxError::Crypto(format!("Base64 decode failed: {}", e)))?;
+        .map_err(|e| PyxError::Crypto(format!("Base64 decode failed: {e}")))?;
 
     let decryptor = Decryptor::new(encrypted.as_slice())
-        .map_err(|e| PyxError::Crypto(format!("Failed to create decryptor: {}", e)))?;
+        .map_err(|e| PyxError::Crypto(format!("Failed to create decryptor: {e}")))?;
 
     let identity = RawScryptIdentity::new(key.to_vec());
     let mut reader = decryptor
         .decrypt(std::iter::once(&identity as &dyn age::Identity))
-        .map_err(|e| PyxError::Crypto(format!("Decryption failed (wrong passphrase?): {}", e)))?;
+        .map_err(|e| PyxError::Crypto(format!("Decryption failed (wrong passphrase?): {e}")))?;
 
     let mut decrypted = Vec::new();
     reader
         .read_to_end(&mut decrypted)
-        .map_err(|e| PyxError::Crypto(format!("Decryption read failed: {}", e)))?;
+        .map_err(|e| PyxError::Crypto(format!("Decryption read failed: {e}")))?;
 
     Ok(decrypted)
 }
@@ -267,17 +267,17 @@ fn encrypt_with_raw_key_recipient(plaintext: &[u8], key: &[u8]) -> Result<String
     let mut encrypted = Vec::new();
     let mut encryptor =
         Encryptor::with_recipients(std::iter::once(&recipient as &dyn age::Recipient))
-            .map_err(|e| PyxError::Crypto(format!("Failed to create encryptor: {}", e)))?
+            .map_err(|e| PyxError::Crypto(format!("Failed to create encryptor: {e}")))?
             .wrap_output(&mut encrypted)
-            .map_err(|e| PyxError::Crypto(format!("Failed to wrap output: {}", e)))?;
+            .map_err(|e| PyxError::Crypto(format!("Failed to wrap output: {e}")))?;
 
     encryptor
         .write_all(plaintext)
-        .map_err(|e| PyxError::Crypto(format!("Encryption write failed: {}", e)))?;
+        .map_err(|e| PyxError::Crypto(format!("Encryption write failed: {e}")))?;
 
     encryptor
         .finish()
-        .map_err(|e| PyxError::Crypto(format!("Encryption finish failed: {}", e)))?;
+        .map_err(|e| PyxError::Crypto(format!("Encryption finish failed: {e}")))?;
 
     Ok(base64::engine::general_purpose::STANDARD.encode(encrypted))
 }

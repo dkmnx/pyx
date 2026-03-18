@@ -33,8 +33,7 @@ fn check_rate_limit() -> Result<()> {
             if elapsed < LOCKOUT_DURATION_SECS {
                 let remaining = LOCKOUT_DURATION_SECS - elapsed;
                 return Err(PyxError::Crypto(format!(
-                    "Too many failed attempts, please wait {} seconds before retrying",
-                    remaining
+                    "Too many failed attempts, please wait {remaining} seconds before retrying"
                 )));
             }
             state.failed_attempts = 0;
@@ -77,7 +76,7 @@ impl KeyManager {
         // Read encrypted master.key
         let path = master_key_path()?;
         let encrypted_content = fs::read_to_string(&path)
-            .map_err(|e| PyxError::Config(format!("Failed to read master.key: {}", e)))?;
+            .map_err(|e| PyxError::Config(format!("Failed to read master.key: {e}")))?;
 
         // Build passphrase candidates (matches Go's fallback chain)
         let passphrases = build_passphrase_candidates(&primary_passphrase);
@@ -88,8 +87,7 @@ impl KeyManager {
                 // Record failed attempt for rate limiting
                 record_failed_attempt();
                 PyxError::Crypto(format!(
-                    "Failed to decrypt master key: {}. Run 'pyx setup' to reconfigure.",
-                    e
+                    "Failed to decrypt master key: {e}. Run 'pyx setup' to reconfigure."
                 ))
             })?;
 
@@ -113,7 +111,7 @@ impl KeyManager {
         // Read encrypted master.key
         let path = master_key_path()?;
         let encrypted_content = fs::read_to_string(&path)
-            .map_err(|e| PyxError::Config(format!("Failed to read master.key: {}", e)))?;
+            .map_err(|e| PyxError::Config(format!("Failed to read master.key: {e}")))?;
 
         // Build passphrase candidates (includes env var if set, and legacy if enabled)
         let passphrases = build_passphrase_candidates(passphrase);
@@ -122,7 +120,7 @@ impl KeyManager {
         let decrypted = decrypt_master_key_with_candidates(&encrypted_content, &passphrases)
             .map_err(|e| {
                 record_failed_attempt();
-                PyxError::Crypto(format!("Failed to decrypt master key: {}", e))
+                PyxError::Crypto(format!("Failed to decrypt master key: {e}"))
             })?;
 
         reset_failed_attempts();
@@ -139,7 +137,7 @@ impl KeyManager {
         // Generate 32 random bytes using getrandom crate
         let mut key_bytes = vec![0u8; 32];
         getrandom::fill(&mut key_bytes)
-            .map_err(|e| PyxError::Crypto(format!("Failed to generate random key: {}", e)))?;
+            .map_err(|e| PyxError::Crypto(format!("Failed to generate random key: {e}")))?;
 
         // Store as hex string
         let master_key_hex = hex::encode(&key_bytes);
@@ -153,11 +151,11 @@ impl KeyManager {
     pub fn save_with_passphrase(&self, passphrase: &SecretString) -> Result<()> {
         // Decode hex to bytes
         let key_bytes = hex::decode(self.key.expose_secret())
-            .map_err(|e| PyxError::Crypto(format!("Invalid master key hex: {}", e)))?;
+            .map_err(|e| PyxError::Crypto(format!("Invalid master key hex: {e}")))?;
 
         // Encrypt with passphrase
         let encrypted = encrypt_with_passphrase(&key_bytes, passphrase)
-            .map_err(|e| PyxError::Crypto(format!("Failed to encrypt master key: {}", e)))?;
+            .map_err(|e| PyxError::Crypto(format!("Failed to encrypt master key: {e}")))?;
 
         // Write to file
         let path = master_key_path()?;
@@ -194,7 +192,7 @@ impl KeyManager {
     /// Get the master key as bytes
     pub fn get_key_bytes(&self) -> Result<Vec<u8>> {
         hex::decode(self.key.expose_secret())
-            .map_err(|e| PyxError::Crypto(format!("Invalid master key hex: {}", e)))
+            .map_err(|e| PyxError::Crypto(format!("Invalid master key hex: {e}")))
     }
 
     /// Set passphrase in keyring

@@ -84,10 +84,10 @@ fn fetch_latest_release_tag(config: &SourceConfig) -> Result<String> {
     );
 
     let response = request_get(&url)
-        .map_err(|err| PyxError::Network(format!("Failed to fetch latest release tag: {}", err)))?;
+        .map_err(|err| PyxError::Network(format!("Failed to fetch latest release tag: {err}")))?;
 
     let release: ReleaseResponse = serde_json::from_str(&response).map_err(|err| {
-        PyxError::Network(format!("Failed to decode latest release response: {}", err))
+        PyxError::Network(format!("Failed to decode latest release response: {err}"))
     })?;
 
     if release.tag_name.trim().is_empty() {
@@ -109,7 +109,7 @@ fn fetch_models_file(config: &SourceConfig, git_ref: &str) -> Result<String> {
     );
 
     request_get(&url)
-        .map_err(|err| PyxError::Network(format!("Failed to fetch models file: {}", err)))
+        .map_err(|err| PyxError::Network(format!("Failed to fetch models file: {err}")))
 }
 
 fn request_get(url: &str) -> std::result::Result<String, String> {
@@ -123,13 +123,13 @@ fn request_get(url: &str) -> std::result::Result<String, String> {
         .set("User-Agent", "pyx-cli")
         .call()
         .map_err(|err| match err {
-            ureq::Error::Status(code, _) => format!("unexpected status code {}", code),
+            ureq::Error::Status(code, _) => format!("unexpected status code {code}"),
             ureq::Error::Transport(transport) => transport.to_string(),
         })?;
 
     response
         .into_string()
-        .map_err(|err| format!("failed to read response body: {}", err))
+        .map_err(|err| format!("failed to read response body: {err}"))
 }
 
 fn load_source_config() -> Result<SourceConfig> {

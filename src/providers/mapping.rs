@@ -49,7 +49,7 @@ fn get_builtin_mappings() -> HashMap<&'static str, &'static str> {
 fn derive_env_var(provider_name: &str) -> String {
     let upper = provider_name.to_uppercase();
     let normalized = upper.replace('-', "_");
-    format!("{}_API_KEY", normalized)
+    format!("{normalized}_API_KEY")
 }
 
 /// Unified provider environment variable resolver
@@ -65,8 +65,7 @@ impl ProviderEnvResolver {
         // Load settings - fail if file exists but is corrupted
         let settings = Settings::load().map_err(|e| {
             crate::error::PyxError::Config(format!(
-                "Failed to load settings (may be corrupted): {}",
-                e
+                "Failed to load settings (may be corrupted): {e}"
             ))
         })?;
 

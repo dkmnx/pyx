@@ -10,7 +10,7 @@ fn main() {
         match e {
             PyxError::Cancelled => std::process::exit(0),
             _ => {
-                eprintln!("Error: {}", e);
+                eprintln!("Error: {e}");
                 std::process::exit(1);
             }
         }

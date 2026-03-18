@@ -14,8 +14,7 @@ pub fn validate_provider_name(name: &str) -> Result<()> {
         Ok(())
     } else {
         Err(PyxError::Validation(format!(
-            "Invalid provider name: '{}' - must match ^[a-zA-Z0-9_-]{{1,50}}$",
-            name
+            "Invalid provider name: '{name}' - must match ^[a-zA-Z0-9_-]{{1,50}}$"
         )))
     }
 }
@@ -31,8 +30,7 @@ pub fn validate_env_var(name: &str) -> Result<()> {
         Ok(())
     } else {
         Err(PyxError::Validation(format!(
-            "Invalid environment variable name: '{}' - must match ^[A-Z_][A-Z0-9_]*$",
-            name
+            "Invalid environment variable name: '{name}' - must match ^[A-Z_][A-Z0-9_]*$"
         )))
     }
 }

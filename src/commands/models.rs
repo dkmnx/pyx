@@ -59,7 +59,7 @@ fn handle_refresh(
             if explicit_refresh {
                 return Err(e);
             }
-            eprintln!("Warning: Failed to fetch updated models: {}", e);
+            eprintln!("Warning: Failed to fetch updated models: {e}");
             eprintln!(
                 "Using cached models (last updated: {})",
                 stale_cache.updated_at
@@ -73,10 +73,7 @@ fn handle_refresh(
 fn print_models(cache: &ModelsCache, json: bool, provider_filter: Option<&str>) -> Result<()> {
     if let Some(provider) = provider_filter {
         if !cache.models.contains_key(provider) {
-            return Err(PyxError::Config(format!(
-                "Provider '{}' not found",
-                provider
-            )));
+            return Err(PyxError::Config(format!("Provider '{provider}' not found")));
         }
     }
 
@@ -105,7 +102,7 @@ fn print_models_json(cache: &ModelsCache, provider_filter: Option<&str>) -> Resu
         "updated_at": cache.updated_at,
         "models": filtered_models,
     });
-    println!("{}", output);
+    println!("{output}");
     Ok(())
 }
 
@@ -135,7 +132,7 @@ fn print_models_text(cache: &ModelsCache, provider_filter: Option<&str>) -> Resu
 
         println!("  {} ({} models)", provider, models.len());
         for model in models {
-            println!("    - {}", model);
+            println!("    - {model}");
         }
         println!();
     }
@@ -165,7 +162,7 @@ pub fn execute_update() -> Result<()> {
     println!("Fetching models from remote...");
 
     let cache = fetch_models_from_remote()
-        .map_err(|e| PyxError::Network(format!("Failed to fetch models: {}", e)))?;
+        .map_err(|e| PyxError::Network(format!("Failed to fetch models: {e}")))?;
 
     cache.save()?;
     println!("Models cache updated successfully.");

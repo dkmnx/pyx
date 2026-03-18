@@ -79,12 +79,12 @@ fn ensure_pi_installed() -> Result<bool> {
 fn display_installation_info() {
     eprintln!("Platform: {}", platform_info());
     if let Ok(version) = get_pi_version() {
-        eprintln!("pi version: {}", version);
+        eprintln!("pi version: {version}");
     }
     eprintln!();
 
     if let Err(e) = install_completion() {
-        eprintln!("Warning: failed to install shell completions: {}", e);
+        eprintln!("Warning: failed to install shell completions: {e}");
     }
 }
 
@@ -98,7 +98,7 @@ fn build_provider_env_vars(db: &Database, providers: &[String]) -> Result<Vec<(S
 
     for provider_name in providers {
         let entry = db.get(provider_name).ok_or_else(|| {
-            PyxError::ProviderNotFound(format!("Provider '{}' not found", provider_name))
+            PyxError::ProviderNotFound(format!("Provider '{provider_name}' not found"))
         })?;
 
         let api_key = decrypt_api_key(&entry.cipher, &master_key)?;
@@ -107,8 +107,7 @@ fn build_provider_env_vars(db: &Database, providers: &[String]) -> Result<Vec<(S
         if let Some(existing) = env_map.get(&env_var) {
             if existing != &api_key {
                 return Err(PyxError::Validation(format!(
-                    "Conflicting API keys for environment variable {}",
-                    env_var
+                    "Conflicting API keys for environment variable {env_var}"
                 )));
             }
         } else {
@@ -127,15 +126,13 @@ fn decrypt_api_key(cipher: &str, master_key: &[u8]) -> Result<String> {
         Err(primary_error) => {
             let passphrase = get_passphrase()?.ok_or_else(|| {
                 PyxError::Crypto(format!(
-                    "Failed to decrypt API key with master key and no passphrase fallback: {}",
-                    primary_error
+                    "Failed to decrypt API key with master key and no passphrase fallback: {primary_error}"
                 ))
             })?;
 
             decrypt_with_passphrase(cipher, &passphrase).map_err(|fallback_error| {
                 PyxError::Crypto(format!(
-                    "Failed to decrypt API key: {} ({})",
-                    primary_error, fallback_error
+                    "Failed to decrypt API key: {primary_error} ({fallback_error})"
                 ))
             })?
         }
@@ -150,8 +147,7 @@ fn determine_providers(provider_arg: Option<&str>, db: &Database) -> Result<Vec<
         // Single provider specified
         if !db.has_provider(provider_name) {
             return Err(PyxError::ProviderNotFound(format!(
-                "Provider '{}' not found. Run 'pyx list' to see available providers.",
-                provider_name
+                "Provider '{provider_name}' not found. Run 'pyx list' to see available providers."
             )));
         }
         Ok(vec![provider_name.to_string()])
@@ -187,10 +183,7 @@ fn display_session_hint() {
         "  ██  ██  ██    {}",
         "To continue this session, run:".white().dimmed()
     );
-    eprintln!(
-        "  ████  ██  ██  {}",
-        format!("pyx -s {}", uuid).yellow()
-    );
+    eprintln!("  ████  ██  ██  {}", format!("pyx -s {uuid}").yellow());
     eprintln!("  ██    ██  ██\n");
 }
 

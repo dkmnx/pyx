@@ -10,8 +10,7 @@ use std::io;
 pub fn generate_completion(shell: &str) -> Result<()> {
     let shell = shell.parse::<Shell>().map_err(|_| {
         crate::error::PyxError::Validation(format!(
-            "Unsupported shell: {}. Supported: bash, zsh, fish, powershell",
-            shell
+            "Unsupported shell: {shell}. Supported: bash, zsh, fish, powershell"
         ))
     })?;
 

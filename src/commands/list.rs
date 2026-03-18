@@ -31,7 +31,7 @@ pub fn execute_json() -> Result<()> {
         "providers": providers,
         "count": db.len(),
     });
-    println!("{}", output);
+    println!("{output}");
 
     Ok(())
 }

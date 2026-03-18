@@ -35,7 +35,7 @@ impl std::str::FromStr for ShellType {
             "zsh" => Ok(ShellType::Zsh),
             "fish" => Ok(ShellType::Fish),
             "powershell" | "pwsh" => Ok(ShellType::PowerShell),
-            _ => Err(PyxError::Validation(format!("Unknown shell type: {}", s))),
+            _ => Err(PyxError::Validation(format!("Unknown shell type: {s}"))),
         }
     }
 }
@@ -66,7 +66,7 @@ pub fn spawn_pi(env_vars: &[(String, String)], args: &[String]) -> Result<i32> {
     // Execute and preserve exit code
     let status = cmd
         .status()
-        .map_err(|e| PyxError::CommandExecution(format!("Failed to execute pi: {}", e)))?;
+        .map_err(|e| PyxError::CommandExecution(format!("Failed to execute pi: {e}")))?;
 
     Ok(status.code().unwrap_or(1))
 }
@@ -88,7 +88,7 @@ fn install_pi_impl(pm_override: Option<&str>) -> Result<()> {
     if find_pi().is_some() {
         println!("pi is already installed.");
         if let Ok(version) = get_pi_version() {
-            println!("pi version: {}", version);
+            println!("pi version: {version}");
         }
         return Ok(());
     }
@@ -100,18 +100,18 @@ fn install_pi_impl(pm_override: Option<&str>) -> Result<()> {
         detect_package_manager()?
     };
 
-    println!("Installing pi using {}...", pm);
+    println!("Installing pi using {pm}...");
 
     // Install pi globally
     let status = Command::new(&pm)
         .args(["install", "-g", "@mariozechner/pi-coding-agent"])
         .status()
-        .map_err(|e| PyxError::CommandExecution(format!("Failed to run {}: {}", pm, e)))?;
+        .map_err(|e| PyxError::CommandExecution(format!("Failed to run {pm}: {e}")))?;
 
     if status.success() {
         println!("✓ Installation complete");
         if let Ok(version) = get_pi_version() {
-            println!("pi version: {}", version);
+            println!("pi version: {version}");
         }
         Ok(())
     } else {
@@ -147,7 +147,7 @@ pub fn get_pi_version() -> Result<String> {
     let output = Command::new(&pi_path)
         .arg("--version")
         .output()
-        .map_err(|e| PyxError::CommandExecution(format!("Failed to get pi version: {}", e)))?;
+        .map_err(|e| PyxError::CommandExecution(format!("Failed to get pi version: {e}")))?;
 
     let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
     Ok(version)
@@ -158,9 +158,9 @@ pub fn show_pi_status() -> Result<()> {
     match find_pi() {
         Some(path) => {
             println!("pi is installed");
-            println!("  Path: {}", path);
+            println!("  Path: {path}");
             if let Ok(version) = get_pi_version() {
-                println!("  Version: {}", version);
+                println!("  Version: {version}");
             }
             println!("  Platform: {}", platform_info());
         }
@@ -235,7 +235,7 @@ pub fn install_completion_for_shell(shell: ShellType) -> Result<()> {
         .args(["completion", &shell.to_string()])
         .output()
         .map_err(|e| {
-            PyxError::CommandExecution(format!("Failed to generate completion script: {}", e))
+            PyxError::CommandExecution(format!("Failed to generate completion script: {e}"))
         })?;
 
     if !output.status.success() {
@@ -256,7 +256,7 @@ pub fn install_completion_for_shell(shell: ShellType) -> Result<()> {
     // Write completion script
     fs::write(&script_path, &output.stdout)?;
 
-    println!("✓ Completion script installed for {} shell", shell);
+    println!("✓ Completion script installed for {shell} shell");
     println!("  Script location: {}", script_path.display());
 
     // Print activation instructions

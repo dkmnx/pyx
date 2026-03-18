@@ -55,9 +55,8 @@ pub fn load_key_manager_with_fallback() -> Result<crate::keys::manager::KeyManag
             let passphrase = prompt_existing_passphrase(Some("Enter your pyx passphrase"))?;
             KeyManager::load_with_passphrase(&passphrase).map_err(|e| {
                 PyxError::Crypto(format!(
-                    "Failed to decrypt master key: {}. \
-                     If you forgot your passphrase, run 'pyx reset' to start fresh.",
-                    e
+                    "Failed to decrypt master key: {e}. \
+                     If you forgot your passphrase, run 'pyx reset' to start fresh."
                 ))
             })
         }

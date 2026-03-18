@@ -55,7 +55,7 @@ pub fn execute() -> Result<()> {
     if KeyManager::master_key_exists() || keyring_has_entry() {
         println!("Clearing keyring entry...");
         KeyManager::clear_passphrase().unwrap_or_else(|e| {
-            eprintln!("Warning: Failed to clear keyring: {}", e);
+            eprintln!("Warning: Failed to clear keyring: {e}");
         });
     }
 
@@ -75,7 +75,7 @@ fn confirm_reset() -> Result<bool> {
     let confirmed = Confirm::new("Are you sure you want to reset?")
         .with_default(false)
         .prompt()
-        .map_err(|e| PyxError::Validation(format!("Failed to read confirmation: {}", e)))?;
+        .map_err(|e| PyxError::Validation(format!("Failed to read confirmation: {e}")))?;
 
     Ok(confirmed)
 }
@@ -84,10 +84,10 @@ fn confirm_reset() -> Result<bool> {
 fn delete_file(description: &str, path: &Path) -> Result<()> {
     if path.exists() {
         fs::remove_file(path)
-            .map_err(|e| PyxError::Config(format!("Failed to delete {}: {}", description, e)))?;
-        println!("  ✓ Deleted: {}", description);
+            .map_err(|e| PyxError::Config(format!("Failed to delete {description}: {e}")))?;
+        println!("  ✓ Deleted: {description}");
     } else {
-        println!("  - Not found: {}", description);
+        println!("  - Not found: {description}");
     }
     Ok(())
 }
