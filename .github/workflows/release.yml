@@ -104,11 +104,26 @@ jobs:
       - name: Package binary
         shell: bash
         run: |
-          cd target/release
+          # Determine binary location (cross-compilation puts it in target/{target}/release/)
+          if [ -f "target/${{ matrix.target }}/release/pyx" ]; then
+            binary_path="target/${{ matrix.target }}/release/pyx"
+          elif [ -f "target/${{ matrix.target }}/release/pyx.exe" ]; then
+            binary_path="target/${{ matrix.target }}/release/pyx.exe"
+          elif [ -f "target/release/pyx" ]; then
+            binary_path="target/release/pyx"
+          elif [ -f "target/release/pyx.exe" ]; then
+            binary_path="target/release/pyx.exe"
+          else
+            echo "Error: Could not find pyx binary"
+            find target -name "pyx*" -type f 2>/dev/null || true
+            exit 1
+          fi
+          echo "Found binary at: $binary_path"
+          
           if [ "${{ matrix.ext }}" = "tar.gz" ]; then
-            tar -czvf ../../pyx-${{ needs.validate.outputs.version }}-${{ matrix.target }}.tar.gz pyx
+            tar -czvf "pyx-${{ needs.validate.outputs.version }}-${{ matrix.target }}.tar.gz" -C "$(dirname "$binary_path")" "$(basename "$binary_path")"
           elif [ "${{ matrix.ext }}" = "zip" ]; then
-            powershell -Command "Compress-Archive -Path 'pyx.exe' -DestinationPath '../../pyx-${{ needs.validate.outputs.version }}-${{ matrix.target }}.zip'"
+            powershell -Command "Compress-Archive -Path '$binary_path' -DestinationPath 'pyx-${{ needs.validate.outputs.version }}-${{ matrix.target }}.zip'"
           fi
 
       - name: Upload artifacts
