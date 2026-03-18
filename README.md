@@ -13,6 +13,21 @@ Pyx provides secure storage and management of API keys for AI providers. It encr
 
 ## Quick Start
 
+### Binary Installation
+
+Download prebuilt binaries from [GitHub Releases](https://github.com/dkmnx/pyx/releases):
+
+| Platform   | Architecture          | Download                                        |
+| ---------- | --------------------- | ----------------------------------------------- |
+| Linux      | x86_64                | `pyx-{version}-x86_64-unknown-linux-gnu.tar.gz` |
+| macOS      | Apple Silicon (arm64) | `pyx-{version}-aarch64-apple-darwin.tar.gz`     |
+| macOS      | Intel (x86_64)        | `pyx-{version}-x86_64-apple-darwin.tar.gz`      |
+| Windows    | x86_64                | `pyx-{version}-x86_64-pc-windows-msvc.zip`      |
+
+Extract and add `pyx` to your PATH.
+
+### Build from Source
+
 ```bash
 # Install
 just install
@@ -107,6 +122,15 @@ just lint
 # Install
 just install
 ```
+
+## Releases
+
+Releases follow [Semantic Versioning](https://semver.org/):
+
+- **Stable releases**: `vX.Y.Z` (e.g., `v0.1.0`)
+- **Prereleases**: `vX.Y.Z-alpha.N`, `vX.Y.Z-beta.N`, `vX.Y.Z-rc.N` (e.g., `v0.1.0-alpha.1`)
+
+Prereleases are marked as "pre-release" on GitHub and are suitable for testing.
 
 ## Documentation
 
