@@ -14,6 +14,7 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  PYX_SCRYPT_WORK_FACTOR: 14
 
 jobs:
   # Lint the workflow file itself

@@ -4,6 +4,9 @@
 # Set shell for Windows (PowerShell) only
 set windows-shell := ["pwsh", "-NoProfile", "-Command"]
 
+# Fast scrypt work factor for tests (production uses default 18)
+export PYX_SCRYPT_WORK_FACTOR := "14"
+
 # Variables
 app_name := "pyx"
 build_dir := "./target/release"
