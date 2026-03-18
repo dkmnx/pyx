@@ -19,6 +19,7 @@ pub fn execute() -> Result<()> {
         // Show version with git info (e.g., branch or v0.1.0-5-gabc123)
         println!("pyx version {version} ({git_hash}@{git_describe}{git_dirty})");
     }
+
     Ok(())
 }
 

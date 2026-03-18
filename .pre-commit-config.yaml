@@ -4,25 +4,9 @@
 repos:
   - repo: local
     hooks:
-      - id: rust-fmt
-        name: Rust Format
-        entry: cargo fmt -- --check
-        language: system
-        types: [rust]
-        pass_filenames: false
-        stages: [pre-commit]
-
-      - id: rust-clippy
-        name: Rust Clippy
-        entry: cargo clippy -- -D warnings
-        language: system
-        types: [rust]
-        pass_filenames: false
-        stages: [pre-commit]
-
-      - id: rust-test
-        name: Rust Tests
-        entry: cargo test --lib
+      - id: just-check
+        name: Run just check
+        entry: just check
         language: system
         types: [rust]
         pass_filenames: false
