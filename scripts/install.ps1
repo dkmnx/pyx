@@ -178,30 +178,21 @@ function Get-Binary {
             exit 1
         }
 
-        return $BinaryPath
+        # Copy binary to install location before returning
+        # This avoids the temp dir being cleaned up before use
+        $InstallDir = $InstallDir
+        if (-not (Test-Path $InstallDir)) {
+            New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
+        }
+        Copy-Item $BinaryPath (Join-Path $InstallDir "pyx.exe") -Force
+        return (Join-Path $InstallDir "pyx.exe")
     }
     finally {
         # Cleanup handled by OS temp cleanup
     }
 }
 
-# Install binary
-function Install-Binary {
-    param([string]$Src)
-
-    $DestDir = Split-Path $Dest -Parent
-    if ($DestDir -and (-not (Test-Path $DestDir))) {
-        New-Item -ItemType Directory -Path $DestDir -Force | Out-Null
-    }
-
-    $Dest = Join-Path $InstallDir "pyx.exe"
-    if (-not (Test-Path (Split-Path $Dest -Parent))) {
-        New-Item -ItemType Directory -Path (Split-Path $Dest -Parent) -Force | Out-Null
-    }
-
-    Copy-Item $Src $Dest -Force
-    Write-Info "Installed to $Dest"
-}
+# Install binary is now handled in Get-Binary
 
 # Add to PATH
 function Add-ToPath {
@@ -239,7 +230,6 @@ function Main {
     }
 
     if ($Src) {
-        Install-Binary -Src $Src
         Add-ToPath
 
         Write-Host ""

@@ -72,11 +72,22 @@ get_ext() {
 # Get latest version from GitHub
 get_latest_version() {
     local version
-    version=$(curl -sSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | sed -E 's/.*"v?([^"]+)".*/\1/')
+
+    # Try gh CLI first (authenticated)
+    if command -v gh &> /dev/null; then
+        version=$(gh release list --repo "${REPO}" --limit 1 2>/dev/null | awk '{print $2}' | sed 's/^v//')
+    fi
+
+    # Fallback to API
+    if [[ -z "$version" ]]; then
+        version=$(curl -sSL "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null | grep '"tag_name"' | sed -E 's/.*"v?([^"]+)".*/\1/' | head -1)
+    fi
+
     if [[ -z "$version" ]]; then
         log_error "Failed to fetch latest version"
         exit 1
     fi
+
     echo "$version"
 }
 
@@ -129,53 +140,61 @@ download_binary() {
     local checksum_url="${base_url}/SHA256SUMS.txt"
 
     local tmp_dir=$(mktemp -d)
-    trap "rm -rf '$tmp_dir'" EXIT
+    # Don't set trap here - we'll handle cleanup differently
 
-    # Download checksums
+    # Download checksums using gh if available (avoids rate limits)
     log_info "Fetching checksums..."
     local checksum_file="${tmp_dir}/SHA256SUMS.txt"
-    if ! curl -sSL "$checksum_url" -o "$checksum_file"; then
-        log_error "Failed to download checksums from $checksum_url"
+    if command -v gh &> /dev/null; then
+        gh release download "v${version}" --repo "${REPO}" --pattern "SHA256SUMS.txt" --dir "$tmp_dir" 2>/dev/null || \
+        curl -sSL "$checksum_url" -o "$checksum_file"
+    else
+        curl -sSL "$checksum_url" -o "$checksum_file"
+    fi
+
+    if [[ ! -s "$checksum_file" ]]; then
+        log_error "Failed to download checksums"
+        rm -rf "$tmp_dir"
         exit 1
     fi
 
     # Download binary
     local filename="pyx-${version}-${target}.${ext}"
     local archive="${tmp_dir}/${filename}"
-    local binary="${tmp_dir}/pyx"
 
     log_info "Downloading binary..."
-    if ! curl -sSL "${base_url}/${filename}" -o "$archive"; then
-        log_error "Failed to download binary from ${base_url}/${filename}"
-        exit 1
+    if command -v gh &> /dev/null; then
+        gh release download "v${version}" --repo "${REPO}" --pattern "pyx-${version}-${target}.${ext}" --dir "$tmp_dir" 2>/dev/null || \
+        curl -sSL "${base_url}/${filename}" -o "$archive"
+    else
+        curl -sSL "${base_url}/${filename}" -o "$archive"
     fi
 
-    # Verify checksum
+    # Verify checksum of archive
     log_info "Verifying checksum..."
     cd "$tmp_dir"
 
-    if [[ "$ext" == "tar.gz" ]]; then
-        tar -xzf "$filename"
-    else
-        unzip -q "$filename"
-    fi
+    local computed
+    computed=$(sha256sum "./${filename}" | awk '{print $1}')
 
+    # Search for matching checksum (handle path prefixes in checksum file)
     local found=false
     while IFS= read -r line; do
         local checksum file
         checksum=$(echo "$line" | awk '{print $1}')
+        # Remove any path prefix and * marker
         file=$(echo "$line" | awk '{print $2}' | tr -d '*')
+        file=$(basename "$file")
 
         if [[ "$file" == "pyx-${version}-${target}.${ext}" ]]; then
             found=true
-            local computed
-            computed=$(sha256sum "${tmp_dir}/pyx" | awk '{print $1}')
             if [[ "$checksum" == "$computed" ]]; then
                 log_info "Checksum verified!"
             else
                 log_error "Checksum mismatch!"
                 log_error "Expected: $checksum"
                 log_error "Got:      $computed"
+                rm -rf "$tmp_dir"
                 exit 1
             fi
             break
@@ -183,34 +202,35 @@ download_binary() {
     done < "$checksum_file"
 
     if [[ "$found" == "false" ]]; then
-        log_error "Binary not found in checksums file"
+        log_error "Archive not found in checksums file"
+        log_error "Looking for: pyx-${version}-${target}.${ext}"
+        rm -rf "$tmp_dir"
         exit 1
     fi
 
-    cd - > /dev/null
-
-    # Return path to verified binary
-    if [[ -f "${tmp_dir}/pyx" ]]; then
-        echo "${tmp_dir}/pyx"
+    # Extract archive
+    if [[ "$ext" == "tar.gz" ]]; then
+        tar -xzf "$filename" || { log_error "Failed to extract archive"; rm -rf "$tmp_dir"; exit 1; }
     else
-        log_error "Extracted binary not found"
+        unzip -q "$filename" || { log_error "Failed to extract archive"; rm -rf "$tmp_dir"; exit 1; }
+    fi
+
+    # Verify binary exists
+    if [[ ! -f "${tmp_dir}/pyx" ]]; then
+        log_error "Binary not found after extraction"
+        rm -rf "$tmp_dir"
         exit 1
     fi
-}
 
-# Install binary
-install_binary() {
-    local src="$1"
-
+    # Copy binary to install location before returning
+    # This avoids the trap-fires-on-subshell-exit issue
     mkdir -p "$INSTALL_DIR"
+    cp "${tmp_dir}/pyx" "${INSTALL_DIR}/pyx"
+    chmod +x "${INSTALL_DIR}/pyx"
 
-    if cp "$src" "${INSTALL_DIR}/pyx"; then
-        chmod +x "${INSTALL_DIR}/pyx"
-        log_info "Installed to ${INSTALL_DIR}/pyx"
-    else
-        log_error "Failed to install binary"
-        exit 1
-    fi
+    # Cleanup temp dir and return install path
+    rm -rf "$tmp_dir"
+    echo "${INSTALL_DIR}/pyx"
 }
 
 # Add to PATH
@@ -291,7 +311,6 @@ main() {
         src=$(download_binary "$version" "$target" "$ext")
     fi
 
-    install_binary "$src"
     add_to_path
 
     echo ""
