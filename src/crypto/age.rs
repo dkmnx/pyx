@@ -2,13 +2,23 @@
 //!
 //! Uses age with scrypt passphrase encryption.
 //! Compatible with age 0.11 API and Go implementation (base64-encoded output).
+//!
+//! # Key-Based Encryption
+//!
+//! For key-based encryption (`encrypt_with_key`/`decrypt_with_key`), we implement
+//! custom scrypt-based key wrapping that is compatible with the Go age implementation.
+//! This uses ChaCha20-Poly1305 directly (matching age_core internals) to avoid
+//! depending on age_core's internal AEAD primitives.
 
 use crate::error::{PyxError, Result};
 use age::scrypt::{Identity, Recipient};
 use age::{DecryptError, Decryptor, EncryptError, Encryptor};
-use age_core::format::{FileKey, Stanza, FILE_KEY_BYTES};
-use age_core::primitives::{aead_decrypt, aead_encrypt};
+use age_core::format::{FileKey, Stanza};
 use base64::Engine;
+use chacha20poly1305::{
+    aead::{Aead, KeyInit},
+    ChaCha20Poly1305,
+};
 use scrypt::{scrypt, Params as ScryptParams};
 use secrecy::{ExposeSecret, SecretString};
 use std::collections::HashSet;
@@ -44,13 +54,40 @@ fn get_scrypt_salt_len() -> usize {
         .filter(|&n| (8..=32).contains(&n))
         .unwrap_or(DEFAULT_SCRYPT_SALT_LEN)
 }
-/// File key length (32 bytes) + AES-GCM tag (16 bytes)
-const ENCRYPTED_FILE_KEY_BYTES: usize = FILE_KEY_BYTES + 16;
+
+/// File key length (16 bytes for ChaCha20-Poly1305, matching age_core)
+const FILE_KEY_BYTES: usize = 16;
+/// ChaCha20-Poly1305 tag size (16 bytes)
+const CHACHA_TAG_BYTES: usize = 16;
+/// File key length + ChaCha20-Poly1305 tag
+const ENCRYPTED_FILE_KEY_BYTES: usize = FILE_KEY_BYTES + CHACHA_TAG_BYTES;
 /// Scrypt block size parameter (CPU/memory cost multiplier)
 const SCRYPT_R: u32 = 8;
 /// Scrypt parallelization parameter
 const SCRYPT_P: u32 = 1;
 const RAW_SCRYPT_LABEL: &str = "raw-scrypt";
+
+/// Zero nonce for ChaCha20-Poly1305 (matching age_core internal implementation)
+const ZERO_NONCE: &[u8; 12] = &[0; 12];
+
+/// AEAD encryption using ChaCha20-Poly1305 with zero nonce.
+/// Matches age_core::primitives::aead_encrypt behavior.
+/// Format: ciphertext_with_tag (no nonce prepended, since it's always zero)
+fn aead_encrypt(key: &[u8; 32], plaintext: &[u8]) -> Vec<u8> {
+    let cipher = ChaCha20Poly1305::new(key.into());
+    cipher
+        .encrypt(ZERO_NONCE.into(), plaintext)
+        .expect("ChaCha20-Poly1305 encryption success")
+}
+
+/// AEAD decryption using ChaCha20-Poly1305 with zero nonce.
+/// Matches age_core::primitives::aead_decrypt behavior.
+fn aead_decrypt(key: &[u8; 32], ciphertext: &[u8]) -> Result<Vec<u8>> {
+    let cipher = ChaCha20Poly1305::new(key.into());
+    cipher
+        .decrypt(ZERO_NONCE.into(), ciphertext)
+        .map_err(|_| PyxError::Crypto("Decryption failed (wrong key?)".to_string()))
+}
 
 /// Encrypt data using age with scrypt passphrase
 ///
@@ -115,10 +152,9 @@ pub fn decrypt_with_passphrase(ciphertext: &str, passphrase: &SecretString) -> R
     Ok(decrypted)
 }
 
-/// WARNING: This implements age's Recipient trait using internal details.
-/// This is fragile and may break if the age crate changes its internal API.
-/// Used for Go compatibility and key-based encryption where passphrase string
-/// conversion would be lossy.
+/// Custom scrypt-based recipient for key-based encryption.
+/// Uses the `aead` crate for AES-256-GCM operations directly, avoiding age_core internals.
+/// Required for Go compatibility when using raw binary keys (not passphrases).
 #[derive(Clone)]
 struct RawScryptRecipient {
     passphrase: Vec<u8>,
@@ -166,10 +202,9 @@ impl age::Recipient for RawScryptRecipient {
     }
 }
 
-/// WARNING: This implements age's Identity trait using internal details.
-/// This is fragile and may break if the age crate changes its internal API.
-/// Used for Go compatibility and key-based decryption where passphrase string
-/// conversion would be lossy.
+/// Custom scrypt-based identity for key-based decryption.
+/// Uses the `aead` crate for AES-256-GCM operations directly, avoiding age_core internals.
+/// Required for Go compatibility when using raw binary keys (not passphrases).
 #[derive(Clone)]
 struct RawScryptIdentity {
     passphrase: Vec<u8>,
@@ -226,7 +261,7 @@ impl age::Identity for RawScryptIdentity {
             Err(_) => return Some(Err(DecryptError::DecryptionFailed)),
         };
 
-        let file_key_bytes = match aead_decrypt(&enc_key, FILE_KEY_BYTES, &stanza.body) {
+        let file_key_bytes = match aead_decrypt(&enc_key, &stanza.body) {
             Ok(bytes) => bytes,
             Err(_) => return Some(Err(DecryptError::DecryptionFailed)),
         };

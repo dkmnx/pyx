@@ -7,6 +7,7 @@ use crate::storage::paths::master_key_path;
 use secrecy::{ExposeSecret, SecretString};
 use std::fs;
 use std::sync::Mutex;
+use std::sync::OnceLock;
 use std::time::Instant;
 
 const LEGACY_PASSPHRASE: &str = "default";
@@ -18,18 +19,23 @@ const LOCKOUT_DURATION_SECS: u64 = 30;
 /// This is used throughout the codebase for consistent key generation
 pub const MASTER_KEY_BYTES: usize = 32;
 
+#[derive(Default)]
 struct RateLimitState {
     failed_attempts: u32,
     last_failed_attempt: Option<Instant>,
 }
 
-static RATE_LIMIT: Mutex<RateLimitState> = Mutex::new(RateLimitState {
-    failed_attempts: 0,
-    last_failed_attempt: None,
-});
+/// Global rate limiter state using OnceLock for thread-safe lazy initialization.
+/// Uses a Mutex internally to allow mutable access.
+static RATE_LIMIT: OnceLock<Mutex<RateLimitState>> = OnceLock::new();
+
+/// Get a reference to the rate limit mutex, initializing it lazily if needed.
+fn get_rate_limit() -> &'static Mutex<RateLimitState> {
+    RATE_LIMIT.get_or_init(|| Mutex::new(RateLimitState::default()))
+}
 
 fn check_rate_limit() -> Result<()> {
-    let mut state = RATE_LIMIT.lock().unwrap();
+    let state = get_rate_limit().lock().unwrap();
 
     if state.failed_attempts >= MAX_FAILED_ATTEMPTS {
         if let Some(last) = state.last_failed_attempt {
@@ -40,6 +46,9 @@ fn check_rate_limit() -> Result<()> {
                     "Too many failed attempts, please wait {remaining} seconds before retrying"
                 )));
             }
+            drop(state);
+            // Lockout expired, reset the counter
+            let mut state = get_rate_limit().lock().unwrap();
             state.failed_attempts = 0;
             state.last_failed_attempt = None;
         }
@@ -49,13 +58,13 @@ fn check_rate_limit() -> Result<()> {
 }
 
 fn record_failed_attempt() {
-    let mut state = RATE_LIMIT.lock().unwrap();
+    let mut state = get_rate_limit().lock().unwrap();
     state.failed_attempts += 1;
     state.last_failed_attempt = Some(Instant::now());
 }
 
 fn reset_failed_attempts() {
-    let mut state = RATE_LIMIT.lock().unwrap();
+    let mut state = get_rate_limit().lock().unwrap();
     state.failed_attempts = 0;
     state.last_failed_attempt = None;
 }
