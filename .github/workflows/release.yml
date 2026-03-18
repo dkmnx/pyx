@@ -101,32 +101,43 @@ jobs:
         env:
           CARGO_BUILD_TARGET: ${{ matrix.target }}
 
-      - name: Package binary
+      - name: Package binary (Unix)
+        if: matrix.ext == 'tar.gz'
         shell: bash
         run: |
           # Determine binary location (cross-compilation puts it in target/{target}/release/)
           if [ -f "target/${{ matrix.target }}/release/pyx" ]; then
             binary_path="target/${{ matrix.target }}/release/pyx"
-          elif [ -f "target/${{ matrix.target }}/release/pyx.exe" ]; then
-            binary_path="target/${{ matrix.target }}/release/pyx.exe"
           elif [ -f "target/release/pyx" ]; then
             binary_path="target/release/pyx"
-          elif [ -f "target/release/pyx.exe" ]; then
-            binary_path="target/release/pyx.exe"
           else
             echo "Error: Could not find pyx binary"
             find target -name "pyx*" -type f 2>/dev/null || true
             exit 1
           fi
           echo "Found binary at: $binary_path"
+          tar -czvf "pyx-${{ needs.validate.outputs.version }}-${{ matrix.target }}.tar.gz" -C "$(dirname "$binary_path")" "$(basename "$binary_path")"
+
+      - name: Package binary (Windows)
+        if: matrix.ext == 'zip'
+        shell: powershell
+        run: |
+          $target = "${{ matrix.target }}"
+          $version = "${{ needs.validate.outputs.version }}"
           
-          if [ "${{ matrix.ext }}" = "tar.gz" ]; then
-            tar -czvf "pyx-${{ needs.validate.outputs.version }}-${{ matrix.target }}.tar.gz" -C "$(dirname "$binary_path")" "$(basename "$binary_path")"
-          elif [ "${{ matrix.ext }}" = "zip" ]; then
-            # Use printf to safely handle the path with potential spaces
-            printf -v ps_cmd 'Compress-Archive -Path "%s" -DestinationPath "pyx-%s-%s.zip"' "$binary_path" "${{ needs.validate.outputs.version }}" "${{ matrix.target }}"
-            powershell -Command "$ps_cmd"
-          fi
+          # Determine binary location
+          if (Test-Path "target/$target/release/pyx.exe") {
+            $binaryPath = "target/$target/release/pyx.exe"
+          } elseif (Test-Path "target/release/pyx.exe") {
+            $binaryPath = "target/release/pyx.exe"
+          } else {
+            Write-Error "Could not find pyx.exe binary"
+            Get-ChildItem -Path "target" -Filter "pyx*" -Recurse -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_.FullName }
+            exit 1
+          }
+          
+          Write-Host "Found binary at: $binaryPath"
+          Compress-Archive -Path $binaryPath -DestinationPath "pyx-$version-$target.zip"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
