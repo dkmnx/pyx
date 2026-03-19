@@ -21,19 +21,25 @@ pub fn get_data_dir() -> Result<PathBuf> {
 
     // Try LOCALAPPDATA directly (Windows, used by dirs::data_local_dir)
     if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
-        return Ok(PathBuf::from(local_app_data).join("pyx"));
+        if !local_app_data.is_empty() {
+            return Ok(PathBuf::from(local_app_data).join("pyx"));
+        }
     }
 
     // Try USERPROFILE\AppData\Local (Windows fallback)
     if let Ok(userprofile) = std::env::var("USERPROFILE") {
-        return Ok(PathBuf::from(userprofile)
-            .join("AppData")
-            .join("Local")
-            .join("pyx"));
+        if !userprofile.is_empty() {
+            return Ok(PathBuf::from(userprofile)
+                .join("AppData")
+                .join("Local")
+                .join("pyx"));
+        }
     }
 
     if let Ok(home) = std::env::var("HOME") {
-        return Ok(PathBuf::from(home).join(".local").join("share").join("pyx"));
+        if !home.is_empty() {
+            return Ok(PathBuf::from(home).join(".local").join("share").join("pyx"));
+        }
     }
 
     Err(PyxError::Config(
