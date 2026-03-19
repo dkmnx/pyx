@@ -91,7 +91,12 @@ function Build-FromSource {
         exit 1
     }
 
-    return $binary
+    # Copy to install directory
+    if (-not (Test-Path $InstallDir)) {
+        New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
+    }
+    Copy-Item $binary (Join-Path $InstallDir "pyx.exe") -Force
+    return (Join-Path $InstallDir "pyx.exe")
 }
 
 # Download binary with checksum verification
