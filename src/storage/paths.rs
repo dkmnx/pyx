@@ -12,7 +12,9 @@ use std::path::PathBuf;
 /// 4. Error if no directory can be determined
 pub fn get_data_dir() -> Result<PathBuf> {
     if let Ok(xdg_data) = std::env::var("XDG_DATA_HOME") {
-        return Ok(PathBuf::from(xdg_data).join("pyx"));
+        if !xdg_data.is_empty() {
+            return Ok(PathBuf::from(xdg_data).join("pyx"));
+        }
     }
 
     if let Some(local_data) = dirs::data_local_dir() {
