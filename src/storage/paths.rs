@@ -8,7 +8,8 @@ use std::path::PathBuf;
 /// Resolution order:
 /// 1. `XDG_DATA_HOME` (Linux/macOS explicit override)
 /// 2. `dirs::data_local_dir()` (cross-platform: AppData\Local on Windows, etc.)
-/// 3. `HOME` + `.local/share/` (Linux/macOS fallback)
+/// 3. Platform-specific env vars: LOCALAPPDATA, USERPROFILE, HOME
+/// 4. Error if no directory can be determined
 pub fn get_data_dir() -> Result<PathBuf> {
     if let Ok(xdg_data) = std::env::var("XDG_DATA_HOME") {
         return Ok(PathBuf::from(xdg_data).join("pyx"));
@@ -16,6 +17,19 @@ pub fn get_data_dir() -> Result<PathBuf> {
 
     if let Some(local_data) = dirs::data_local_dir() {
         return Ok(local_data.join("pyx"));
+    }
+
+    // Try LOCALAPPDATA directly (Windows, used by dirs::data_local_dir)
+    if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+        return Ok(PathBuf::from(local_app_data).join("pyx"));
+    }
+
+    // Try USERPROFILE\AppData\Local (Windows fallback)
+    if let Ok(userprofile) = std::env::var("USERPROFILE") {
+        return Ok(PathBuf::from(userprofile)
+            .join("AppData")
+            .join("Local")
+            .join("pyx"));
     }
 
     if let Ok(home) = std::env::var("HOME") {
@@ -60,7 +74,7 @@ pub fn passphrase_path() -> Result<PathBuf> {
 /// Ensure data directory exists with proper permissions.
 ///
 /// Unix: restricts to owner-only (0o700).
-/// Windows: inherits from parent (typically already user-restricted).
+/// Windows: relies on inherited ACLs (same as dirs::data_local_dir behavior).
 pub fn ensure_data_dir() -> Result<PathBuf> {
     let dir = get_data_dir()?;
 
