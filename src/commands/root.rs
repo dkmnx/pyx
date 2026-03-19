@@ -178,13 +178,9 @@ fn display_session_hint() {
         return;
     };
 
-    eprintln!("  ██████  ██");
-    eprintln!(
-        "  ██  ██  ██    {}",
-        "To continue this session, run:".white().dimmed()
-    );
-    eprintln!("  ████  ██  ██  {}", format!("pyx -s {uuid}").yellow());
-    eprintln!("  ██    ██  ██\n");
+    eprintln!("  [SESSION]  {}", "To continue this session, run:".white().dimmed());
+    eprintln!("             {}", format!("pyx -s {uuid}").yellow());
+    eprintln!();
 }
 
 #[cfg(test)]
