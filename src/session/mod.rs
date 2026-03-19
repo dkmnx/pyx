@@ -71,12 +71,9 @@ pub fn find_most_recent_session(sessions_dir: &Path) -> Result<Option<String>> {
 
 /// Resolve pi sessions root directory (`~/.pi/agent/sessions`).
 pub fn pi_sessions_dir() -> Result<PathBuf> {
-    let home = std::env::var("HOME")
-        .map_err(|_| PyxError::Config("Could not determine HOME directory".to_string()))?;
-    Ok(PathBuf::from(home)
-        .join(".pi")
-        .join("agent")
-        .join("sessions"))
+    let home = dirs::home_dir()
+        .ok_or_else(|| PyxError::Config("Could not determine home directory".to_string()))?;
+    Ok(home.join(".pi").join("agent").join("sessions"))
 }
 
 /// Encode cwd to pi session directory format.
