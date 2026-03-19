@@ -57,7 +57,10 @@ pub fn passphrase_path() -> Result<PathBuf> {
     Ok(get_data_dir()?.join(".passphrase"))
 }
 
-/// Ensure data directory exists with proper permissions
+/// Ensure data directory exists with proper permissions.
+///
+/// Unix: restricts to owner-only (0o700).
+/// Windows: inherits from parent (typically already user-restricted).
 pub fn ensure_data_dir() -> Result<PathBuf> {
     let dir = get_data_dir()?;
 
@@ -69,6 +72,8 @@ pub fn ensure_data_dir() -> Result<PathBuf> {
             use std::os::unix::fs::PermissionsExt;
             std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700))?;
         }
+        // On Windows, create_dir_all inherits ACLs from the parent directory,
+        // which by default restricts access to the current user.
     }
 
     Ok(dir)
