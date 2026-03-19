@@ -148,22 +148,12 @@ fn env_passphrase() -> Option<SecretString> {
 // File-based passphrase storage (fallback for systems where OS keyring is unreliable)
 // Uses encryption with a machine-derived key for security
 
-/// Derive a machine-specific encryption key from /etc/machine-id and username
-/// This binds the encrypted passphrase to this specific machine/user
+/// Derive a machine-specific encryption key from platform-specific identifiers and username.
+/// This binds the encrypted passphrase file to this specific machine/user.
 fn derive_machine_key() -> SecretString {
-    // Try to get machine-id (Linux)
-    let machine_id = std::fs::read_to_string("/etc/machine-id")
-        .unwrap_or_else(|_| {
-            // Fallback: use OS info + a fixed string
-            // This is less secure but still provides some protection
-            format!(
-                "fallback-{}-{:?}",
-                std::env::consts::OS,
-                std::env::consts::ARCH
-            )
-        })
-        .trim()
-        .to_string();
+    // Try multiple sources of machine identity in order of preference.
+    // Each platform has its own reliable identifier.
+    let machine_id = get_machine_id();
 
     // Get username
     let user = std::env::var("USER")
@@ -171,11 +161,92 @@ fn derive_machine_key() -> SecretString {
         .unwrap_or_else(|_| "unknown-user".to_string());
 
     // Combine to create unique key for this machine/user
-    // Simple deterministic transformation to create a passphrase
     let combined = format!("pyx-passphrase:{machine_id}:{user}");
     let hash = hex::encode(combined.as_bytes());
 
     SecretString::new(hash.into_boxed_str())
+}
+
+/// Get a unique machine identifier for the current platform.
+fn get_machine_id() -> String {
+    // Linux: /etc/machine-id is the standard
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(id) = std::fs::read_to_string("/etc/machine-id") {
+            let id = id.trim();
+            if !id.is_empty() {
+                return id.to_string();
+            }
+        }
+    }
+
+    // Windows: Try multiple sources
+    #[cfg(target_os = "windows")]
+    {
+        // COMPOSER is a unique per-install identifier
+        if let Ok(computer_name) = std::env::var("COMPUTERNAME") {
+            if !computer_name.is_empty() {
+                return computer_name;
+            }
+        }
+        // USERDOMAIN and USERNAME combined
+        let userdomain = std::env::var("USERDOMAIN").unwrap_or_default();
+        let username = std::env::var("USERNAME").unwrap_or_default();
+        if !userdomain.is_empty() || !username.is_empty() {
+            return format!("{}-{}", userdomain, username);
+        }
+    }
+
+    // macOS: platform ID or IOKit serial
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(id) = std::fs::read_to_string("/etc/machine-id") {
+            let id = id.trim();
+            if !id.is_empty() {
+                return id.to_string();
+            }
+        }
+        // Try system_profiler as fallback
+        if let Ok(output) = std::process::Command::new("system_profiler")
+            .arg("SPHardwareDataType")
+            .output()
+        {
+            if output.status.success() {
+                let info = String::from_utf8_lossy(&output.stdout);
+                if let Some(serial) = info.lines().find(|l| l.contains("Serial Number")) {
+                    let serial = serial.split(':').nth(1).map(|s| s.trim()).unwrap_or("");
+                    if !serial.is_empty() {
+                        return serial.to_string();
+                    }
+                }
+            }
+        }
+    }
+
+    // Fallback for other Unix-like systems: try hostname
+    #[cfg(all(unix, not(target_os = "linux"), not(target_os = "macos")))]
+    {
+        if let Ok(hostname) = std::process::Command::new("hostname").output() {
+            if hostname.status.success() {
+                let name = String::from_utf8_lossy(&hostname.stdout).trim().to_string();
+                if !name.is_empty() {
+                    return name;
+                }
+            }
+        }
+    }
+
+    // Final fallback: use platform info with home directory.
+    // This is less secure but still unique per user installation.
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_else(|_| std::env::var("USERNAME").unwrap_or_default());
+    format!(
+        "pyx-fallback-{}-{}-{}",
+        std::env::consts::OS,
+        std::env::consts::ARCH,
+        home
+    )
 }
 
 /// Store passphrase to encrypted file with restricted permissions
