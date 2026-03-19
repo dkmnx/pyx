@@ -15,7 +15,6 @@ pub mod providers;
 pub mod root_args;
 pub mod session;
 pub mod storage;
-pub mod validation;
 
 // Re-export commonly used types
 pub use keys::manager::KeyManager;
