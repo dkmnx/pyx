@@ -6,7 +6,14 @@ use crate::storage::paths::{
     database_path, master_key_path, models_cache_path, providers_env_path, settings_path,
 };
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+/// Append `.bak` to a path (backup naming convention)
+fn backup_path(path: &Path) -> PathBuf {
+    let mut name = path.as_os_str().to_owned();
+    name.push(".bak");
+    PathBuf::from(name)
+}
 
 /// Execute the reset command
 pub fn execute() -> Result<()> {
@@ -32,21 +39,17 @@ pub fn execute() -> Result<()> {
     delete_file("Master key", &master_key_path()?)?;
 
     // Delete database
-    delete_file("Provider database", &database_path()?)?;
-    delete_file(
-        "Database backup",
-        &database_path()?.with_extension("json.bak"),
-    )?;
+    let db_path = database_path()?;
+    delete_file("Provider database", &db_path)?;
+    delete_file("Database backup", &backup_path(&db_path))?;
 
     // Delete models cache
     delete_file("Models cache", &models_cache_path()?)?;
 
     // Delete settings
-    delete_file("Settings", &settings_path()?)?;
-    delete_file(
-        "Settings backup",
-        &settings_path()?.with_extension("json.bak"),
-    )?;
+    let settings_p = settings_path()?;
+    delete_file("Settings", &settings_p)?;
+    delete_file("Settings backup", &backup_path(&settings_p))?;
 
     // Delete providers config
     delete_file("Providers config", &providers_env_path()?)?;

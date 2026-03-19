@@ -21,8 +21,9 @@ pub fn atomic_write_with_backup<P: AsRef<Path>>(
 
     // Create backup if file exists
     if path.exists() {
-        let backup_path = path.with_extension("json.bak");
-        fs::copy(path, &backup_path)?;
+        let mut backup_name = path.as_os_str().to_owned();
+        backup_name.push(".bak");
+        fs::copy(path, &backup_name)?;
     }
 
     // Write to temp file
@@ -77,12 +78,30 @@ mod tests {
         // Write new data
         atomic_write_with_backup(&path, b"new data", 0o600).unwrap();
 
-        // Check backup exists
-        let backup = path.with_extension("json.bak");
+        // Check backup exists (.bak appended to full filename)
+        let backup = dir.path().join("test.json.bak");
         assert!(backup.exists());
         assert_eq!(fs::read_to_string(&backup).unwrap(), "original");
 
         // Check new data
         assert_eq!(fs::read_to_string(&path).unwrap(), "new data");
+    }
+
+    #[test]
+    fn test_atomic_write_backup_for_non_json_files() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("master.key");
+
+        // Create initial file
+        fs::write(&path, "old-key").unwrap();
+
+        // Write new data
+        atomic_write_with_backup(&path, b"new-key", 0o600).unwrap();
+
+        // Backup should be master.key.bak, NOT master.json.bak
+        let backup = dir.path().join("master.key.bak");
+        assert!(backup.exists());
+        assert_eq!(fs::read_to_string(&backup).unwrap(), "old-key");
+        assert_eq!(fs::read_to_string(&path).unwrap(), "new-key");
     }
 }
