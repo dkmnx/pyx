@@ -43,6 +43,18 @@ src/
 └── pi/           # Pi integration
 ```
 
+## Module Documentation
+
+Each major module has its own README:
+
+- [Commands](../src/commands/README.md)
+- [Storage](../src/storage/README.md)
+- [Providers](../src/providers/README.md)
+
+## Architecture
+
+See [Architecture Reference](reference/architecture.md) for system design.
+
 ## Adding a Provider
 
 1. Add mapping to `src/providers/mapping.rs`
@@ -65,12 +77,12 @@ This project uses GitHub Actions for continuous integration and releases:
 
 ### Running CI checks locally
 
-To match CI behavior:
-
 ```bash
-just check-ci  # Non-mutating checks (fmt-check, lint, tests)
+just check-ci  # Non-mutating checks
 ```
 
-### Creating a Release
+## Security
 
-Only the maintainer can update the version and create a release tag.
+See [Security Reference](reference/security.md) for encryption details.
+
+For security vulnerabilities, please report via GitHub Issues rather than public PRs.
