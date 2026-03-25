@@ -47,7 +47,7 @@ regex = "1.11"
 # Time handling
 time = { version = "0.3", features = ["serde", "formatting", "parsing"] }
 # PATH lookup
-which = "7.0"
+which = "8.0"
 # Home directory
 dirs = "6.0"
 # Lazy static initialization
