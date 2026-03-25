@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - DeepSeek and Qwen provider support (via extensions)
 - Auto-install pi if missing (with package manager selection)
 - Added note about pi extensions for custom providers in documentation
+- JSON output support for `pyx version --json` command
 
 ### Changed
 
@@ -35,6 +36,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Cross-platform compatibility (Windows paths, executables, PowerShell)
 - Provider validation error messages now suggest `ply models update`
+- Documentation corrections for provider environment variable mappings
+- Quickstart URL in README now uses correct GitHub releases pattern
+- Added missing validation rules documentation for provider names and environment variables
 
 ### Security
 
