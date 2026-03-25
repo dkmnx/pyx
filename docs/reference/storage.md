@@ -107,6 +107,10 @@ Encrypted passphrase (fallback storage).
 | Permissions | 0600                   |
 | Used when   | OS keyring unavailable |
 
+### Atomic Writes
+
+All sensitive files (`master.key`, `database.json`, `.passphrase`) are written atomically using a backup file with `.bak` extension (e.g., `database.json.bak`). The backup is created before overwriting and removed after successful write.
+
 ## Directory Permissions
 
 ```bash

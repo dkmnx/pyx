@@ -31,41 +31,45 @@ graph TD
 
 ## Built-in Providers
 
-### Core Providers
+Pyx includes explicit environment variable mappings for the following providers:
 
-| Provider      | Environment Variable   |
-| ------------- | ---------------------- |
-| openai        | `OPENAI_API_KEY`       |
-| anthropic     | `ANTHROPIC_API_KEY`    |
-| google        | `GEMINI_API_KEY`       |
-| google-vertex | `VERTEX_AI_API_KEY`    |
-| azure         | `AZURE_OPENAI_API_KEY` |
-| azure-openai  | `AZURE_OPENAI_API_KEY` |
+| Provider                 | Environment Variable             |
+| ------------------------ | -------------------------------- |
+| `amazon-bedrock`         | `AWS_BEARER_TOKEN_BEDROCK`       |
+| `anthropic`              | `ANTHROPIC_API_KEY`              |
+| `azure-openai-responses` | `AZURE_OPENAI_API_KEY`           |
+| `cerebras`               | `CEREBRAS_API_KEY`               |
+| `deepseek`               | `DEEPSEEK_API_KEY`               |
+| `github-copilot`         | `GITHUB_TOKEN`                   |
+| `google`                 | `GEMINI_API_KEY`                 |
+| `google-antigravity`     | `GEMINI_API_KEY`                 |
+| `google-gemini-cli`      | `GEMINI_API_KEY`                 |
+| `google-vertex`          | `GOOGLE_APPLICATION_CREDENTIALS` |
+| `groq`                   | `GROQ_API_KEY`                   |
+| `huggingface`            | `HF_TOKEN`                       |
+| `kimi-coding`            | `KIMI_API_KEY`                   |
+| `minimax`                | `MINIMAX_API_KEY`                |
+| `minimax-cn`             | `MINIMAX_CN_API_KEY`             |
+| `mistral`                | `MISTRAL_API_KEY`                |
+| `openai`                 | `OPENAI_API_KEY`                 |
+| `openai-codex`           | `OPENAI_API_KEY`                 |
+| `opencode`               | `OPENCODE_API_KEY`               |
+| `opencode-go`            | `OPENCODE_API_KEY`               |
+| `openrouter`             | `OPENROUTER_API_KEY`             |
+| `qwen`                   | `QWEN_API_KEY`                   |
+| `vercel-ai-gateway`      | `AI_GATEWAY_API_KEY`             |
+| `xai`                    | `XAI_API_KEY`                    |
+| `zai`                    | `ZAI_API_KEY`                    |
 
-### Chinese Providers
+**Note:** For providers not listed above, pyx automatically derives the environment variable name by converting the provider name to uppercase and replacing hyphens with underscores, then appending `_API_KEY`. For example, `my-provider` → `MY_PROVIDER_API_KEY`.
 
-| Provider   | Environment Variable  |
-| ---------- | --------------------- |
-| minimax    | `MINIMAX_API_KEY`     |
-| minimax-cn | `MINIMAX_API_KEY`     |
-| zhipu      | `ZHIPUAI_API_KEY`     |
-| baichuan   | `BAICHUAN_API_KEY`    |
-| moonshot   | `MOONSHOT_API_KEY`    |
+Custom mappings in `providers.json` take precedence over built-in mappings.
 
-### Other Providers
+### Provider Name Validation
 
-| Provider   | Environment Variable  |
-| ---------- | --------------------- |
-| groq       | `GROQ_API_KEY`        |
-| mistral    | `MISTRAL_API_KEY`     |
-| cohere     | `COHERE_API_KEY`      |
-| together   | `TOGETHER_API_KEY`    |
-| anyscale   | `ANYSCALE_API_KEY`    |
-| replicate  | `REPLICATE_API_KEY`   |
-| perplexity | `PERPLEXITY_API_KEY`  |
-| friendli   | `FRIENDLI_TOKEN`      |
-| vercel-ai  | `VERCEL_API_TOKEN`    |
-| xai        | `XAI_API_KEY`         |
+Provider names must match the regex `^[a-zA-Z0-9_-]{1,50}$` (alphanumeric, hyphens, underscores, 1-50 characters).
+
+Environment variable names in custom mappings must match `^[A-Z_][A-Z0-9_]*$` (uppercase letters, digits, underscores, starting with letter or underscore).
 
 ## Custom Providers
 
@@ -91,14 +95,16 @@ pyx my-provider  # Sets MY_CUSTOM_API_KEY env var
 
 ### Provider API Keys
 
-| Provider   | Variable               | Required   |
-| ---------- | ---------------------- | ---------- |
-| Anthropic  | `ANTHROPIC_API_KEY`    | Yes        |
-| OpenAI     | `OPENAI_API_KEY`       | Yes        |
-| Google     | `GEMINI_API_KEY`       | Yes        |
-| Groq       | `GROQ_API_KEY`         | Yes        |
-| Mistral    | `MISTRAL_API_KEY`      | Yes        |
-| Azure      | `AZURE_OPENAI_API_KEY` | Yes        |
+| Provider               | Variable               | Required   |
+| ---------------------- | ---------------------- | ---------- |
+| Anthropic              | `ANTHROPIC_API_KEY`    | Yes        |
+| OpenAI                 | `OPENAI_API_KEY`       | Yes        |
+| Google                 | `GEMINI_API_KEY`       | Yes        |
+| Groq                   | `GROQ_API_KEY`         | Yes        |
+| Mistral                | `MISTRAL_API_KEY`      | Yes        |
+| Azure OpenAI Responses | `AZURE_OPENAI_API_KEY` | Yes        |
+
+**Note:** Provider names are case-sensitive and use hyphens (e.g., `azure-openai-responses`). See [Built-in Providers](#built-in-providers) for complete list.
 
 ### Pyx Configuration
 

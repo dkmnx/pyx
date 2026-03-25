@@ -35,6 +35,8 @@ graph TD
 | Parallelization (p) | 1              | Fixed                    | -          |
 | Output Key Length   | 32 bytes       | Fixed                    | -          |
 
+**Note:** The work factor range 14-30 applies to encryption; decryption accepts up to 63 for compatibility with Go-generated data.
+
 ### Tuning for Performance vs Security
 
 **Higher Security (slower):**
@@ -106,6 +108,8 @@ The file fallback (`~/.local/share/pyx/.passphrase`) is **disabled by default** 
 - Binds the file to a specific machine/user combination
 - Does **not** protect against an attacker with filesystem access + knowledge of machine identifiers
 - Only suitable when OS keyring is completely unreliable on your platform
+
+The encryption key is derived from machine identifiers (machine ID, hostname, or serial number) combined with the current username, then hex-encoded and used as an age passphrase. This provides machine binding but no secrecy.
 
 Enable only if your system's keyring persistently fails to store credentials.
 

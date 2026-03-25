@@ -88,6 +88,8 @@ pyx version
 pyx version --json
 ```
 
+With `--json`, outputs version information as JSON including git metadata.
+
 ## Running pi
 
 ```bash

@@ -76,13 +76,7 @@ graph LR
 
 ## Supported Providers
 
-See [Providers Reference](../reference/providers.md) for complete list.
-
-| Category   | Providers                          |
-| ---------- | ---------------------------------- |
-| Core       | openai, anthropic, google, azure   |
-| Chinese    | minimax, zhipu, baichuan, moonshot |
-| Other      | groq, mistral, cohere, together    |
+See [Providers Reference](../reference/providers.md) for complete list of built-in providers.
 
 ## Next Steps
 
