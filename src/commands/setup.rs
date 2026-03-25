@@ -14,6 +14,7 @@ use crate::storage::paths::ensure_data_dir;
 use crate::storage::providers_env::ProvidersEnvConfig;
 use std::collections::HashSet;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use zeroize::Zeroizing;
 
 /// Load database, creating new if none exists, but erroring if file exists but is corrupted.
 /// This prevents silent data loss from corrupted configuration files.
@@ -266,16 +267,11 @@ fn store_provider_entry(
     provider: &str,
     api_key: &str,
 ) -> Result<bool> {
-    let mut master_key = manager.get_key_bytes()?;
+    let master_key = Zeroizing::new(manager.get_key_bytes()?);
 
-    // Encrypt API key
-    let cipher = encrypt_with_key(api_key.as_bytes(), &master_key)
+    let cipher = encrypt_with_key(api_key.as_bytes(), master_key.as_slice())
         .map_err(|e| PyxError::Crypto(format!("Failed to encrypt API key: {e}")))?;
 
-    // Zero master key after use
-    master_key.fill(0);
-
-    // Check if update or new entry
     let is_update = db.has_provider(provider);
 
     // Create and store entry

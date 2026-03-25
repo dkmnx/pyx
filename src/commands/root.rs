@@ -13,6 +13,7 @@ use crate::pi::exec::{
 use crate::providers::mapping::ProviderEnvResolver;
 use crate::storage::database::Database;
 use std::collections::BTreeMap;
+use zeroize::Zeroizing;
 
 /// Load key manager with passphrase fallback
 fn load_key_manager() -> Result<KeyManager> {
@@ -91,7 +92,7 @@ fn display_installation_info() {
 /// Build environment variables for the specified providers.
 fn build_provider_env_vars(db: &Database, providers: &[String]) -> Result<Vec<(String, String)>> {
     let manager = load_key_manager()?;
-    let mut master_key = manager.get_key_bytes()?;
+    let master_key = Zeroizing::new(manager.get_key_bytes()?);
     let resolver = ProviderEnvResolver::new()?;
 
     let mut env_map: BTreeMap<String, String> = BTreeMap::new();
@@ -101,7 +102,7 @@ fn build_provider_env_vars(db: &Database, providers: &[String]) -> Result<Vec<(S
             PyxError::ProviderNotFound(format!("Provider '{provider_name}' not found"))
         })?;
 
-        let api_key = decrypt_api_key(&entry.cipher, &master_key)?;
+        let api_key = decrypt_api_key(&entry.cipher, master_key.as_slice())?;
         let env_var = resolver.get_env_var(provider_name)?;
 
         if let Some(existing) = env_map.get(&env_var) {
@@ -115,7 +116,6 @@ fn build_provider_env_vars(db: &Database, providers: &[String]) -> Result<Vec<(S
         }
     }
 
-    master_key.fill(0);
     Ok(env_map.into_iter().collect())
 }
 
@@ -138,7 +138,8 @@ fn decrypt_api_key(cipher: &str, master_key: &[u8]) -> Result<String> {
         }
     };
 
-    Ok(String::from_utf8_lossy(&api_key_bytes).to_string())
+    String::from_utf8(api_key_bytes)
+        .map_err(|e| PyxError::Crypto(format!("Decrypted API key is not valid UTF-8: {e}")))
 }
 
 /// Determine which providers to use based on CLI args and database
@@ -155,8 +156,8 @@ fn determine_providers(provider_arg: Option<&str>, db: &Database) -> Result<Vec<
         // Use all configured providers
         Ok(db
             .get_provider_names()
-            .iter()
-            .map(|s| s.to_string())
+            .into_iter()
+            .map(str::to_owned)
             .collect())
     }
 }
@@ -190,6 +191,7 @@ fn display_session_hint() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::crypto::age::encrypt_with_key;
     use crate::storage::database::ProviderEntry;
 
     #[test]
@@ -230,5 +232,14 @@ mod tests {
         let db = Database::default();
         let result = determine_providers(Some("nonexistent"), &db);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_decrypt_api_key_rejects_invalid_utf8() {
+        let key = [7u8; 32];
+        let cipher = encrypt_with_key(&[0xff, 0xfe, 0xfd], &key).unwrap();
+
+        let err = decrypt_api_key(&cipher, &key).expect_err("invalid utf-8 should fail");
+        assert!(matches!(err, PyxError::Crypto(_)));
     }
 }

@@ -3,6 +3,7 @@
 use crate::error::{PyxError, Result};
 use crate::models::fetch::fetch_models_from_remote;
 use crate::storage::models_cache::ModelsCache;
+use std::collections::BTreeMap;
 
 /// Default cache TTL in seconds (24 hours)
 const DEFAULT_TTL_SECONDS: i64 = 24 * 60 * 60;
@@ -84,23 +85,27 @@ fn print_models(cache: &ModelsCache, json: bool, provider_filter: Option<&str>) 
     print_models_text(cache, provider_filter)
 }
 
+fn filtered_models<'a>(
+    cache: &'a ModelsCache,
+    provider_filter: Option<&str>,
+) -> BTreeMap<&'a str, &'a [String]> {
+    cache
+        .models
+        .iter()
+        .filter(|(provider, _)| match provider_filter {
+            Some(filter) => provider.as_str() == filter,
+            None => true,
+        })
+        .map(|(provider, models)| (provider.as_str(), models.as_slice()))
+        .collect()
+}
+
 /// Print models in JSON format
 fn print_models_json(cache: &ModelsCache, provider_filter: Option<&str>) -> Result<()> {
-    let filtered_models: std::collections::HashMap<_, _> = if let Some(provider) = provider_filter {
-        cache
-            .models
-            .iter()
-            .filter(|(key, _)| *key == provider)
-            .map(|(key, value)| (key.clone(), value.clone()))
-            .collect()
-    } else {
-        cache.models.clone()
-    };
-
     let output = serde_json::json!({
         "version": cache.version,
         "updated_at": cache.updated_at,
-        "models": filtered_models,
+        "models": filtered_models(cache, provider_filter),
     });
     println!("{output}");
     Ok(())
@@ -111,42 +116,21 @@ fn print_models_text(cache: &ModelsCache, provider_filter: Option<&str>) -> Resu
     println!("Supported models:");
     println!();
 
-    let mut providers: Vec<_> = cache.models.keys().collect();
-    providers.sort();
+    let providers = filtered_models(cache, provider_filter);
 
-    let providers: Vec<_> = if let Some(filter) = provider_filter {
-        providers.into_iter().filter(|p| *p == filter).collect()
-    } else {
-        providers
-    };
-
-    for provider in &providers {
-        let models = cache
-            .models
-            .get(*provider)
-            .expect("provider should exist after validation check");
-
+    for (provider, models) in &providers {
         if models.is_empty() {
             continue;
         }
 
         println!("  {} ({} models)", provider, models.len());
-        for model in models {
+        for model in *models {
             println!("    - {model}");
         }
         println!();
     }
 
-    let total_models: usize = providers
-        .iter()
-        .map(|provider| {
-            cache
-                .models
-                .get(*provider)
-                .map(|models| models.len())
-                .unwrap_or(0)
-        })
-        .sum();
+    let total_models: usize = providers.values().map(|models| models.len()).sum();
 
     println!(
         "Total: {} providers, {} models",

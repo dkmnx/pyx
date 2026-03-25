@@ -13,9 +13,11 @@ pub fn execute(provider_name: &str) -> Result<()> {
         )));
     }
 
-    let removed = db
-        .remove(provider_name)
-        .expect("provider should exist after has_provider check");
+    let removed = db.remove(provider_name).ok_or_else(|| {
+        PyxError::ProviderNotFound(format!(
+            "Provider '{provider_name}' not found. Run 'pyx list' to see configured providers."
+        ))
+    })?;
 
     db.save()?;
 

@@ -26,7 +26,7 @@ pub fn execute() -> Result<()> {
 pub fn execute_json() -> Result<()> {
     let db = Database::load_or_error()?;
 
-    let providers: Vec<&str> = db.get_provider_names().iter().map(|s| s.as_str()).collect();
+    let providers = db.get_provider_names();
     let output = serde_json::json!({
         "providers": providers,
         "count": db.len(),
@@ -76,7 +76,7 @@ mod tests {
         assert!(!db.has_provider("nonexistent"));
 
         // Test provider names are retrievable
-        let names: Vec<&str> = db.get_provider_names().iter().map(|s| s.as_str()).collect();
+        let names = db.get_provider_names();
         assert!(names.contains(&"openai"));
         assert!(names.contains(&"anthropic"));
     }

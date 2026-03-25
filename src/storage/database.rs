@@ -147,8 +147,12 @@ impl Database {
     }
 
     /// Get all provider names
-    pub fn get_provider_names(&self) -> Vec<&String> {
-        let mut names: Vec<&String> = self.providers.iter().map(|entry| &entry.provider).collect();
+    pub fn get_provider_names(&self) -> Vec<&str> {
+        let mut names: Vec<_> = self
+            .providers
+            .iter()
+            .map(|entry| entry.provider.as_str())
+            .collect();
         names.sort_unstable();
         names
     }
@@ -304,11 +308,6 @@ mod tests {
             "cipher2".to_string(),
         ));
 
-        let names: Vec<&str> = db
-            .get_provider_names()
-            .iter()
-            .map(|name| name.as_str())
-            .collect();
-        assert_eq!(names, vec!["anthropic", "openai"]);
+        assert_eq!(db.get_provider_names(), vec!["anthropic", "openai"]);
     }
 }

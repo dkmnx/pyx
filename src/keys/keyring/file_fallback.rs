@@ -46,10 +46,10 @@ pub(super) fn get_passphrase_file() -> Result<Option<SecretString>> {
 
     let machine_key = derive_machine_key();
     match crate::crypto::age::decrypt_with_passphrase(&encrypted, &machine_key) {
-        Ok(decrypted) => {
-            let passphrase = String::from_utf8_lossy(&decrypted).to_string();
-            Ok(Some(SecretString::new(passphrase.into_boxed_str())))
-        }
+        Ok(decrypted) => match String::from_utf8(decrypted) {
+            Ok(passphrase) => Ok(Some(SecretString::new(passphrase.into_boxed_str()))),
+            Err(_) => Ok(None),
+        },
         Err(_) => Ok(None),
     }
 }

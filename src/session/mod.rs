@@ -1,8 +1,16 @@
 //! Session hint management
 
 use crate::error::{PyxError, Result};
+use once_cell::sync::Lazy;
 use regex::Regex;
 use std::path::{Path, PathBuf};
+
+static SESSION_FILENAME_PATTERN: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r"^(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z)_([[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12})\.jsonl$",
+    )
+    .expect("session filename regex should be valid")
+});
 
 /// Parse session file name and return (uuid, timestamp).
 ///
@@ -12,12 +20,7 @@ use std::path::{Path, PathBuf};
 /// Example:
 /// `2026-02-18T04-01-19-316Z_f27fa890-b6f0-42ad-894f-08f0f1735fb9.jsonl`
 pub fn parse_session_filename(filename: &str) -> Result<(String, String)> {
-    let pattern = Regex::new(
-        r"^(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z)_([[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12})\.jsonl$",
-    )
-    .map_err(|e| PyxError::Validation(format!("Invalid session filename regex: {e}")))?;
-
-    let captures = pattern.captures(filename).ok_or_else(|| {
+    let captures = SESSION_FILENAME_PATTERN.captures(filename).ok_or_else(|| {
         PyxError::Validation(format!("Invalid session filename format: {filename}"))
     })?;
 

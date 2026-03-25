@@ -28,10 +28,30 @@ impl ProviderModels {
     }
 }
 
+fn provider_name(line: &str) -> Option<&str> {
+    PROVIDER_SECTION_PATTERN
+        .captures(line)
+        .and_then(|captures| captures.get(1))
+        .map(|provider| provider.as_str())
+        .or_else(|| {
+            PROVIDER_FIELD_PATTERN
+                .captures(line)
+                .and_then(|captures| captures.get(1))
+                .map(|provider| provider.as_str())
+        })
+}
+
+fn model_id(line: &str) -> Option<&str> {
+    MODEL_ID_PATTERN
+        .captures(line)
+        .and_then(|captures| captures.get(1))
+        .map(|model| model.as_str())
+}
+
 /// Parse models from pi-mono models.generated.ts content.
 pub fn parse_models(content: &str) -> Result<HashMap<String, Vec<String>>> {
     let mut result: HashMap<String, ProviderModels> = HashMap::new();
-    let mut current_provider = String::new();
+    let mut current_provider: Option<String> = None;
 
     for line in content.lines() {
         let trimmed = line.trim();
@@ -43,34 +63,22 @@ pub fn parse_models(content: &str) -> Result<HashMap<String, Vec<String>>> {
             continue;
         }
 
-        if let Some(section_match) = PROVIDER_SECTION_PATTERN.captures(trimmed) {
-            if let Some(provider_match) = section_match.get(1) {
-                current_provider = provider_match.as_str().to_string();
-                result.entry(current_provider.clone()).or_default();
-            }
+        if let Some(provider) = provider_name(trimmed) {
+            current_provider = Some(provider.to_owned());
+            result.entry(provider.to_owned()).or_default();
             continue;
         }
 
-        if let Some(provider_match) = PROVIDER_FIELD_PATTERN.captures(trimmed) {
-            if let Some(provider) = provider_match.get(1) {
-                current_provider = provider.as_str().to_string();
-                result.entry(current_provider.clone()).or_default();
-            }
+        let Some(provider) = current_provider.as_deref() else {
             continue;
-        }
+        };
 
-        if current_provider.is_empty() {
+        let Some(model_id) = model_id(trimmed) else {
             continue;
-        }
+        };
 
-        if let Some(model_match) = MODEL_ID_PATTERN.captures(trimmed) {
-            if let Some(model_id_match) = model_match.get(1) {
-                let model_id = model_id_match.as_str().to_string();
-                result
-                    .entry(current_provider.clone())
-                    .or_default()
-                    .push(model_id);
-            }
+        if let Some(models) = result.get_mut(provider) {
+            models.push(model_id.to_owned());
         }
     }
 
