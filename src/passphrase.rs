@@ -41,6 +41,21 @@ pub fn prompt_existing_passphrase(prompt_text: Option<&str>) -> Result<SecretStr
     Ok(SecretString::new(passphrase.into_boxed_str()))
 }
 
+/// Load a key manager from a user-provided passphrase and restore the keyring entry.
+pub(crate) fn load_key_manager_with_passphrase(
+    passphrase: &SecretString,
+) -> Result<crate::keys::manager::KeyManager> {
+    use crate::keys::manager::KeyManager;
+
+    let manager = KeyManager::load_with_passphrase(passphrase)?;
+
+    if let Err(e) = KeyManager::set_passphrase(passphrase) {
+        eprintln!("Warning: failed to store passphrase in OS keyring: {e}");
+    }
+
+    Ok(manager)
+}
+
 /// Load key manager with passphrase fallback to interactive prompt.
 /// If keyring is unavailable, prompts the user for the passphrase.
 pub fn load_key_manager_with_fallback() -> Result<crate::keys::manager::KeyManager> {
@@ -53,7 +68,7 @@ pub fn load_key_manager_with_fallback() -> Result<crate::keys::manager::KeyManag
             // Keyring unavailable - prompt user
             eprintln!("Passphrase not found in OS keyring.");
             let passphrase = prompt_existing_passphrase(Some("Enter your pyx passphrase"))?;
-            KeyManager::load_with_passphrase(&passphrase).map_err(|e| {
+            load_key_manager_with_passphrase(&passphrase).map_err(|e| {
                 PyxError::Crypto(format!(
                     "Failed to decrypt master key: {e}. \
                      If you forgot your passphrase, run 'pyx reset' to start fresh."
@@ -66,10 +81,50 @@ pub fn load_key_manager_with_fallback() -> Result<crate::keys::manager::KeyManag
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::keys::keyring::{get_passphrase, reset_backend, set_backend, MockKeyring};
+    use crate::keys::manager::KeyManager;
+    use crate::ENV_MUTEX;
+    use secrecy::ExposeSecret;
+    use tempfile::tempdir;
+
     #[test]
     fn test_prompt_new_passphrase_creates_secret() {
         // This test would require mocking the prompt system
         // For now, we just verify the function exists and compiles
         // Integration tests cover the actual prompting behavior
+    }
+
+    #[test]
+    fn load_with_passphrase_restores_keyring_entry() {
+        let _guard = ENV_MUTEX.lock().unwrap();
+        let temp = tempdir().unwrap();
+
+        unsafe {
+            std::env::set_var("XDG_DATA_HOME", temp.path());
+            std::env::remove_var("PYX_PASSPHRASE");
+            std::env::remove_var("PYX_ALLOW_FILE_FALLBACK");
+        }
+
+        set_backend(Box::new(MockKeyring::new()));
+
+        let passphrase = SecretString::new("test-passphrase".to_string().into_boxed_str());
+        let manager = KeyManager::generate().unwrap();
+        let expected_key = manager.get_key_hex().to_string();
+        manager.save_with_passphrase(&passphrase).unwrap();
+
+        assert!(get_passphrase().unwrap().is_none());
+
+        let loaded = load_key_manager_with_passphrase(&passphrase).unwrap();
+        assert_eq!(loaded.get_key_hex(), expected_key);
+        assert_eq!(
+            get_passphrase().unwrap().unwrap().expose_secret(),
+            passphrase.expose_secret()
+        );
+
+        reset_backend();
+        unsafe {
+            std::env::remove_var("XDG_DATA_HOME");
+        }
     }
 }

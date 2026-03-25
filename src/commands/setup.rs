@@ -97,8 +97,8 @@ fn load_or_create_master_key() -> Result<KeyManager> {
 
                 let passphrase = passphrase::prompt_existing_passphrase(Some("Passphrase"))?;
 
-                // Try to load with the provided passphrase
-                return KeyManager::load_with_passphrase(&passphrase).map_err(|e| {
+                // Try to load with the provided passphrase and restore keyring entry
+                return passphrase::load_key_manager_with_passphrase(&passphrase).map_err(|e| {
                     PyxError::Crypto(format!(
                         "Failed to decrypt master key: {e}. \
                          If you forgot your passphrase, run 'pyx reset' to start fresh."
