@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `-s`/`--session` flag for pi session support
 - DeepSeek and Qwen provider support (via extensions)
 - Auto-install pi if missing (with package manager selection)
+- Added note about pi extensions for custom providers in documentation
 
 ### Changed
 

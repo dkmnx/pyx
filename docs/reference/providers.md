@@ -79,6 +79,8 @@ Create or edit `~/.local/share/pyx/providers.json`:
 }
 ```
 
+**Note:** Make sure you have a corresponding pi extension installed for your custom provider. pyx only sets environment variables; the pi extension must support the provider name.
+
 ### Using Custom Providers
 
 ```bash
