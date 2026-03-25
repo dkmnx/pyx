@@ -323,29 +323,24 @@ pub fn platform_info() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ENV_MUTEX;
+    use std::fs;
+    use tempfile::tempdir;
 
     #[test]
     fn test_find_pi_returns_option() {
-        // find_pi returns Option<String> - verify the interface works
-        // The actual result depends on whether pi is in PATH
         let result = find_pi();
-        // Should return Some(path) if pi is installed, None otherwise
-        // Just verify it doesn't panic and returns correct type
         match result {
             Some(path) => {
-                // If found, verify it's a non-empty string
                 assert!(!path.is_empty());
             }
-            None => {
-                // If not found, that's also valid (pi not installed)
-            }
+            None => {}
         }
     }
 
     #[test]
     fn test_platform_info_known_values() {
         let info = platform_info();
-        // Platform info should be non-empty and contain OS/arch format
         assert!(!info.is_empty());
         assert!(info.contains('/'));
     }
@@ -353,9 +348,56 @@ mod tests {
     #[test]
     fn test_detect_current_shell() {
         let shell = detect_current_shell();
-        // Should return a valid shell type
         match shell {
             ShellType::Bash | ShellType::Zsh | ShellType::Fish | ShellType::PowerShell => {}
+        }
+    }
+
+    #[test]
+    fn test_install_completion_for_shell_writes_generated_script() {
+        let _guard = ENV_MUTEX.lock().unwrap();
+        let temp = tempdir().unwrap();
+        let bin_dir = temp.path().join("bin");
+        fs::create_dir_all(&bin_dir).unwrap();
+
+        let fake_pyx = bin_dir.join("pyx");
+        let script = r#"#!/usr/bin/env bash
+printf '%s\n' '# bash completion for pyx'
+"#;
+        fs::write(&fake_pyx, script).unwrap();
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&fake_pyx, fs::Permissions::from_mode(0o755)).unwrap();
+        }
+
+        let home = temp.path().join("home");
+        fs::create_dir_all(&home).unwrap();
+
+        let original_path = std::env::var("PATH").unwrap_or_default();
+        let new_path = if original_path.is_empty() {
+            bin_dir.display().to_string()
+        } else {
+            format!("{}:{}", bin_dir.display(), original_path)
+        };
+
+        unsafe {
+            std::env::set_var("HOME", &home);
+            std::env::set_var("PATH", new_path);
+        }
+
+        install_completion_for_shell(ShellType::Bash).unwrap();
+
+        let installed = home.join(".bash_completions").join("pyx.bash");
+        assert!(installed.exists());
+        assert!(fs::read_to_string(installed)
+            .unwrap()
+            .contains("bash completion for pyx"));
+
+        unsafe {
+            std::env::set_var("PATH", original_path);
+            std::env::remove_var("HOME");
         }
     }
 }

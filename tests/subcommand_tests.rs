@@ -274,7 +274,6 @@ fn reset_subcommand_requires_confirmation() {
 
 #[test]
 fn pi_subcommand_shows_status_when_not_installed() {
-    // This test verifies that pi command shows status when pi is not installed
     let temp = tempdir().unwrap();
     let (_data_dir, xdg_data) = setup_pox_env(&temp);
     let xdg_data_str = xdg_data.to_string_lossy().to_string();
@@ -283,10 +282,53 @@ fn pi_subcommand_shows_status_when_not_installed() {
     cmd.arg("pi")
         .env("XDG_DATA_HOME", &xdg_data_str)
         .env("PYX_PASSPHRASE", "test-passphrase")
-        // Remove pi from PATH to simulate not installed
         .env("PATH", "/nonexistent");
-    // Should succeed and show status
     cmd.assert()
         .success()
         .stdout(predicates::str::contains("pi is not installed"));
+}
+
+#[test]
+fn pi_install_subcommand_surfaces_package_manager_failures() {
+    let temp = tempdir().unwrap();
+    let (_data_dir, xdg_data) = setup_pox_env(&temp);
+    let xdg_data_str = xdg_data.to_string_lossy().to_string();
+    let bin_dir = temp.path().join("bin");
+    fs::create_dir_all(&bin_dir).unwrap();
+
+    let npm = bin_dir.join("npm");
+    fs::write(&npm, "#!/usr/bin/env bash\nexit 12\n").unwrap();
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&npm, fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    let mut cmd = Command::cargo_bin("pyx").unwrap();
+    cmd.arg("pi")
+        .arg("install")
+        .arg("--auto")
+        .env("XDG_DATA_HOME", &xdg_data_str)
+        .env("PYX_PASSPHRASE", "test-passphrase")
+        .env("PATH", bin_dir.display().to_string());
+
+    cmd.assert()
+        .failure()
+        .stderr(predicates::str::contains("Failed to install pi"));
+}
+
+#[test]
+fn root_command_errors_when_not_initialized() {
+    let temp = tempdir().unwrap();
+    let xdg_data_str = temp.path().to_string_lossy().to_string();
+
+    let mut cmd = Command::cargo_bin("pyx").unwrap();
+    cmd.arg("openai")
+        .env("XDG_DATA_HOME", &xdg_data_str)
+        .env("PATH", "/nonexistent");
+
+    cmd.assert()
+        .failure()
+        .stderr(predicates::str::contains("Pyx not initialized"));
 }
