@@ -1,51 +1,36 @@
+mod support;
+
 use assert_cmd::Command;
-use secrecy::SecretString;
 use std::fs;
-use tempfile::tempdir;
+use support::{
+    create_test_env, prepend_path, write_executable, write_master_key, write_provider_database,
+    TestEnv, TEST_PASSPHRASE,
+};
+use tempfile::{tempdir, TempDir};
 
-/// Helper to set up a minimal pyx environment with master key and database
-fn setup_pox_env(temp: &tempfile::TempDir) -> (std::path::PathBuf, std::path::PathBuf) {
-    // XDG_DATA_HOME should be the parent of the "pyx" directory
-    let xdg_data = temp.path();
-    let data_dir = xdg_data.join("pyx");
-    fs::create_dir_all(&data_dir).unwrap();
+fn setup_pyx_env(temp: &TempDir) -> TestEnv {
+    let env = create_test_env(temp);
+    write_master_key(&env.data_dir);
+    write_provider_database(&env.data_dir, "openai", "sk-openai-test123");
+    env
+}
 
-    // Create master.key
-    let passphrase = SecretString::new("test-passphrase".to_string().into_boxed_str());
-    let master_key = b"integration-master-key";
-    let master_cipher =
-        pyx_rs::crypto::age::encrypt_with_passphrase(master_key, &passphrase).unwrap();
-    fs::write(data_dir.join("master.key"), master_cipher).unwrap();
-
-    // Create database.json with a provider entry
-    let provider_cipher =
-        pyx_rs::crypto::age::encrypt_with_key(b"sk-openai-test123", master_key).unwrap();
-    let db_content = format!(
-        r#"[
-  {{
-    "provider": "openai",
-    "cipher": "{}",
-    "created_at": "2026-01-01T00:00:00Z",
-    "updated_at": "2026-01-01T00:00:00Z"
-  }}
-]"#,
-        provider_cipher
-    );
-    fs::write(data_dir.join("database.json"), db_content).unwrap();
-
-    (data_dir, xdg_data.to_path_buf())
+fn setup_empty_pyx_env(temp: &TempDir) -> TestEnv {
+    let env = create_test_env(temp);
+    write_master_key(&env.data_dir);
+    fs::write(env.data_dir.join("database.json"), "[]").unwrap();
+    env
 }
 
 #[test]
 fn list_subcommand_shows_configured_providers() {
     let temp = tempdir().unwrap();
-    let (_data_dir, xdg_data) = setup_pox_env(&temp);
-    let xdg_data_str = xdg_data.to_string_lossy().to_string();
+    let env = setup_pyx_env(&temp);
 
     let mut cmd = Command::cargo_bin("pyx").unwrap();
     cmd.arg("list")
-        .env("XDG_DATA_HOME", &xdg_data_str)
-        .env("PYX_PASSPHRASE", "test-passphrase");
+        .env("XDG_DATA_HOME", env.xdg_data_str())
+        .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
 
     cmd.assert()
         .success()
@@ -55,14 +40,13 @@ fn list_subcommand_shows_configured_providers() {
 #[test]
 fn list_subcommand_json_output() {
     let temp = tempdir().unwrap();
-    let (_data_dir, xdg_data) = setup_pox_env(&temp);
-    let xdg_data_str = xdg_data.to_string_lossy().to_string();
+    let env = setup_pyx_env(&temp);
 
     let mut cmd = Command::cargo_bin("pyx").unwrap();
     cmd.arg("list")
         .arg("--json")
-        .env("XDG_DATA_HOME", &xdg_data_str)
-        .env("PYX_PASSPHRASE", "test-passphrase");
+        .env("XDG_DATA_HOME", env.xdg_data_str())
+        .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
 
     cmd.assert()
         .success()
@@ -72,13 +56,12 @@ fn list_subcommand_json_output() {
 #[test]
 fn version_subcommand_shows_version() {
     let temp = tempdir().unwrap();
-    let (_data_dir, xdg_data) = setup_pox_env(&temp);
-    let xdg_data_str = xdg_data.to_string_lossy().to_string();
+    let env = setup_pyx_env(&temp);
 
     let mut cmd = Command::cargo_bin("pyx").unwrap();
     cmd.arg("version")
-        .env("XDG_DATA_HOME", &xdg_data_str)
-        .env("PYX_PASSPHRASE", "test-passphrase");
+        .env("XDG_DATA_HOME", env.xdg_data_str())
+        .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
 
     cmd.assert().success();
 }
@@ -86,26 +69,12 @@ fn version_subcommand_shows_version() {
 #[test]
 fn list_subcommand_empty_database() {
     let temp = tempdir().unwrap();
-    let xdg_data = temp.path();
-    let data_dir = xdg_data.join("pyx");
-    fs::create_dir_all(&data_dir).unwrap();
-
-    // Create master.key but empty database
-    let passphrase = SecretString::new("test-passphrase".to_string().into_boxed_str());
-    let master_key = b"integration-master-key";
-    let master_cipher =
-        pyx_rs::crypto::age::encrypt_with_passphrase(master_key, &passphrase).unwrap();
-    fs::write(data_dir.join("master.key"), master_cipher).unwrap();
-
-    // Empty database
-    fs::write(data_dir.join("database.json"), "[]").unwrap();
-
-    let xdg_data_str = xdg_data.to_string_lossy().to_string();
+    let env = setup_empty_pyx_env(&temp);
 
     let mut cmd = Command::cargo_bin("pyx").unwrap();
     cmd.arg("list")
-        .env("XDG_DATA_HOME", &xdg_data_str)
-        .env("PYX_PASSPHRASE", "test-passphrase");
+        .env("XDG_DATA_HOME", env.xdg_data_str())
+        .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
 
     cmd.assert()
         .success()
@@ -125,33 +94,29 @@ fn help_flag_works() {
 #[test]
 fn delete_subcommand_removes_provider() {
     let temp = tempdir().unwrap();
-    let (_data_dir, xdg_data) = setup_pox_env(&temp);
-    let xdg_data_str = xdg_data.to_string_lossy().to_string();
+    let env = setup_pyx_env(&temp);
 
-    // First verify provider exists
     let mut cmd = Command::cargo_bin("pyx").unwrap();
     cmd.arg("list")
-        .env("XDG_DATA_HOME", &xdg_data_str)
-        .env("PYX_PASSPHRASE", "test-passphrase");
+        .env("XDG_DATA_HOME", env.xdg_data_str())
+        .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
     cmd.assert()
         .success()
         .stdout(predicates::str::contains("openai"));
 
-    // Delete the provider
     let mut cmd = Command::cargo_bin("pyx").unwrap();
     cmd.arg("delete")
         .arg("openai")
-        .env("XDG_DATA_HOME", &xdg_data_str)
-        .env("PYX_PASSPHRASE", "test-passphrase");
+        .env("XDG_DATA_HOME", env.xdg_data_str())
+        .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
     cmd.assert()
         .success()
         .stdout(predicates::str::contains("Removed provider: openai"));
 
-    // Verify provider is gone
     let mut cmd = Command::cargo_bin("pyx").unwrap();
     cmd.arg("list")
-        .env("XDG_DATA_HOME", &xdg_data_str)
-        .env("PYX_PASSPHRASE", "test-passphrase");
+        .env("XDG_DATA_HOME", env.xdg_data_str())
+        .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
     cmd.assert()
         .success()
         .stdout(predicates::str::contains("No providers configured"));
@@ -160,14 +125,13 @@ fn delete_subcommand_removes_provider() {
 #[test]
 fn delete_subcommand_not_found() {
     let temp = tempdir().unwrap();
-    let (_data_dir, xdg_data) = setup_pox_env(&temp);
-    let xdg_data_str = xdg_data.to_string_lossy().to_string();
+    let env = setup_pyx_env(&temp);
 
     let mut cmd = Command::cargo_bin("pyx").unwrap();
     cmd.arg("delete")
         .arg("nonexistent")
-        .env("XDG_DATA_HOME", &xdg_data_str)
-        .env("PYX_PASSPHRASE", "test-passphrase");
+        .env("XDG_DATA_HOME", env.xdg_data_str())
+        .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
     cmd.assert()
         .failure()
         .stderr(predicates::str::contains("not found"));
@@ -176,10 +140,8 @@ fn delete_subcommand_not_found() {
 #[test]
 fn models_subcommand_shows_cached_models() {
     let temp = tempdir().unwrap();
-    let (data_dir, xdg_data) = setup_pox_env(&temp);
-    let xdg_data_str = xdg_data.to_string_lossy().to_string();
+    let env = setup_pyx_env(&temp);
 
-    // Create a models cache
     let cache_content = r#"{
   "version": "v1.0.0",
   "updated_at": "2026-01-01T00:00:00Z",
@@ -188,12 +150,12 @@ fn models_subcommand_shows_cached_models() {
     "anthropic": ["claude-3-opus", "claude-3-sonnet"]
   }
 }"#;
-    fs::write(data_dir.join("models.json"), cache_content).unwrap();
+    fs::write(env.data_dir.join("models.json"), cache_content).unwrap();
 
     let mut cmd = Command::cargo_bin("pyx").unwrap();
     cmd.arg("models")
-        .env("XDG_DATA_HOME", &xdg_data_str)
-        .env("PYX_PASSPHRASE", "test-passphrase");
+        .env("XDG_DATA_HOME", env.xdg_data_str())
+        .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
     cmd.assert()
         .success()
         .stdout(predicates::str::contains("openai"))
@@ -203,10 +165,8 @@ fn models_subcommand_shows_cached_models() {
 #[test]
 fn models_subcommand_json_output() {
     let temp = tempdir().unwrap();
-    let (data_dir, xdg_data) = setup_pox_env(&temp);
-    let xdg_data_str = xdg_data.to_string_lossy().to_string();
+    let env = setup_pyx_env(&temp);
 
-    // Create a models cache
     let cache_content = r#"{
   "version": "v1.0.0",
   "updated_at": "2026-01-01T00:00:00Z",
@@ -214,13 +174,13 @@ fn models_subcommand_json_output() {
     "openai": ["gpt-4"]
   }
 }"#;
-    fs::write(data_dir.join("models.json"), cache_content).unwrap();
+    fs::write(env.data_dir.join("models.json"), cache_content).unwrap();
 
     let mut cmd = Command::cargo_bin("pyx").unwrap();
     cmd.arg("models")
         .arg("--json")
-        .env("XDG_DATA_HOME", &xdg_data_str)
-        .env("PYX_PASSPHRASE", "test-passphrase");
+        .env("XDG_DATA_HOME", env.xdg_data_str())
+        .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
     cmd.assert()
         .success()
         .stdout(predicates::str::contains("\"version\""))
@@ -260,28 +220,24 @@ fn completion_subcommand_generates_fish() {
 #[test]
 fn reset_subcommand_requires_confirmation() {
     let temp = tempdir().unwrap();
-    let (_data_dir, xdg_data) = setup_pox_env(&temp);
-    let xdg_data_str = xdg_data.to_string_lossy().to_string();
+    let env = setup_pyx_env(&temp);
 
-    // Reset without confirmation should fail or prompt
     let mut cmd = Command::cargo_bin("pyx").unwrap();
     cmd.arg("reset")
-        .env("XDG_DATA_HOME", &xdg_data_str)
-        .env("PYX_PASSPHRASE", "test-passphrase");
-    // Reset requires interactive confirmation, so it will fail in test env
+        .env("XDG_DATA_HOME", env.xdg_data_str())
+        .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
     cmd.assert().failure();
 }
 
 #[test]
 fn pi_subcommand_shows_status_when_not_installed() {
     let temp = tempdir().unwrap();
-    let (_data_dir, xdg_data) = setup_pox_env(&temp);
-    let xdg_data_str = xdg_data.to_string_lossy().to_string();
+    let env = setup_pyx_env(&temp);
 
     let mut cmd = Command::cargo_bin("pyx").unwrap();
     cmd.arg("pi")
-        .env("XDG_DATA_HOME", &xdg_data_str)
-        .env("PYX_PASSPHRASE", "test-passphrase")
+        .env("XDG_DATA_HOME", env.xdg_data_str())
+        .env("PYX_PASSPHRASE", TEST_PASSPHRASE)
         .env("PATH", "/nonexistent");
     cmd.assert()
         .success()
@@ -291,27 +247,21 @@ fn pi_subcommand_shows_status_when_not_installed() {
 #[test]
 fn pi_install_subcommand_surfaces_package_manager_failures() {
     let temp = tempdir().unwrap();
-    let (_data_dir, xdg_data) = setup_pox_env(&temp);
-    let xdg_data_str = xdg_data.to_string_lossy().to_string();
-    let bin_dir = temp.path().join("bin");
-    fs::create_dir_all(&bin_dir).unwrap();
+    let env = setup_pyx_env(&temp);
 
-    let npm = bin_dir.join("npm");
-    fs::write(&npm, "#!/usr/bin/env bash\nexit 12\n").unwrap();
+    let npm = env.bin_dir.join("npm");
+    write_executable(&npm, "#!/bin/sh\nexit 12\n");
 
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&npm, fs::Permissions::from_mode(0o755)).unwrap();
-    }
+    let path = prepend_path(&env.bin_dir);
+    assert!(path.starts_with(&env.bin_dir.display().to_string()));
 
     let mut cmd = Command::cargo_bin("pyx").unwrap();
     cmd.arg("pi")
         .arg("install")
         .arg("--auto")
-        .env("XDG_DATA_HOME", &xdg_data_str)
-        .env("PYX_PASSPHRASE", "test-passphrase")
-        .env("PATH", bin_dir.display().to_string());
+        .env("XDG_DATA_HOME", env.xdg_data_str())
+        .env("PYX_PASSPHRASE", TEST_PASSPHRASE)
+        .env("PATH", env.bin_dir.display().to_string());
 
     cmd.assert()
         .failure()
