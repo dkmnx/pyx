@@ -98,6 +98,7 @@ pub fn dir_for_cwd(cwd: &str) -> Result<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::tempdir;
 
     #[test]
     fn parse_session_filename_valid() {
@@ -119,5 +120,115 @@ mod tests {
     fn encode_cwd_rejects_invalid() {
         assert!(encode_cwd("../etc/passwd").is_err());
         assert!(encode_cwd("").is_err());
+    }
+
+    #[test]
+    fn find_most_recent_session_returns_none_for_empty_dir() {
+        let temp = tempdir().unwrap();
+        let result = find_most_recent_session(temp.path()).unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn find_most_recent_session_returns_none_when_dir_not_exists() {
+        let temp = tempdir().unwrap();
+        let nonexistent = temp.path().join("nonexistent");
+        let result = find_most_recent_session(&nonexistent).unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn find_most_recent_session_returns_single_session() {
+        let temp = tempdir().unwrap();
+        let session_file = temp
+            .path()
+            .join("2026-03-01T10-00-00-000Z_00000000-0000-0000-0000-000000000001.jsonl");
+        std::fs::write(&session_file, "").unwrap();
+
+        let result = find_most_recent_session(temp.path()).unwrap();
+        assert_eq!(
+            result,
+            Some("00000000-0000-0000-0000-000000000001".to_string())
+        );
+    }
+
+    #[test]
+    fn find_most_recent_session_returns_most_recent() {
+        let temp = tempdir().unwrap();
+
+        // Write older session
+        let older = temp
+            .path()
+            .join("2026-02-01T10-00-00-000Z_00000000-0000-0000-0000-000000000001.jsonl");
+        std::fs::write(&older, "").unwrap();
+
+        // Write newer session
+        let newer = temp
+            .path()
+            .join("2026-03-01T10-00-00-000Z_00000000-0000-0000-0000-000000000002.jsonl");
+        std::fs::write(&newer, "").unwrap();
+
+        let result = find_most_recent_session(temp.path()).unwrap();
+        assert_eq!(
+            result,
+            Some("00000000-0000-0000-0000-000000000002".to_string())
+        );
+    }
+
+    #[test]
+    fn find_most_recent_session_skips_non_jsonl_files() {
+        let temp = tempdir().unwrap();
+
+        let jsonl = temp
+            .path()
+            .join("2026-03-01T10-00-00-000Z_00000000-0000-0000-0000-000000000001.jsonl");
+        std::fs::write(&jsonl, "").unwrap();
+
+        let other = temp.path().join("readme.txt");
+        std::fs::write(&other, "").unwrap();
+
+        let result = find_most_recent_session(temp.path()).unwrap();
+        assert_eq!(
+            result,
+            Some("00000000-0000-0000-0000-000000000001".to_string())
+        );
+    }
+
+    #[test]
+    fn find_most_recent_session_skips_directories() {
+        let temp = tempdir().unwrap();
+
+        let session = temp
+            .path()
+            .join("2026-03-01T10-00-00-000Z_00000000-0000-0000-0000-000000000001.jsonl");
+        std::fs::write(&session, "").unwrap();
+
+        let subdir = temp.path().join("subdir");
+        std::fs::create_dir(&subdir).unwrap();
+
+        let result = find_most_recent_session(temp.path()).unwrap();
+        assert_eq!(
+            result,
+            Some("00000000-0000-0000-0000-000000000001".to_string())
+        );
+    }
+
+    #[test]
+    fn find_most_recent_session_skips_invalid_filenames() {
+        let temp = tempdir().unwrap();
+
+        let valid = temp
+            .path()
+            .join("2026-03-01T10-00-00-000Z_00000000-0000-0000-0000-000000000001.jsonl");
+        std::fs::write(&valid, "").unwrap();
+
+        let invalid = temp.path().join("invalid-filename.jsonl");
+        std::fs::write(&invalid, "").unwrap();
+
+        let result = find_most_recent_session(temp.path()).unwrap();
+        assert_eq!(
+            result,
+            Some("00000000-0000-0000-0000-000000000001".to_string())
+        );
     }
 }
