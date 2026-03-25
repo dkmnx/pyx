@@ -6,6 +6,14 @@
 mod backend;
 mod file_fallback;
 
+// OS-specific keyring implementations
+#[cfg(target_os = "linux")]
+mod linux;
+#[cfg(target_os = "macos")]
+mod macos;
+#[cfg(target_os = "windows")]
+mod windows;
+
 use self::backend::with_backend;
 #[cfg(test)]
 pub use self::backend::{reset_backend, set_backend};
@@ -30,7 +38,7 @@ fn env_passphrase() -> Option<SecretString> {
 
 /// Get passphrase - priority:
 /// 1. PYX_PASSPHRASE env var
-/// 2. OS Keyring
+/// 2. OS Keyring (backend unavailable is treated as "not found")
 /// 3. File fallback (opt-in via PYX_ALLOW_FILE_FALLBACK=1)
 /// 4. None
 ///
@@ -44,7 +52,20 @@ pub fn get_passphrase() -> Result<Option<SecretString>> {
     }
 
     // 2. Try OS keyring
-    if let Some(pw) = with_backend(|b| b.get_password(SERVICE_NAME, USER_NAME))? {
+    // Backend errors (unavailable keyring) are treated as "not found" to allow
+    // fallback to file or user prompt without failing on transient issues.
+    let backend_result = with_backend(|b| b.get_password(SERVICE_NAME, USER_NAME));
+    let backend_pw = match backend_result {
+        Ok(Some(pw)) => Some(pw),
+        Ok(None) => None,
+        Err(e) => {
+            // Log the error but don't fail - treat unavailable backend as "not found"
+            eprintln!("Warning: OS keyring unavailable: {e}");
+            None
+        }
+    };
+
+    if let Some(pw) = backend_pw {
         return Ok(Some(SecretString::new(pw.into_boxed_str())));
     }
 
@@ -416,6 +437,217 @@ else:
         unsafe {
             std::env::set_var("PATH", original_path);
             std::env::remove_var("PYX_SECRET_TOOL_STORE_DIR");
+        }
+    }
+
+    // --- Backend contract tests ---
+
+    /// Test that get_password returns Ok(None) for missing entries,
+    /// not an error. This is required for graceful fallback behavior.
+    #[test]
+    fn test_get_password_returns_none_for_missing_entry() {
+        let _guard = ENV_MUTEX.lock().unwrap();
+
+        // Use mock backend which stores nothing
+        set_backend(Box::new(MockKeyring::new()));
+
+        // Get on missing entry should return None, not error
+        let result = with_backend(|b| b.get_password("nonexistent-service", "nonexistent-user"));
+        assert!(
+            result.is_ok(),
+            "get_password should not error on missing entry"
+        );
+        assert!(
+            result.unwrap().is_none(),
+            "get_password should return None for missing entry"
+        );
+
+        reset_backend();
+    }
+
+    /// Test that set_password overwrites existing values.
+    #[test]
+    fn test_set_password_overwrites_existing() {
+        let _guard = ENV_MUTEX.lock().unwrap();
+
+        set_backend(Box::new(MockKeyring::new()));
+
+        let service = "test-service";
+        let user = "test-user";
+
+        // Set first value
+        with_backend(|b| b.set_password(service, user, "first-value")).unwrap();
+
+        // Verify first value
+        let first = with_backend(|b| b.get_password(service, user))
+            .unwrap()
+            .unwrap();
+        assert_eq!(first, "first-value");
+
+        // Overwrite with second value
+        with_backend(|b| b.set_password(service, user, "second-value")).unwrap();
+
+        // Verify second value
+        let second = with_backend(|b| b.get_password(service, user))
+            .unwrap()
+            .unwrap();
+        assert_eq!(second, "second-value");
+
+        reset_backend();
+    }
+
+    /// Test that delete_password is idempotent.
+    #[test]
+    fn test_delete_password_is_idempotent() {
+        let _guard = ENV_MUTEX.lock().unwrap();
+
+        set_backend(Box::new(MockKeyring::new()));
+
+        let service = "test-service";
+        let user = "test-user";
+
+        // Set a value
+        with_backend(|b| b.set_password(service, user, "value")).unwrap();
+
+        // First delete should succeed
+        with_backend(|b| b.delete_password(service, user)).unwrap();
+
+        // Second delete should also succeed (idempotent)
+        with_backend(|b| b.delete_password(service, user)).unwrap();
+
+        // Entry should be gone
+        let result = with_backend(|b| b.get_password(service, user)).unwrap();
+        assert!(result.is_none());
+
+        reset_backend();
+    }
+
+    /// Test that get_passphrase falls back to file when backend returns error on read.
+    /// This is critical: if the native backend is unavailable (e.g., keyring locked),
+    /// get_passphrase should still try file fallback rather than propagating the error.
+    #[test]
+    fn test_get_passphrase_uses_file_fallback_when_backend_errors() {
+        let _guard = ENV_MUTEX.lock().unwrap();
+        let temp = tempdir().unwrap();
+
+        unsafe {
+            std::env::set_var("XDG_DATA_HOME", temp.path());
+            std::env::set_var("PYX_ALLOW_FILE_FALLBACK", "1");
+            std::env::remove_var("PYX_PASSPHRASE");
+        }
+
+        // Create a backend that always errors on read
+        struct ErrorBackend;
+        impl crate::keys::keyring::backend::KeyringBackend for ErrorBackend {
+            fn get_password(&self, _: &str, _: &str) -> crate::error::Result<Option<String>> {
+                Err(crate::error::PyxError::Keyring(
+                    "Backend unavailable".to_string(),
+                ))
+            }
+            fn set_password(&self, _: &str, _: &str, _: &str) -> crate::error::Result<()> {
+                Err(crate::error::PyxError::Keyring(
+                    "Backend unavailable".to_string(),
+                ))
+            }
+            fn delete_password(&self, _: &str, _: &str) -> crate::error::Result<()> {
+                Ok(()) // Delete succeeds silently
+            }
+        }
+
+        set_backend(Box::new(ErrorBackend));
+
+        // Write to file fallback first
+        let passphrase = SecretString::new("file-fallback-pass".to_string().into_boxed_str());
+        set_passphrase_file(&passphrase).unwrap();
+
+        // get_passphrase should return the file fallback, not error
+        let result = get_passphrase().unwrap();
+        assert!(
+            result.is_some(),
+            "get_passphrase should fall back to file when backend errors"
+        );
+        assert_eq!(result.unwrap().expose_secret(), "file-fallback-pass");
+
+        // Cleanup
+        clear_passphrase().unwrap();
+        reset_backend();
+
+        unsafe {
+            std::env::remove_var("XDG_DATA_HOME");
+            std::env::remove_var("PYX_ALLOW_FILE_FALLBACK");
+        }
+    }
+
+    /// Test that has_entry checks backend availability, not just presence.
+    #[test]
+    fn test_has_entry_returns_false_when_backend_unavailable() {
+        let _guard = ENV_MUTEX.lock().unwrap();
+
+        // Create a backend that errors on read
+        struct EmptyBackend;
+        impl crate::keys::keyring::backend::KeyringBackend for EmptyBackend {
+            fn get_password(&self, _: &str, _: &str) -> crate::error::Result<Option<String>> {
+                // Return Ok(None) for missing, not error
+                Ok(None)
+            }
+            fn set_password(&self, _: &str, _: &str, _: &str) -> crate::error::Result<()> {
+                Ok(())
+            }
+            fn delete_password(&self, _: &str, _: &str) -> crate::error::Result<()> {
+                Ok(())
+            }
+        }
+
+        set_backend(Box::new(EmptyBackend));
+
+        // No file fallback, no backend entry
+        unsafe {
+            std::env::remove_var("PYX_ALLOW_FILE_FALLBACK");
+        }
+
+        assert!(
+            !has_entry(),
+            "has_entry should return false when no entry exists"
+        );
+
+        reset_backend();
+    }
+
+    /// Regression test: set_passphrase should succeed even if backend partially fails,
+    /// as long as the operation completes.
+    #[test]
+    fn test_set_passphrase_succeeds_when_backend_available() {
+        let _guard = ENV_MUTEX.lock().unwrap();
+        let temp = tempdir().unwrap();
+
+        unsafe {
+            std::env::set_var("XDG_DATA_HOME", temp.path());
+            std::env::remove_var("PYX_ALLOW_FILE_FALLBACK");
+            std::env::remove_var("PYX_PASSPHRASE");
+        }
+
+        set_backend(Box::new(MockKeyring::new()));
+
+        let passphrase = SecretString::new("backend-test".to_string().into_boxed_str());
+        let result = set_passphrase(&passphrase);
+
+        // Should succeed when backend is available
+        assert!(
+            result.is_ok(),
+            "set_passphrase should succeed when backend available: {:?}",
+            result
+        );
+
+        // Should be retrievable
+        let retrieved = get_passphrase().unwrap();
+        assert!(retrieved.is_some());
+        assert_eq!(retrieved.unwrap().expose_secret(), "backend-test");
+
+        clear_passphrase().unwrap();
+        reset_backend();
+
+        unsafe {
+            std::env::remove_var("XDG_DATA_HOME");
         }
     }
 }

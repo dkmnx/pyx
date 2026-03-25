@@ -1,178 +1,35 @@
-use crate::error::{PyxError, Result};
-use std::io::Write;
-use std::process::{Command, Stdio};
+//! Keyring backend trait and platform dispatch.
+//!
+//! This module defines the KeyringBackend trait and dispatches to the
+//! platform-specific implementation (Linux, macOS, or Windows).
+
 use std::sync::{Mutex, MutexGuard};
 
+use crate::error::{PyxError, Result};
+
+/// Trait for keyring backend implementations.
+///
+/// Implement this trait to provide platform-specific keyring functionality.
 pub trait KeyringBackend: Send + Sync {
+    /// Get a password from the keyring.
+    ///
+    /// Returns `Ok(Some(password))` if found, `Ok(None)` if not found,
+    /// or an error if the backend is unavailable or an error occurs.
     fn get_password(&self, service: &str, username: &str) -> Result<Option<String>>;
+
+    /// Set a password in the keyring.
+    ///
+    /// If a password already exists for the service/username, it should be overwritten.
     fn set_password(&self, service: &str, username: &str, password: &str) -> Result<()>;
+
+    /// Delete a password from the keyring.
+    ///
+    /// This operation should be idempotent - deleting a non-existent password
+    /// should succeed without error.
     fn delete_password(&self, service: &str, username: &str) -> Result<()>;
 }
 
-pub struct OsKeyring;
-
-impl KeyringBackend for OsKeyring {
-    fn get_password(&self, service: &str, username: &str) -> Result<Option<String>> {
-        match keyring::Entry::new(service, username) {
-            Ok(entry) => match entry.get_password() {
-                Ok(password) if !password.is_empty() => Ok(Some(password)),
-                Ok(_) => Ok(None),
-                Err(keyring::Error::NoEntry) => Ok(None),
-                Err(e) => Err(PyxError::Keyring(format!(
-                    "Failed to get password from keyring: {e}"
-                ))),
-            },
-            Err(e) => Err(PyxError::Keyring(format!(
-                "Failed to create keyring entry: {e}"
-            ))),
-        }
-    }
-
-    fn set_password(&self, service: &str, username: &str, password: &str) -> Result<()> {
-        let entry = keyring::Entry::new(service, username)
-            .map_err(|e| PyxError::Keyring(format!("Failed to create keyring entry: {e}")))?;
-
-        entry
-            .set_password(password)
-            .map_err(|e| PyxError::Keyring(format!("Failed to set password in keyring: {e}")))?;
-
-        Ok(())
-    }
-
-    fn delete_password(&self, service: &str, username: &str) -> Result<()> {
-        let entry = keyring::Entry::new(service, username)
-            .map_err(|e| PyxError::Keyring(format!("Failed to create keyring entry: {e}")))?;
-
-        match entry.delete_credential() {
-            Ok(()) => Ok(()),
-            Err(keyring::Error::NoEntry) => Ok(()),
-            Err(e) => Err(PyxError::Keyring(format!(
-                "Failed to delete password from keyring: {e}"
-            ))),
-        }
-    }
-}
-
-#[cfg(target_os = "linux")]
-struct SecretToolKeyring;
-
-#[cfg(target_os = "linux")]
-impl SecretToolKeyring {
-    fn is_available() -> bool {
-        which::which("secret-tool").is_ok()
-    }
-
-    fn trim_output(output: Vec<u8>) -> Option<String> {
-        let mut value = String::from_utf8_lossy(&output).to_string();
-        while value.ends_with(['\n', '\r']) {
-            value.pop();
-        }
-        if value.is_empty() {
-            None
-        } else {
-            Some(value)
-        }
-    }
-}
-
-#[cfg(target_os = "linux")]
-impl KeyringBackend for SecretToolKeyring {
-    fn get_password(&self, service: &str, username: &str) -> Result<Option<String>> {
-        let output = Command::new("secret-tool")
-            .args(["lookup", "service", service, "username", username])
-            .output()
-            .map_err(|e| PyxError::Keyring(format!("Failed to run secret-tool lookup: {e}")))?;
-
-        if output.status.success() {
-            return Ok(Self::trim_output(output.stdout));
-        }
-
-        Ok(None)
-    }
-
-    fn set_password(&self, service: &str, username: &str, password: &str) -> Result<()> {
-        let mut child = Command::new("secret-tool")
-            .args([
-                "store",
-                "--label",
-                "pyx passphrase",
-                "service",
-                service,
-                "username",
-                username,
-            ])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::null())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|e| PyxError::Keyring(format!("Failed to run secret-tool store: {e}")))?;
-
-        let mut stdin = child.stdin.take().ok_or_else(|| {
-            PyxError::Keyring("Failed to open stdin for secret-tool store".to_string())
-        })?;
-        stdin
-            .write_all(password.as_bytes())
-            .map_err(|e| PyxError::Keyring(format!("Failed to write secret-tool input: {e}")))?;
-        drop(stdin);
-
-        let output = child
-            .wait_with_output()
-            .map_err(|e| PyxError::Keyring(format!("Failed to wait for secret-tool store: {e}")))?;
-
-        if output.status.success() {
-            Ok(())
-        } else {
-            Err(PyxError::Keyring(format!(
-                "secret-tool store failed: {}",
-                String::from_utf8_lossy(&output.stderr).trim()
-            )))
-        }
-    }
-
-    fn delete_password(&self, service: &str, username: &str) -> Result<()> {
-        let output = Command::new("secret-tool")
-            .args(["clear", "service", service, "username", username])
-            .output()
-            .map_err(|e| PyxError::Keyring(format!("Failed to run secret-tool clear: {e}")))?;
-
-        if output.status.success() {
-            Ok(())
-        } else {
-            Err(PyxError::Keyring(format!(
-                "secret-tool clear failed: {}",
-                String::from_utf8_lossy(&output.stderr).trim()
-            )))
-        }
-    }
-}
-
-#[cfg(target_os = "linux")]
-struct LinuxKeyring;
-
-#[cfg(target_os = "linux")]
-impl KeyringBackend for LinuxKeyring {
-    fn get_password(&self, service: &str, username: &str) -> Result<Option<String>> {
-        if SecretToolKeyring::is_available() {
-            return SecretToolKeyring.get_password(service, username);
-        }
-        OsKeyring.get_password(service, username)
-    }
-
-    fn set_password(&self, service: &str, username: &str, password: &str) -> Result<()> {
-        if SecretToolKeyring::is_available() {
-            return SecretToolKeyring.set_password(service, username, password);
-        }
-        OsKeyring.set_password(service, username, password)
-    }
-
-    fn delete_password(&self, service: &str, username: &str) -> Result<()> {
-        if SecretToolKeyring::is_available() {
-            return SecretToolKeyring.delete_password(service, username);
-        }
-        OsKeyring.delete_password(service, username)
-    }
-}
-
+/// Mock keyring backend for testing.
 #[derive(Default)]
 pub struct MockKeyring {
     store: Mutex<std::collections::HashMap<String, String>>,
@@ -207,6 +64,31 @@ impl KeyringBackend for MockKeyring {
     }
 }
 
+/// Unsupported keyring backend for non-Windows/Linux/macOS platforms.
+/// All operations return errors.
+#[allow(dead_code)]
+pub(crate) struct UnsupportedKeyring;
+
+impl KeyringBackend for UnsupportedKeyring {
+    fn get_password(&self, _service: &str, _username: &str) -> Result<Option<String>> {
+        Err(PyxError::Keyring(
+            "Keyring not supported on this platform".to_string(),
+        ))
+    }
+
+    fn set_password(&self, _service: &str, _username: &str, _password: &str) -> Result<()> {
+        Err(PyxError::Keyring(
+            "Keyring not supported on this platform".to_string(),
+        ))
+    }
+
+    fn delete_password(&self, _service: &str, _username: &str) -> Result<()> {
+        Err(PyxError::Keyring(
+            "Keyring not supported on this platform".to_string(),
+        ))
+    }
+}
+
 static BACKEND: Mutex<Option<Box<dyn KeyringBackend>>> = Mutex::new(None);
 
 fn get_backend() -> MutexGuard<'static, Option<Box<dyn KeyringBackend>>> {
@@ -225,6 +107,7 @@ pub fn reset_backend() {
     *current = None;
 }
 
+/// Execute a function with the current backend, or the default platform backend.
 pub(super) fn with_backend<F, T>(f: F) -> T
 where
     F: FnOnce(&dyn KeyringBackend) -> T,
@@ -236,13 +119,46 @@ where
 
     drop(guard);
 
+    // Dispatch to platform-specific backend
     #[cfg(target_os = "linux")]
     {
-        f(&LinuxKeyring)
+        use super::linux::LinuxKeyring;
+
+        // Use secret-tool if available
+        if LinuxKeyring::is_available() {
+            return f(&LinuxKeyring);
+        }
+
+        // If secret-tool is not available, return error
+        f(&UnsupportedKeyring)
     }
 
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "macos")]
     {
-        f(&OsKeyring)
+        use super::macos::MacOsKeyring;
+
+        if MacOsKeyring::is_available() {
+            return f(&MacOsKeyring);
+        }
+
+        // If security CLI is unavailable (shouldn't happen), return error
+        f(&UnsupportedKeyring)
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        use super::windows::WindowsKeyring;
+
+        if WindowsKeyring::is_available() {
+            return f(&WindowsKeyring);
+        }
+
+        f(&UnsupportedKeyring)
+    }
+
+    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+    {
+        // Unsupported platform - return an error for all operations
+        f(&UnsupportedKeyring)
     }
 }

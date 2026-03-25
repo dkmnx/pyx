@@ -97,16 +97,7 @@ fn delete_file(description: &str, path: &Path) -> Result<()> {
 
 /// Check if keyring has an entry
 fn keyring_has_entry() -> bool {
-    use keyring::Entry;
-
-    // Check pyx entry
-    if let Ok(entry) = Entry::new("pyx", "master-key") {
-        if entry.get_password().is_ok() {
-            return true;
-        }
-    }
-
-    false
+    crate::keys::keyring::has_entry()
 }
 
 #[cfg(test)]

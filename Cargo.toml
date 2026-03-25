@@ -29,8 +29,10 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 # Error handling
 thiserror = "2.0"
-# Keyring integration
-keyring = "3.6"
+# Native OS keyring backends (see src/keys/keyring/)
+# Linux: secret-tool CLI (libsecret-tools package)
+# macOS: security CLI (built-in)
+# Windows: WinCred API (built-in)
 # Secret handling
 secrecy = { version = "0.10", features = ["serde"] }
 zeroize = { version = "1.8", features = ["zeroize_derive"] }

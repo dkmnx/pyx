@@ -5,7 +5,7 @@ Installation and initial setup guide for pyx.
 ## Prerequisites
 
 - Rust 1.75+ and Cargo
-- OS keyring support (libsecret on Linux, Keychain on macOS, Credential Manager on Windows)
+- Native secret store (libsecret-tools on Linux, Keychain on macOS, Credential Manager on Windows)
 - API key for your chosen provider
 
 ## Installation

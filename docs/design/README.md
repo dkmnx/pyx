@@ -19,16 +19,22 @@ This directory contains design decisions that shaped pyx's implementation.
 - Compatible with Go age implementation
 - Avoids rolling custom crypto (security risk)
 
-### OS Keyring for Passphrase Storage
+### Native Keyring for Passphrase Storage
 
-**Decision**: Store passphrase in OS keyring as primary storage
+**Decision**: Store passphrase in native OS secret store as primary storage
 
 **Rationale**:
 
-- Keyring provides OS-level security
+- Native keyring provides OS-level security
 - User doesn't need to remember passphrase for each run
 - Fallback to environment variable for automation
 - Machine-derived encryption as last resort
+
+**Implementation**:
+
+- Linux: secret-tool CLI (libsecret/Secret Service API)
+- macOS: security CLI (Keychain)
+- Windows: WinCred API (Credential Manager)
 
 ### Flat File Storage over Database
 
