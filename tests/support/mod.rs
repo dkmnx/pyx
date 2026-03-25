@@ -41,19 +41,29 @@ pub fn write_master_key(data_dir: &Path) {
 }
 
 pub fn write_provider_database(data_dir: &Path, provider: &str, api_key: &str) {
-    let provider_cipher =
-        pyx_rs::crypto::age::encrypt_with_key(api_key.as_bytes(), TEST_MASTER_KEY).unwrap();
-    let db_content = format!(
-        r#"[
-  {{
+    write_provider_database_entries(data_dir, &[(provider, api_key)]);
+}
+
+pub fn write_provider_database_entries(data_dir: &Path, entries: &[(&str, &str)]) {
+    let providers = entries
+        .iter()
+        .map(|(provider, api_key)| {
+            let provider_cipher =
+                pyx_rs::crypto::age::encrypt_with_key(api_key.as_bytes(), TEST_MASTER_KEY).unwrap();
+            format!(
+                r#"  {{
     "provider": "{}",
     "cipher": "{}",
     "created_at": "2026-01-01T00:00:00Z",
     "updated_at": "2026-01-01T00:00:00Z"
-  }}
-]"#,
-        provider, provider_cipher
-    );
+  }}"#,
+                provider, provider_cipher
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",\n");
+
+    let db_content = format!("[\n{}\n]", providers);
     fs::write(data_dir.join("database.json"), db_content).unwrap();
 }
 
