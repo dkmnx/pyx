@@ -643,6 +643,8 @@ mod tests {
             std::env::set_var("PYX_ALLOW_FILE_FALLBACK", "1");
         }
 
+        set_backend(Box::new(MockKeyring::new()));
+
         assert!(!has_entry());
 
         let passphrase = SecretString::new("test".to_string().into_boxed_str());
@@ -652,6 +654,7 @@ mod tests {
 
         clear_passphrase().unwrap();
         assert!(!has_entry());
+        reset_backend();
 
         unsafe {
             std::env::remove_var("XDG_DATA_HOME");
