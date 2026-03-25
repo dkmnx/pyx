@@ -4,6 +4,7 @@ use crate::error::{PyxError, Result};
 use crate::storage::atomic_write::atomic_write_with_backup;
 use crate::storage::paths::database_path;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::Path;
 use time::OffsetDateTime;
 
@@ -41,10 +42,28 @@ impl ProviderEntry {
 /// Database containing all provider entries
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Database {
-    pub providers: Vec<ProviderEntry>,
+    providers: Vec<ProviderEntry>,
+    #[serde(skip)]
+    index: HashMap<String, usize>,
 }
 
 impl Database {
+    fn from_providers(providers: Vec<ProviderEntry>) -> Self {
+        let mut db = Self {
+            providers,
+            index: HashMap::new(),
+        };
+        db.rebuild_index();
+        db
+    }
+
+    fn rebuild_index(&mut self) {
+        self.index.clear();
+        for (idx, entry) in self.providers.iter().enumerate() {
+            self.index.insert(entry.provider.clone(), idx);
+        }
+    }
+
     /// Load database from file
     pub fn load() -> Result<Self> {
         let path = database_path()?;
@@ -71,13 +90,14 @@ impl Database {
         let content = std::fs::read_to_string(path)?;
 
         // Preferred format: { "providers": [...] }
-        if let Ok(database) = serde_json::from_str::<Self>(&content) {
+        if let Ok(mut database) = serde_json::from_str::<Self>(&content) {
+            database.rebuild_index();
             return Ok(database);
         }
 
         // Compatibility format (Go): top-level provider array
         let providers: Vec<ProviderEntry> = serde_json::from_str(&content)?;
-        Ok(Self { providers })
+        Ok(Self::from_providers(providers))
     }
 
     /// Save database to file with atomic write and backup
@@ -101,43 +121,41 @@ impl Database {
 
     /// Add or update a provider entry
     pub fn upsert(&mut self, entry: ProviderEntry) {
-        // Remove existing entry for this provider
-        self.providers
-            .retain(|existing| existing.provider != entry.provider);
-        // Add new entry
+        if let Some(&idx) = self.index.get(&entry.provider) {
+            self.providers[idx] = entry;
+            return;
+        }
+
+        let provider_name = entry.provider.clone();
         self.providers.push(entry);
+        self.index.insert(provider_name, self.providers.len() - 1);
     }
 
     /// Remove a provider by name
     pub fn remove(&mut self, provider_name: &str) -> Option<ProviderEntry> {
-        if let Some(pos) = self
-            .providers
-            .iter()
-            .position(|entry| entry.provider == provider_name)
-        {
-            Some(self.providers.remove(pos))
-        } else {
-            None
-        }
+        let idx = self.index.remove(provider_name)?;
+        let removed = self.providers.remove(idx);
+        self.rebuild_index();
+        Some(removed)
     }
 
     /// Get a provider entry by name
     pub fn get(&self, provider_name: &str) -> Option<&ProviderEntry> {
-        self.providers
-            .iter()
-            .find(|entry| entry.provider == provider_name)
+        self.index
+            .get(provider_name)
+            .and_then(|&idx| self.providers.get(idx))
     }
 
     /// Get all provider names
     pub fn get_provider_names(&self) -> Vec<&String> {
-        self.providers.iter().map(|entry| &entry.provider).collect()
+        let mut names: Vec<&String> = self.providers.iter().map(|entry| &entry.provider).collect();
+        names.sort_unstable();
+        names
     }
 
     /// Check if database has a provider
     pub fn has_provider(&self, provider_name: &str) -> bool {
-        self.providers
-            .iter()
-            .any(|entry| entry.provider == provider_name)
+        self.index.contains_key(provider_name)
     }
 
     /// Get number of providers
@@ -272,5 +290,25 @@ mod tests {
         let db = Database::load_from_path(&path).unwrap();
         assert_eq!(db.len(), 1);
         assert!(db.has_provider("anthropic"));
+    }
+
+    #[test]
+    fn test_get_provider_names_returns_sorted_names() {
+        let mut db = Database::default();
+        db.upsert(ProviderEntry::new(
+            "openai".to_string(),
+            "cipher1".to_string(),
+        ));
+        db.upsert(ProviderEntry::new(
+            "anthropic".to_string(),
+            "cipher2".to_string(),
+        ));
+
+        let names: Vec<&str> = db
+            .get_provider_names()
+            .iter()
+            .map(|name| name.as_str())
+            .collect();
+        assert_eq!(names, vec!["anthropic", "openai"]);
     }
 }

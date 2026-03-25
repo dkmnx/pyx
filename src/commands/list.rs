@@ -13,8 +13,8 @@ pub fn execute() -> Result<()> {
     }
 
     println!("Configured providers:");
-    for entry in &db.providers {
-        println!("  - {}", entry.provider);
+    for provider in db.get_provider_names() {
+        println!("  - {provider}");
     }
     println!();
     println!("Total: {} provider(s)", db.len());
