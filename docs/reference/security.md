@@ -54,11 +54,11 @@ export PYX_SCRYPT_WORK_FACTOR=16  # 2^16 iterations (~8x faster)
 
 ### Protected Data
 
-| Data              | Protection                               |
-| ----------------- | ---------------------------------------- |
-| Master key        | Encrypted with passphrase via scrypt+age |
-| Provider API keys | Encrypted with master key via age        |
-| Passphrase        | OS keyring or machine-bound encryption   |
+| Data              | Protection                                            |
+| ----------------- | ----------------------------------------------------- |
+| Master key        | Encrypted with passphrase via scrypt+age              |
+| Provider API keys | Encrypted with master key via age                     |
+| Passphrase        | OS keyring (primary); file fallback (opt-in, limited) |
 
 ### Threat Model
 
@@ -67,7 +67,6 @@ export PYX_SCRYPT_WORK_FACTOR=16  # 2^16 iterations (~8x faster)
 - Unauthorized file access (0600 permissions)
 - Casual inspection (encrypted data)
 - Offline brute-force (scrypt work factor)
-- Machine theft (machine-bound passphrase fallback)
 
 **Not protected against:**
 
@@ -75,35 +74,48 @@ export PYX_SCRYPT_WORK_FACTOR=16  # 2^16 iterations (~8x faster)
 - Keyloggers
 - Malware with user-level access
 - Weak passphrases
+- Physical access (file fallback uses non-secret machine identifiers)
 
 ## Passphrase Storage
 
 ```mermaid
 graph LR
-    A[Passphrase] --> B{Keyring Available?}
-    B -->|Yes| C[OS Keyring]
-    B -->|No| D{Env Var Set?}
-    D -->|Yes| E[PYX_PASSPHRASE]
-    D -->|No| F[Machine-Derived Key]
+    A[Passphrase] --> B{Env Var Set?}
+    B -->|Yes| C[PYX_PASSPHRASE]
+    B -->|No| D{OS Keyring Available?}
+    D -->|Yes| E[OS Keyring]
+    D -->|No| F{File Fallback Enabled?}
+    F -->|Yes| G[Machine-Derived Encrypted File]
+    F -->|No| H[None - Must Re-enter]
     
-    C --> G[Secure Storage]
-    E --> G
-    F --> G
+    C --> I[Secure Storage]
+    E --> I
+    G --> J[Limited Security]
 ```
 
 ### Precedence
 
-1. **OS Keyring** - SecretService (Linux), Keychain (macOS), Credential Manager (Windows)
-2. **`PYX_PASSPHRASE`** - Environment variable (for automation)
-3. **Machine-Derived Key** - Fallback using `/etc/machine-id` (Linux) or OS info
+1. **`PYX_PASSPHRASE`** - Environment variable (highest priority, for automation)
+2. **OS Keyring** - SecretService (Linux), Keychain (macOS), Credential Manager (Windows)
+3. **File Fallback** - Only when `PYX_ALLOW_FILE_FALLBACK=1` is set
+
+### File Fallback Security
+
+The file fallback (`~/.local/share/pyx/.passphrase`) is **disabled by default** because it uses machine-derived identifiers (not secret material) for encryption. This provides limited protection:
+
+- Binds the file to a specific machine/user combination
+- Does **not** protect against an attacker with filesystem access + knowledge of machine identifiers
+- Only suitable when OS keyring is completely unreliable on your platform
+
+Enable only if your system's keyring persistently fails to store credentials.
 
 ## File Permissions
 
-| File            | Permission   | Owner           |
-| --------------- | ------------ | --------------- |
-| `master.key`    | 0600         | Read/write only |
-| `database.json` | 0600         | Read/write only |
-| `.passphrase`   | 0600         | Read/write only |
+| File             | Permission   | Owner           | Notes                    |
+| ---------------- | ------------ | --------------- | ------------------------ |
+| `master.key`     | 0600         | Read/write only | Encrypted master key     |
+| `database.json`  | 0600         | Read/write only | Encrypted provider keys  |
+| `.passphrase`    | 0600         | Read/write only | Only if fallback enabled |
 
 ## Best Practices
 
@@ -116,13 +128,11 @@ Use a **strong, unique passphrase**:
 - Avoid common words or patterns
 - Consider using a password manager
 
-### Machine-Bound Fallback
+### Passphrase Storage
 
-The passphrase file fallback uses machine-derived encryption:
-
-- Combines `/etc/machine-id` (Linux) or OS info
-- Includes username for multi-user systems
-- Provides some protection against data theft
+- **Default**: OS keyring provides secure, persistent storage
+- **Automation**: Set `PYX_PASSPHRASE` in environment for scripted use
+- **Fallback**: Only enable file fallback (`PYX_ALLOW_FILE_FALLBACK=1`) if keyring fails on your platform
 
 ## Incident Response
 
