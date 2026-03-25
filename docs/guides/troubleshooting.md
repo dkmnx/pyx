@@ -21,14 +21,20 @@ export PATH="$HOME/.cargo/bin:$PATH"
 
 ### Build fails on Linux
 
-Install libsecret-tools for keyring support:
+Install libsecret for keyring support:
 
 ```bash
 # Debian/Ubuntu
 sudo apt install libsecret-tools
 
-# Arch
+# Arch Linux
 sudo pacman -S libsecret
+
+# Fedora/RHEL
+sudo dnf install libsecret-tools
+
+# Alpine
+sudo apk add libsecret
 ```
 
 ## Configuration Issues
