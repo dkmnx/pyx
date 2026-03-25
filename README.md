@@ -92,13 +92,6 @@ just lint
 just check
 ```
 
-## Releases
-
-Releases follow [Semantic Versioning](https://semver.org/):
-
-- **Stable releases**: `vX.Y.Z` (e.g., `v0.1.0`)
-- **Prereleases**: `vX.Y.Z-alpha.N`, `vX.Y.Z-beta.N`, `vX.Y.Z-rc.N`
-
 ## License
 
 [MIT](LICENSE)
