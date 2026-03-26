@@ -58,12 +58,10 @@ pub fn spawn_pi(env_vars: &[(String, String)], args: &[String]) -> Result<i32> {
     let mut cmd = Command::new(&pi_path);
     cmd.args(args);
 
-    // Inject environment variables
     for (key, value) in env_vars {
         cmd.env(key, value);
     }
 
-    // Execute and preserve exit code
     let status = cmd
         .status()
         .map_err(|e| PyxError::CommandExecution(format!("Failed to execute pi: {e}")))?;
@@ -71,12 +69,7 @@ pub fn spawn_pi(env_vars: &[(String, String)], args: &[String]) -> Result<i32> {
     Ok(status.code().unwrap_or(1))
 }
 
-/// Install pi if not already installed (auto-detect package manager)
-pub fn install_pi_auto() -> Result<()> {
-    install_pi_impl(None)
-}
-
-/// Install pi with package manager prompt
+/// Install pi with package manager prompt (auto-selects if only one PM found)
 pub fn install_pi_with_prompt() -> Result<()> {
     if find_pi().is_some() {
         println!("pi is already installed.");
@@ -113,7 +106,6 @@ pub fn install_pi_with_prompt() -> Result<()> {
 
 /// Install pi with optional specific package manager
 fn install_pi_impl(pm_override: Option<&str>) -> Result<()> {
-    // Check if pi is already installed
     if find_pi().is_some() {
         println!("pi is already installed.");
         if let Ok(version) = get_pi_version() {
@@ -122,7 +114,6 @@ fn install_pi_impl(pm_override: Option<&str>) -> Result<()> {
         return Ok(());
     }
 
-    // Use specified package manager or detect
     let pm = if let Some(pm) = pm_override {
         pm.to_string()
     } else {
@@ -131,7 +122,6 @@ fn install_pi_impl(pm_override: Option<&str>) -> Result<()> {
 
     println!("Installing pi using {pm}...");
 
-    // Install pi globally
     let status = Command::new(&pm)
         .args(["install", "-g", "@mariozechner/pi-coding-agent"])
         .status()
@@ -163,9 +153,9 @@ fn detect_package_manager() -> Result<String> {
     })
 }
 
-/// Install pi if not already installed (legacy function for backward compatibility)
+/// Install pi if not already installed (auto-detect package manager)
 pub fn install_pi() -> Result<()> {
-    install_pi_auto()
+    install_pi_with_prompt()
 }
 
 /// Check pi version
@@ -212,7 +202,6 @@ pub fn show_pi_status() -> Result<()> {
 
 /// Detect current shell type
 pub fn detect_current_shell() -> ShellType {
-    // Check SHELL environment variable
     if let Ok(shell) = env::var("SHELL") {
         let shell_path = PathBuf::from(&shell);
         if let Some(name) = shell_path.file_name().and_then(|n| n.to_str()) {
@@ -225,12 +214,10 @@ pub fn detect_current_shell() -> ShellType {
         }
     }
 
-    // Check for fish-specific environment variable
     if env::var("__FISH_VERSION_DIR").is_ok() {
         return ShellType::Fish;
     }
 
-    // Platform-specific defaults
     #[cfg(unix)]
     {
         ShellType::Bash
@@ -266,7 +253,6 @@ pub fn completion_script_install_path(shell: ShellType) -> Result<PathBuf> {
 
 /// Install shell completion for the specified shell
 pub fn install_completion_for_shell(shell: ShellType) -> Result<()> {
-    // Generate completion script using pyx
     let output = Command::new("pyx")
         .args(["completion", &shell.to_string()])
         .output()
@@ -281,21 +267,17 @@ pub fn install_completion_for_shell(shell: ShellType) -> Result<()> {
         )));
     }
 
-    // Get install path
     let script_path = completion_script_install_path(shell)?;
 
-    // Ensure directory exists
     if let Some(parent) = script_path.parent() {
         fs::create_dir_all(parent)?;
     }
 
-    // Write completion script
     fs::write(&script_path, &output.stdout)?;
 
     println!("✓ Completion script installed for {shell} shell");
     println!("  Script location: {}", script_path.display());
 
-    // Print activation instructions
     match shell {
         ShellType::Zsh => {
             println!();
@@ -342,18 +324,7 @@ pub fn install_completion() -> Result<()> {
 
 /// Platform info string (OS/ARCH)
 pub fn platform_info() -> String {
-    #[cfg(unix)]
-    {
-        format!("{}/{}", std::env::consts::OS, std::env::consts::ARCH)
-    }
-    #[cfg(windows)]
-    {
-        format!("{}/{}", std::env::consts::OS, std::env::consts::ARCH)
-    }
-    #[cfg(not(any(unix, windows)))]
-    {
-        format!("{}/{}", std::env::consts::OS, std::env::consts::ARCH)
-    }
+    format!("{}/{}", std::env::consts::OS, std::env::consts::ARCH)
 }
 
 #[cfg(test)]
