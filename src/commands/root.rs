@@ -13,7 +13,6 @@ use crate::pi::exec::{
 use crate::providers::mapping::ProviderEnvResolver;
 use crate::storage::database::Database;
 use std::collections::BTreeMap;
-use zeroize::Zeroizing;
 
 /// Load key manager with passphrase fallback
 fn load_key_manager() -> Result<KeyManager> {
@@ -92,7 +91,7 @@ fn display_installation_info() {
 /// Build environment variables for the specified providers.
 fn build_provider_env_vars(db: &Database, providers: &[String]) -> Result<Vec<(String, String)>> {
     let manager = load_key_manager()?;
-    let master_key = Zeroizing::new(manager.get_key_bytes()?);
+    let master_key = manager.get_key_bytes()?;
     let resolver = ProviderEnvResolver::new()?;
 
     let mut env_map: BTreeMap<String, String> = BTreeMap::new();

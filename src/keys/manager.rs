@@ -8,6 +8,7 @@ use secrecy::{ExposeSecret, SecretString};
 use std::fs;
 use std::sync::Mutex;
 use std::time::Instant;
+use zeroize::Zeroizing;
 
 const LEGACY_PASSPHRASE: &str = "default";
 const ENV_PASSPHRASE: &str = "PYX_PASSPHRASE";
@@ -189,10 +190,12 @@ impl KeyManager {
         self.key.expose_secret()
     }
 
-    /// Get the master key as bytes
-    pub fn get_key_bytes(&self) -> Result<Vec<u8>> {
-        hex::decode(self.key.expose_secret())
-            .map_err(|e| PyxError::Crypto(format!("Invalid master key hex: {e}")))
+    /// Get the master key as bytes, protected by Zeroizing.
+    pub fn get_key_bytes(&self) -> Result<Zeroizing<Vec<u8>>> {
+        Ok(Zeroizing::new(
+            hex::decode(self.key.expose_secret())
+                .map_err(|e| PyxError::Crypto(format!("Invalid master key hex: {e}")))?,
+        ))
     }
 
     /// Set passphrase in keyring
