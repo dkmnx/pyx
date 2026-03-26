@@ -15,18 +15,14 @@ use crate::storage::providers_env::ProvidersEnvConfig;
 use std::collections::HashSet;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-/// Load database, creating new if none exists, but erroring if file exists but is corrupted.
-/// This prevents silent data loss from corrupted configuration files.
 fn load_or_create_database() -> Result<Database> {
     let path = database_path()?;
 
     if !path.exists() {
-        // No existing database - create fresh one
         return Ok(Database::default());
     }
 
-    // Database file exists - try to load it
-    // Fail loudly if it's corrupted rather than silently overwriting
+    // Fail loudly if corrupted rather than silently overwriting
     Database::load_from_path(&path).map_err(|e| {
         PyxError::Config(format!(
             "Failed to load existing database (may be corrupted): {e}. \
@@ -40,33 +36,24 @@ pub fn execute() -> Result<()> {
     println!("Pyx Setup");
     println!();
 
-    // Ensure data directory exists
     let data_dir = ensure_data_dir()?;
     println!("Data directory: {}", data_dir.display());
     println!();
 
-    // Load or create master key
     let manager = load_or_create_master_key()?;
 
-    // Load database - fail if exists but corrupted, create new if doesn't exist
     let mut db = load_or_create_database()?;
 
-    // Fetch and cache provider models
     fetch_providers()?;
 
-    // Get provider list from cache
     let providers = get_provider_list()?;
 
-    // Prompt for provider selection
     let provider = prompt_provider_selection(&providers, &db)?;
 
-    // Prompt for API key
     let api_key = prompt_api_key(&provider)?;
 
-    // Encrypt and store provider entry
     let is_update = store_provider_entry(&manager, &mut db, &provider, &api_key)?;
 
-    // Report success
     let action = if is_update { "Updated" } else { "Created" };
     println!();
     println!("  {}: {} ({})", provider, action, format_time_now());
@@ -76,28 +63,23 @@ pub fn execute() -> Result<()> {
     Ok(())
 }
 
-/// Load existing master key or create a new one.
 fn load_or_create_master_key() -> Result<KeyManager> {
     if KeyManager::master_key_exists() {
         println!("Using existing master key");
         println!();
 
-        // Check if we can get a passphrase (from env or keyring)
         match keyring::get_passphrase()? {
             Some(_) => {
-                // Passphrase available, load the key
                 return KeyManager::load();
             }
             None => {
-                // No passphrase in keyring - prompt user
-                // This can happen if OS keyring is unavailable or wasn't persisted
+                // OS keyring unavailable or wasn't persisted
                 println!("Passphrase not found in OS keyring.");
                 println!("Enter the passphrase you used during initial setup:");
                 println!();
 
                 let passphrase = passphrase::prompt_existing_passphrase(Some("Passphrase"))?;
 
-                // Try to load with the provided passphrase and restore keyring entry
                 return passphrase::load_key_manager_with_passphrase(&passphrase).map_err(|e| {
                     PyxError::Crypto(format!(
                         "Failed to decrypt master key: {e}. \
@@ -111,18 +93,15 @@ fn load_or_create_master_key() -> Result<KeyManager> {
     println!("This will initialize pyx with secure encrypted storage.");
     println!();
 
-    // Prompt for passphrase
     let passphrase = passphrase::prompt_new_passphrase()?;
 
-    // Generate master key
     println!("Generating master key...");
     let manager = KeyManager::generate()?;
 
-    // Save encrypted master key (using passphrase directly, before keyring storage)
+    // Must save key before storing passphrase in keyring
     println!("Saving encrypted master key...");
     manager.save_with_passphrase(&passphrase)?;
 
-    // Store passphrase in keyring (after master key is saved successfully)
     println!("Storing passphrase in OS keyring...");
     keyring::set_passphrase(&passphrase)?;
 
@@ -133,7 +112,6 @@ fn load_or_create_master_key() -> Result<KeyManager> {
     Ok(manager)
 }
 
-/// Fetch providers from remote only when cache is missing or stale.
 fn fetch_providers() -> Result<()> {
     fetch_providers_with(fetch_models_from_remote)
 }
@@ -195,18 +173,16 @@ fn has_custom_providers() -> Result<bool> {
         .unwrap_or(false))
 }
 
-/// Get provider list from cache + custom providers from providers.json.
 fn get_provider_list() -> Result<Vec<String>> {
     let mut providers: HashSet<String> = HashSet::new();
 
-    // Add providers from models cache
     if let Ok(cache) = ModelsCache::load() {
         for provider in cache.models.keys() {
             providers.insert(provider.clone());
         }
     }
 
-    // Add custom providers from providers.json
+    // Merge custom providers from providers.json
     if let Ok(Some(config)) = ProvidersEnvConfig::load() {
         for name in config.provider_names() {
             providers.insert(name.to_string());
@@ -218,8 +194,6 @@ fn get_provider_list() -> Result<Vec<String>> {
     Ok(list)
 }
 
-/// Prompt for provider selection, handling override confirmation.
-/// Returns ErrCancelled on cancel (matches Go behavior).
 fn prompt_provider_selection(providers: &[String], db: &Database) -> Result<String> {
     let provider = match prompt::prompt_provider(providers) {
         Ok(p) => p,
@@ -245,7 +219,6 @@ fn prompt_provider_selection(providers: &[String], db: &Database) -> Result<Stri
     Ok(provider)
 }
 
-/// Prompt for API key.
 fn prompt_api_key(provider: &str) -> Result<String> {
     let api_key = prompt::prompt_secret(prompt::SecretPromptOptions {
         prompt: "API key".to_string(),
@@ -258,8 +231,6 @@ fn prompt_api_key(provider: &str) -> Result<String> {
     Ok(api_key)
 }
 
-/// Store provider entry in database.
-/// Returns true if this was an update, false if it was a new entry.
 fn store_provider_entry(
     manager: &KeyManager,
     db: &mut Database,
@@ -273,17 +244,14 @@ fn store_provider_entry(
 
     let is_update = db.has_provider(provider);
 
-    // Create and store entry
     let entry = ProviderEntry::new(provider.to_string(), cipher);
     db.upsert(entry);
 
-    // Save database
     db.save()?;
 
     Ok(is_update)
 }
 
-/// Format current time for display.
 fn format_time_now() -> String {
     let duration = SystemTime::now()
         .duration_since(UNIX_EPOCH)
