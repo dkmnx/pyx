@@ -66,8 +66,9 @@ impl KeyringBackend for WindowsKeyring {
                 &mut credential_ptr,
             );
 
-            if result != 0 {
-                // Error code 1168 (ERROR_NOT_FOUND) means credential not found
+            if result == 0 {
+                // CredReadW returns 0 (FALSE) on failure
+                // Common errors: 1168 (ERROR_NOT_FOUND), 1312 (ERROR_NO_SUCH_LOGON_SESSION)
                 return Ok(None);
             }
 
@@ -169,7 +170,8 @@ impl KeyringBackend for WindowsKeyring {
 
             // Copy target name after the structure
             let str_offset = cred_data.len();
-            cred_data.extend_from_slice(bytemuck::cast_slice(&target_wide));
+            // Safely convert u16 slice to bytes using as_byte_slice
+            cred_data.extend_from_slice(target_wide.as_byte_slice());
             let target_ptr = str_offset as isize;
             cred_data[target_offset..target_offset + 8]
                 .copy_from_slice(&(target_ptr as u64).to_le_bytes());
