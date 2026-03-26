@@ -43,17 +43,6 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
-    fn test_execute_returns_error_when_not_initialized() {
-        // When database doesn't exist, should return Config error
-        // (This is difficult to test without path override, so we verify
-        // the error handling path exists by checking the function signature)
-        let result = execute();
-        // Either Ok(empty) or Err - both are valid behaviors
-        // The important thing is it doesn't panic
-        let _ = result;
-    }
-
-    #[test]
     fn test_list_with_providers() {
         let dir = tempdir().unwrap();
         let db_path = dir.path().join("database.json");

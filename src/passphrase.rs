@@ -89,13 +89,6 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
-    fn test_prompt_new_passphrase_creates_secret() {
-        // This test would require mocking the prompt system
-        // For now, we just verify the function exists and compiles
-        // Integration tests cover the actual prompting behavior
-    }
-
-    #[test]
     fn load_with_passphrase_restores_keyring_entry() {
         let _guard = ENV_MUTEX.lock().unwrap();
         let temp = tempdir().unwrap();
