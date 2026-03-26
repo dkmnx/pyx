@@ -3,6 +3,7 @@
 //! Uses the native Windows Credential Manager API for secure credential storage.
 
 use crate::error::{PyxError, Result};
+use crate::validation::validate_keyring_args;
 
 use super::KeyringBackend;
 
@@ -32,6 +33,7 @@ impl WindowsKeyring {
 #[cfg(target_os = "windows")]
 impl KeyringBackend for WindowsKeyring {
     fn get_password(&self, service: &str, username: &str) -> Result<Option<String>> {
+        validate_keyring_args(service, username)?;
         use std::ffi::OsStr;
         use std::os::windows::ffi::OsStrExt;
 
@@ -113,6 +115,7 @@ impl KeyringBackend for WindowsKeyring {
     }
 
     fn set_password(&self, service: &str, username: &str, password: &str) -> Result<()> {
+        validate_keyring_args(service, username)?;
         use std::ffi::OsStr;
         use std::os::windows::ffi::OsStrExt;
 
@@ -212,6 +215,7 @@ impl KeyringBackend for WindowsKeyring {
     }
 
     fn delete_password(&self, service: &str, username: &str) -> Result<()> {
+        validate_keyring_args(service, username)?;
         use std::ffi::OsStr;
         use std::os::windows::ffi::OsStrExt;
 

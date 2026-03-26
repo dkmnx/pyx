@@ -3,7 +3,8 @@
 //! Uses the native macOS Keychain for secure credential storage.
 
 use crate::error::{PyxError, Result};
-use std::process::Command;
+use crate::validation::validate_keyring_args;
+use std::process::{Command, Stdio};
 
 use super::KeyringBackend;
 
@@ -23,6 +24,7 @@ impl MacOsKeyring {
 
 impl KeyringBackend for MacOsKeyring {
     fn get_password(&self, service: &str, username: &str) -> Result<Option<String>> {
+        validate_keyring_args(service, username)?;
         // Use security find-generic-password to retrieve the password
         let output = Command::new("security")
             .args([
@@ -61,6 +63,7 @@ impl KeyringBackend for MacOsKeyring {
     }
 
     fn set_password(&self, service: &str, username: &str, password: &str) -> Result<()> {
+        validate_keyring_args(service, username)?;
         // First, try to delete any existing password (ignore errors if not found)
         let _ = Command::new("security")
             .args(["delete-generic-password", "-s", service, "-a", username])
@@ -108,6 +111,7 @@ impl KeyringBackend for MacOsKeyring {
     }
 
     fn delete_password(&self, service: &str, username: &str) -> Result<()> {
+        validate_keyring_args(service, username)?;
         let output = Command::new("security")
             .args(["delete-generic-password", "-s", service, "-a", username])
             .output()

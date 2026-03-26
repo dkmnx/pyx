@@ -7,6 +7,7 @@ use std::io::Write;
 use std::process::{Command, Stdio};
 
 use crate::error::{PyxError, Result};
+use crate::validation::validate_keyring_args;
 
 use super::KeyringBackend;
 
@@ -35,6 +36,7 @@ impl LinuxKeyring {
 
 impl KeyringBackend for LinuxKeyring {
     fn get_password(&self, service: &str, username: &str) -> Result<Option<String>> {
+        validate_keyring_args(service, username)?;
         let output = Command::new("secret-tool")
             .args(["lookup", "service", service, "username", username])
             .output()
@@ -48,6 +50,7 @@ impl KeyringBackend for LinuxKeyring {
     }
 
     fn set_password(&self, service: &str, username: &str, password: &str) -> Result<()> {
+        validate_keyring_args(service, username)?;
         let mut child = Command::new("secret-tool")
             .args([
                 "store",
@@ -87,6 +90,7 @@ impl KeyringBackend for LinuxKeyring {
     }
 
     fn delete_password(&self, service: &str, username: &str) -> Result<()> {
+        validate_keyring_args(service, username)?;
         let output = Command::new("secret-tool")
             .args(["clear", "service", service, "username", username])
             .output()
