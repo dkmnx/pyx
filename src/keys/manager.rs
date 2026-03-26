@@ -67,35 +67,31 @@ impl KeyManager {
     /// Matches Go implementation: env var → keyring → legacy "default"
     /// Includes rate limiting for failed decryption attempts.
     pub fn load() -> Result<Self> {
-        // Check rate limiting before attempting decryption
         check_rate_limit()?;
 
-        // Get passphrase (matches Go's getPassphrase priority)
+        // Matches Go's getPassphrase priority
         let primary_passphrase = keyring::get_passphrase()?
             .ok_or_else(|| PyxError::Keyring("No passphrase available".to_string()))?;
 
-        // Read encrypted master.key
         let path = master_key_path()?;
         let encrypted_content = fs::read_to_string(&path)
             .map_err(|e| PyxError::Config(format!("Failed to read master.key: {e}")))?;
 
-        // Build passphrase candidates (matches Go's fallback chain)
+        // Matches Go's fallback chain
         let passphrases = build_passphrase_candidates(&primary_passphrase);
 
-        // Decrypt with fallback candidates (no interactive prompt - matches Go)
+        // No interactive prompt - matches Go
         let decrypted = decrypt_master_key_with_candidates(&encrypted_content, &passphrases)
             .map_err(|e| {
-                // Record failed attempt for rate limiting
                 record_failed_attempt();
                 PyxError::Crypto(format!(
                     "Failed to decrypt master key: {e}. Run 'pyx setup' to reconfigure."
                 ))
             })?;
 
-        // Reset failed attempts on success
         reset_failed_attempts();
 
-        // Convert to hex string for storage (avoiding binary data issues)
+        // Hex encoding avoids binary data issues in storage
         let master_key_hex = hex::encode(&decrypted);
 
         Ok(Self {
@@ -106,18 +102,14 @@ impl KeyManager {
     /// Load master key using a provided passphrase directly.
     /// Used when passphrase isn't available from keyring/env.
     pub fn load_with_passphrase(passphrase: &SecretString) -> Result<Self> {
-        // Check rate limiting before attempting decryption
         check_rate_limit()?;
 
-        // Read encrypted master.key
         let path = master_key_path()?;
         let encrypted_content = fs::read_to_string(&path)
             .map_err(|e| PyxError::Config(format!("Failed to read master.key: {e}")))?;
 
-        // Build passphrase candidates (includes env var if set, and legacy if enabled)
         let passphrases = build_passphrase_candidates(passphrase);
 
-        // Decrypt with fallback candidates
         let decrypted = decrypt_master_key_with_candidates(&encrypted_content, &passphrases)
             .map_err(|e| {
                 record_failed_attempt();
@@ -135,12 +127,10 @@ impl KeyManager {
 
     /// Generate a new random master key
     pub fn generate() -> Result<Self> {
-        // Generate 32 random bytes using getrandom crate
         let mut key_bytes = vec![0u8; 32];
         getrandom::fill(&mut key_bytes)
             .map_err(|e| PyxError::Crypto(format!("Failed to generate random key: {e}")))?;
 
-        // Store as hex string
         let master_key_hex = hex::encode(&key_bytes);
 
         Ok(Self {
@@ -150,15 +140,12 @@ impl KeyManager {
 
     /// Save encrypted master key to disk using the provided passphrase
     pub fn save_with_passphrase(&self, passphrase: &SecretString) -> Result<()> {
-        // Decode hex to bytes
         let key_bytes = hex::decode(self.key.expose_secret())
             .map_err(|e| PyxError::Crypto(format!("Invalid master key hex: {e}")))?;
 
-        // Encrypt with passphrase
         let encrypted = encrypt_with_passphrase(&key_bytes, passphrase)
             .map_err(|e| PyxError::Crypto(format!("Failed to encrypt master key: {e}")))?;
 
-        // Write to file
         let path = master_key_path()?;
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
@@ -166,7 +153,6 @@ impl KeyManager {
 
         fs::write(&path, &encrypted)?;
 
-        // Set file permissions (Unix only)
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;

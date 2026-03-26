@@ -23,11 +23,6 @@ impl WindowsKeyring {
     fn format_target(service: &str, username: &str) -> String {
         format!("{}:{}", service, username)
     }
-
-    /// Convert a Rust string to a wide string (UTF-16) for Win32 API calls.
-    fn to_wide_string(s: &str) -> Vec<u16> {
-        s.encode_utf16().chain(std::iter::once(0)).collect()
-    }
 }
 
 #[cfg(target_os = "windows")]

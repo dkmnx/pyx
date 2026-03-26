@@ -119,7 +119,6 @@ pub fn clear_passphrase() -> Result<()> {
         delete_passphrase_file()?;
     }
 
-    // Delete from keyring
     let _ = with_backend(|b| b.delete_password(SERVICE_NAME, USER_NAME));
 
     Ok(())
@@ -129,7 +128,6 @@ pub fn clear_passphrase() -> Result<()> {
 ///
 /// Only checks the file when PYX_ALLOW_FILE_FALLBACK is enabled.
 pub fn has_entry() -> bool {
-    // Check keyring (always)
     let has_keyring = with_backend(|b| {
         b.get_password(SERVICE_NAME, USER_NAME)
             .ok()
