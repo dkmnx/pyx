@@ -66,22 +66,36 @@ impl KeyringBackend for MacOsKeyring {
             .args(["delete-generic-password", "-s", service, "-a", username])
             .output();
 
-        // Add the new password
-        let output = Command::new("security")
+        // Add the new password via stdin to avoid exposing it in process listing
+        let mut child = Command::new("security")
             .args([
                 "add-generic-password",
                 "-s",
                 service,
                 "-a",
                 username,
-                "-w",
-                password,
                 "-U", // Update if exists
             ])
-            .output()
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
             .map_err(|e| {
                 PyxError::Keyring(format!("Failed to run security add-generic-password: {e}"))
             })?;
+
+        if let Some(mut stdin) = child.stdin.take() {
+            use std::io::Write;
+            stdin.write_all(password.as_bytes()).map_err(|e| {
+                PyxError::Keyring(format!("Failed to write password to stdin: {e}"))
+            })?;
+        }
+
+        let output = child.wait_with_output().map_err(|e| {
+            PyxError::Keyring(format!(
+                "Failed to wait for security add-generic-password: {e}"
+            ))
+        })?;
 
         if output.status.success() {
             Ok(())
