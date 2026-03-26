@@ -60,7 +60,6 @@ pub fn encrypt_with_passphrase(plaintext: &[u8], passphrase: &SecretString) -> R
     let mut recipient = Recipient::new(passphrase.clone());
     recipient.set_work_factor(get_scrypt_work_factor());
 
-    // Encrypt to binary
     let mut encrypted = Vec::new();
     let mut encryptor =
         Encryptor::with_recipients(std::iter::once(&recipient as &dyn age::Recipient))
@@ -87,26 +86,22 @@ pub fn encrypt_with_passphrase(plaintext: &[u8], passphrase: &SecretString) -> R
 ///
 /// Accepts base64-encoded age ciphertext (matches Go implementation format)
 pub fn decrypt_with_passphrase(ciphertext: &str, passphrase: &SecretString) -> Result<Vec<u8>> {
-    // Decode base64
     let encrypted = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, ciphertext)
         .map_err(|e| PyxError::Crypto(format!("Base64 decode failed: {e}")))?;
 
-    // Create scrypt identity and accept high work factors from Go-generated data.
+    // Accept high work factors from Go-generated data
     let mut identity = Identity::new(passphrase.clone());
     identity.set_max_work_factor(MAX_ACCEPTED_SCRYPT_WORK_FACTOR);
 
-    // Create decryptor
     let decryptor = Decryptor::new(encrypted.as_slice())
         .map_err(|e| PyxError::Crypto(format!("Failed to create decryptor: {e}")))?;
 
-    // Decrypt with identity iterator
     let mut reader = decryptor
         .decrypt(std::iter::once(&identity as &dyn age::Identity))
         .map_err(|_| {
             PyxError::Crypto("Decryption failed. Please check your passphrase.".to_string())
         })?;
 
-    // Read decrypted data
     let mut decrypted = Vec::new();
     reader
         .read_to_end(&mut decrypted)

@@ -19,21 +19,18 @@ pub fn atomic_write_with_backup<P: AsRef<Path>>(
 ) -> Result<()> {
     let path = path.as_ref();
 
-    // Create backup if file exists
     if path.exists() {
         let mut backup_name = path.as_os_str().to_owned();
         backup_name.push(".bak");
         fs::copy(path, &backup_name)?;
     }
 
-    // Write to temp file
     let mut temp_file = NamedTempFile::new_in(path.parent().unwrap_or_else(|| Path::new(".")))?;
     temp_file.write_all(data)?;
 
     #[cfg(not(unix))]
     let _ = permissions;
 
-    // Set permissions (Unix only)
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -42,7 +39,6 @@ pub fn atomic_write_with_backup<P: AsRef<Path>>(
             .set_permissions(fs::Permissions::from_mode(permissions))?;
     }
 
-    // Atomically rename
     temp_file
         .persist(path)
         .map_err(|e| PyxError::TempFilePersist(format!("Failed to persist temp file: {e}")))?;
