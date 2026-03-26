@@ -71,7 +71,6 @@ pub fn execute() -> Result<()> {
     Ok(())
 }
 
-/// Confirm reset with user
 fn confirm_reset() -> Result<bool> {
     use inquire::Confirm;
 
@@ -83,7 +82,6 @@ fn confirm_reset() -> Result<bool> {
     Ok(confirmed)
 }
 
-/// Delete a file if it exists
 fn delete_file(description: &str, path: &Path) -> Result<()> {
     if path.exists() {
         fs::remove_file(path)
@@ -95,7 +93,6 @@ fn delete_file(description: &str, path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Check if keyring has an entry
 fn keyring_has_entry() -> bool {
     crate::keys::keyring::has_entry()
 }

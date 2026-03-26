@@ -19,7 +19,6 @@ pub fn execute(json: bool, refresh: bool, provider: Option<&str>) -> Result<()> 
     print_models(&cache, json, provider)
 }
 
-/// Load models cache, returning appropriate error for missing cache.
 fn load_cache_or_error(refresh: bool) -> Result<ModelsCache> {
     match ModelsCache::load() {
         Ok(cache) => Ok(cache),
@@ -37,7 +36,6 @@ fn load_cache_or_error(refresh: bool) -> Result<ModelsCache> {
     }
 }
 
-/// Handle cache refresh, with fallback to stale cache on network error.
 fn handle_refresh(
     stale_cache: &ModelsCache,
     json: bool,
@@ -70,7 +68,6 @@ fn handle_refresh(
     }
 }
 
-/// Print models in text or JSON format
 fn print_models(cache: &ModelsCache, json: bool, provider_filter: Option<&str>) -> Result<()> {
     if let Some(provider) = provider_filter {
         if !cache.models.contains_key(provider) {
@@ -100,7 +97,6 @@ fn filtered_models<'a>(
         .collect()
 }
 
-/// Print models in JSON format
 fn print_models_json(cache: &ModelsCache, provider_filter: Option<&str>) -> Result<()> {
     let output = serde_json::json!({
         "version": cache.version,
@@ -111,7 +107,6 @@ fn print_models_json(cache: &ModelsCache, provider_filter: Option<&str>) -> Resu
     Ok(())
 }
 
-/// Print models in text format
 fn print_models_text(cache: &ModelsCache, provider_filter: Option<&str>) -> Result<()> {
     println!("Supported models:");
     println!();

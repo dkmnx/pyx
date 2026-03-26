@@ -150,7 +150,6 @@ pub fn prompt_provider(providers: &[String]) -> Result<String> {
     resolve_provider_match(providers, &input)
 }
 
-/// Prompt for provider input with autocomplete.
 fn prompt_provider_input(providers: &[String]) -> Result<String> {
     let completion = ProviderCompletion::new(providers.to_vec());
 
@@ -160,7 +159,6 @@ fn prompt_provider_input(providers: &[String]) -> Result<String> {
         .map_err(inquire_error_to_pyx)
 }
 
-/// Resolve user input to a provider name.
 /// Handles exact matches, substring matches, and prefix matches.
 fn resolve_provider_match(providers: &[String], input: &str) -> Result<String> {
     if let Some(provider) = providers
