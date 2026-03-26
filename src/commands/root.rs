@@ -8,16 +8,11 @@ use crate::keys::keyring::get_passphrase;
 use crate::keys::manager::KeyManager;
 use crate::passphrase;
 use crate::pi::exec::{
-    find_pi, get_pi_version, install_completion, install_pi, platform_info, spawn_pi,
+    find_pi, get_pi_version, install_completion, install_pi_auto, platform_info, spawn_pi,
 };
 use crate::providers::mapping::ProviderEnvResolver;
 use crate::storage::database::Database;
 use std::collections::BTreeMap;
-
-/// Load key manager with passphrase fallback
-fn load_key_manager() -> Result<KeyManager> {
-    passphrase::load_key_manager_with_fallback()
-}
 
 /// Execute the root command (run pi with providers)
 pub fn execute(provider: Option<&str>, session: Option<&str>, pi_args: &[String]) -> Result<i32> {
@@ -56,15 +51,13 @@ pub fn execute(provider: Option<&str>, session: Option<&str>, pi_args: &[String]
     Ok(exit_code)
 }
 
-/// Ensure pi is installed, attempting auto-install if missing.
-/// Returns true if pi was just installed.
 fn ensure_pi_installed() -> Result<bool> {
     if find_pi().is_some() {
         return Ok(false);
     }
 
     eprintln!("pi not found in PATH. Attempting installation...");
-    install_pi()?;
+    install_pi_auto()?;
 
     if find_pi().is_none() {
         return Err(PyxError::CommandExecution(
@@ -75,7 +68,6 @@ fn ensure_pi_installed() -> Result<bool> {
     Ok(true)
 }
 
-/// Display platform info and install completions after pi installation.
 fn display_installation_info() {
     eprintln!("Platform: {}", platform_info());
     if let Ok(version) = get_pi_version() {
@@ -88,9 +80,8 @@ fn display_installation_info() {
     }
 }
 
-/// Build environment variables for the specified providers.
 fn build_provider_env_vars(db: &Database, providers: &[String]) -> Result<Vec<(String, String)>> {
-    let manager = load_key_manager()?;
+    let manager = passphrase::load_key_manager_with_fallback()?;
     let master_key = manager.get_key_bytes()?;
     let resolver = ProviderEnvResolver::new()?;
 
@@ -141,7 +132,6 @@ fn decrypt_api_key(cipher: &str, master_key: &[u8]) -> Result<String> {
         .map_err(|e| PyxError::Crypto(format!("Decrypted API key is not valid UTF-8: {e}")))
 }
 
-/// Determine which providers to use based on CLI args and database
 fn determine_providers(provider_arg: Option<&str>, db: &Database) -> Result<Vec<String>> {
     if let Some(provider_name) = provider_arg {
         // Single provider specified
