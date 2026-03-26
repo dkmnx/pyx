@@ -195,7 +195,7 @@ impl KeyringBackend for WindowsKeyring {
 
             // Copy username after credential blob
             let user_str_offset = cred_data.len();
-            cred_data.extend_from_slice(bytemuck::cast_slice(&username_wide));
+            cred_data.extend_from_slice(username_wide.as_byte_slice());
             let username_ptr = user_str_offset as isize;
             cred_data[username_offset..username_offset + 8]
                 .copy_from_slice(&(username_ptr as u64).to_le_bytes());
