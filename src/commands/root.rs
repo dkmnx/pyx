@@ -46,7 +46,16 @@ pub fn execute(provider: Option<&str>, session: Option<&str>, pi_args: &[String]
     }
 
     let exit_code = spawn_pi(&env_vars, &args)?;
-    display_session_hint();
+
+    let is_non_interactive = pi_args
+        .windows(2)
+        .any(|w| w[0] == "-p" || w[0] == "--prompt")
+        || pi_args
+            .iter()
+            .any(|a| a.starts_with("-p=") || a.starts_with("--prompt="));
+    if !is_non_interactive {
+        display_session_hint();
+    }
 
     Ok(exit_code)
 }
