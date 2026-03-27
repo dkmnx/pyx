@@ -78,8 +78,37 @@ pub fn install_pi_auto() -> Result<()> {
 
 /// Install pi with package manager prompt
 pub fn install_pi_with_prompt() -> Result<()> {
-    // For now, auto-detect (prompt can be added later if needed)
-    install_pi_impl(None)
+    if find_pi().is_some() {
+        println!("pi is already installed.");
+        if let Ok(version) = get_pi_version() {
+            println!("pi version: {version}");
+        }
+        return Ok(());
+    }
+
+    let available: Vec<String> = ["npm", "pnpm", "yarn", "bun"]
+        .iter()
+        .filter(|pm| which::which(pm).is_ok())
+        .map(|pm| pm.to_string())
+        .collect();
+
+    if available.is_empty() {
+        return Err(PyxError::CommandExecution(
+            "No package manager found (npm, pnpm, yarn, bun). Please install one first."
+                .to_string(),
+        ));
+    }
+
+    let pm = if available.len() == 1 {
+        available[0].clone()
+    } else {
+        let choice = inquire::Select::new("Select a package manager", available.clone())
+            .prompt()
+            .map_err(|e| PyxError::Validation(format!("Failed to read selection: {e}")))?;
+        choice
+    };
+
+    install_pi_impl(Some(&pm))
 }
 
 /// Install pi with optional specific package manager
@@ -149,7 +178,14 @@ pub fn get_pi_version() -> Result<String> {
         .output()
         .map_err(|e| PyxError::CommandExecution(format!("Failed to get pi version: {e}")))?;
 
-    let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let version = String::from_utf8_lossy(&output.stderr).trim().to_string();
+
+    let version = if version.is_empty() {
+        String::from_utf8_lossy(&output.stdout).trim().to_string()
+    } else {
+        version
+    };
+
     Ok(version)
 }
 

@@ -258,7 +258,6 @@ fn pi_install_subcommand_surfaces_package_manager_failures() {
     let mut cmd = Command::cargo_bin("pyx").unwrap();
     cmd.arg("pi")
         .arg("install")
-        .arg("--auto")
         .env("XDG_DATA_HOME", env.xdg_data_str())
         .env("PYX_PASSPHRASE", TEST_PASSPHRASE)
         .env("PATH", env.bin_dir.display().to_string());

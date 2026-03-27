@@ -91,9 +91,5 @@ pub enum ModelsCommands {
 #[derive(Subcommand)]
 pub enum PiCommands {
     /// Install pi if not already installed
-    Install {
-        /// Auto-detect package manager without prompting
-        #[arg(long)]
-        auto: bool,
-    },
+    Install,
 }
