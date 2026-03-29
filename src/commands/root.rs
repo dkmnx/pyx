@@ -8,7 +8,7 @@ use crate::keys::keyring::get_passphrase;
 use crate::keys::manager::KeyManager;
 use crate::passphrase;
 use crate::pi::exec::{
-    find_pi, get_pi_version, install_completion, install_pi_auto, platform_info, spawn_pi,
+    find_pi, get_pi_version, install_completion, install_pi, platform_info, spawn_pi,
 };
 use crate::providers::mapping::ProviderEnvResolver;
 use crate::storage::database::Database;
@@ -57,7 +57,7 @@ fn ensure_pi_installed() -> Result<bool> {
     }
 
     eprintln!("pi not found in PATH. Attempting installation...");
-    install_pi_auto()?;
+    install_pi()?;
 
     if find_pi().is_none() {
         return Err(PyxError::CommandExecution(
