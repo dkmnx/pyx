@@ -25,6 +25,24 @@ impl WindowsKeyring {
     }
 }
 
+/// CREDENTIALW structure for Windows Credential Manager.
+/// This must match the Windows API layout exactly for x64.
+#[repr(C)]
+struct CredentialW {
+    flags: u32,
+    cred_type: u32,
+    target_name: *const u16,
+    comment: *const u16,
+    last_written: u64,
+    credential_blob_size: u32,
+    credential_blob: *const u8,
+    persist: u32,
+    attribute_count: u32,
+    attributes: *const u8,
+    target_alias: *const u16,
+    user_name: *const u16,
+}
+
 #[cfg(target_os = "windows")]
 impl KeyringBackend for WindowsKeyring {
     fn get_password(&self, service: &str, username: &str) -> Result<Option<String>> {
@@ -41,9 +59,7 @@ impl KeyringBackend for WindowsKeyring {
         let mut credential_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
 
         unsafe {
-            // CredReadW function signature:
-            // DWORD CredReadW(LPCWSTR TargetName, DWORD Type, DWORD Flags, PCREDENTIALW *Credential)
-            #[link(name = "credui")]
+            #[link(name = "advapi32")]
             extern "system" {
                 fn CredReadW(
                     target_name: *const u16,
@@ -51,7 +67,7 @@ impl KeyringBackend for WindowsKeyring {
                     flags: u32,
                     cred_ptr: *mut *mut std::ffi::c_void,
                 ) -> i32;
-                fn CredFree(cred: *mut std::ffi::c_void) -> i32;
+                fn CredFree(cred: *mut std::ffi::c_void);
             }
 
             const CRED_TYPE_GENERIC: u32 = 1;
@@ -73,28 +89,16 @@ impl KeyringBackend for WindowsKeyring {
                 return Ok(None);
             }
 
-            // Parse the credential blob
-            // CREDENTIALW structure:
-            // typedef struct _CREDENTIALW {
-            //   DWORD Flags;
-            //   DWORD Type;
-            //   LPWSTR TargetName;
-            //   ...
-            //   DWORD CredentialBlobSize;
-            //   LPBYTE CredentialBlob;
-            //   ...
-            // } CREDENTIALW, *PCREDENTIALW;
-            let cred_blob_size = *(credential_ptr as *const u32).offset(5);
-            let cred_blob = *(credential_ptr as *const *mut u8).offset(6);
+            // Cast to our CREDENTIALW struct for safe field access
+            let cred = &*(credential_ptr as *const CredentialW);
 
-            let password = if cred_blob.is_null() || cred_blob_size == 0 {
+            let password = if cred.credential_blob.is_null() || cred.credential_blob_size == 0 {
                 String::new()
             } else {
-                let slice = std::slice::from_raw_parts(cred_blob, cred_blob_size as usize);
                 // Credential blob is UTF-16 encoded
                 let utf16_slice: &[u16] = std::slice::from_raw_parts(
-                    cred_blob as *const u16,
-                    cred_blob_size as usize / 2,
+                    cred.credential_blob as *const u16,
+                    cred.credential_blob_size as usize / 2,
                 );
                 String::from_utf16_lossy(utf16_slice)
             };
@@ -115,6 +119,8 @@ impl KeyringBackend for WindowsKeyring {
         use std::os::windows::ffi::OsStrExt;
 
         let target = Self::format_target(service, username);
+
+        // Prepare wide strings (null-terminated)
         let target_wide: Vec<u16> = OsStr::new(&target)
             .encode_wide()
             .chain(std::iter::once(0))
@@ -123,82 +129,31 @@ impl KeyringBackend for WindowsKeyring {
             .encode_wide()
             .chain(std::iter::once(0))
             .collect();
-        let password_utf16: Vec<u16> = password.encode_utf16().chain(std::iter::once(0)).collect();
-
-        let password_bytes: Vec<u8> = password_utf16
-            .iter()
-            .flat_map(|&c| c.to_le_bytes())
-            .collect();
+        let password_utf16: Vec<u16> = password.encode_utf16().collect();
+        let blob_size = (password_utf16.len() * 2) as u32;
 
         unsafe {
-            #[link(name = "credui")]
+            #[link(name = "advapi32")]
             extern "system" {
-                fn CredWriteW(cred: *const std::ffi::c_void, flags: u32) -> i32;
+                fn CredWriteW(cred: *const CredentialW, flags: u32) -> i32;
             }
 
-            // Build credential structure inline
-            // We need to allocate memory for the structure and copy strings
-            let cred_size = 14 * std::mem::size_of::<*const u16>() + 6 * std::mem::size_of::<u32>();
-            let mut cred_data = vec![0u8; cred_size];
+            let cred = CredentialW {
+                flags: 0,
+                cred_type: 1,
+                target_name: target_wide.as_ptr(),
+                comment: std::ptr::null(),
+                last_written: 0,
+                credential_blob_size: blob_size,
+                credential_blob: password_utf16.as_ptr() as *const u8,
+                persist: 2,
+                attribute_count: 0,
+                attributes: std::ptr::null(),
+                target_alias: std::ptr::null(),
+                user_name: username_wide.as_ptr(),
+            };
 
-            // CREDENTIALW layout:
-            // 0: Flags (DWORD)
-            // 4: Type (DWORD) = 1 (CRED_TYPE_GENERIC)
-            // 8: TargetName (LPWSTR) - offset to allocated string
-            // 12: Comment (LPWSTR)
-            // 16: LastWritten (FILETIME)
-            // 24: CredentialBlobSize (DWORD)
-            // 28: CredentialBlob (LPBYTE)
-            // 32: Persist (DWORD) = 2 (CRED_PERSIST_LOCAL_MACHINE)
-            // 36: AttributeCount (DWORD)
-            // 40: Attributes (PCREDENTIAL_ATTRIBUTE)
-            // 44: TargetAlias (LPWSTR)
-            // 48: UserName (LPWSTR)
-
-            let type_offset = 4;
-            let target_offset = 8;
-            let blob_size_offset = 24;
-            let blob_offset = 28;
-            let persist_offset = 32;
-            let username_offset = 48;
-
-            // Set Type = CRED_TYPE_GENERIC (1)
-            let type_val: u32 = 1;
-            cred_data[type_offset..type_offset + 4].copy_from_slice(&type_val.to_le_bytes());
-
-            // Copy target name after the structure
-            let str_offset = cred_data.len();
-            // Safely convert u16 slice to bytes using as_byte_slice
-            cred_data.extend_from_slice(target_wide.as_byte_slice());
-            let target_ptr = str_offset as isize;
-            cred_data[target_offset..target_offset + 8]
-                .copy_from_slice(&(target_ptr as u64).to_le_bytes());
-
-            // Set CredentialBlobSize
-            let blob_size = password_bytes.len() as u32;
-            cred_data[blob_size_offset..blob_size_offset + 4]
-                .copy_from_slice(&blob_size.to_le_bytes());
-
-            // Copy credential blob after target name
-            let blob_str_offset = cred_data.len();
-            cred_data.extend_from_slice(&password_bytes);
-            let blob_ptr = blob_str_offset as isize;
-            cred_data[blob_offset..blob_offset + 8]
-                .copy_from_slice(&(blob_ptr as u64).to_le_bytes());
-
-            // Set Persist = CRED_PERSIST_LOCAL_MACHINE (2)
-            let persist_val: u32 = 2;
-            cred_data[persist_offset..persist_offset + 4]
-                .copy_from_slice(&persist_val.to_le_bytes());
-
-            // Copy username after credential blob
-            let user_str_offset = cred_data.len();
-            cred_data.extend_from_slice(username_wide.as_byte_slice());
-            let username_ptr = user_str_offset as isize;
-            cred_data[username_offset..username_offset + 8]
-                .copy_from_slice(&(username_ptr as u64).to_le_bytes());
-
-            let result = CredWriteW(cred_data.as_ptr() as *const _, 0);
+            let result = CredWriteW(&cred, 0);
 
             if result == 0 {
                 let error = std::io::Error::last_os_error();
