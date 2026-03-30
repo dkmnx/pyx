@@ -176,7 +176,7 @@ impl KeyringBackend for WindowsKeyring {
             .collect();
 
         unsafe {
-            #[link(name = "credui")]
+            #[link(name = "advapi32")]
             extern "system" {
                 fn CredDeleteW(target_name: *const u16, cred_type: u32, flags: u32) -> i32;
             }
@@ -185,14 +185,22 @@ impl KeyringBackend for WindowsKeyring {
 
             let result = CredDeleteW(target_wide.as_ptr(), CRED_TYPE_GENERIC, 0);
 
-            // 0 means success, 1168 (ERROR_NOT_FOUND) means already deleted (idempotent)
-            if result == 0 || result == 1168 {
-                Ok(())
+            if result == 0 {
+                // WinCred returns non-zero on success, zero on failure
+                // Check if it failed because the credential wasn't found
+                let error = std::io::Error::last_os_error();
+                let error_code = error.raw_os_error().unwrap_or(0);
+                // ERROR_NOT_FOUND (1168) means already deleted - treat as success (idempotent)
+                if error_code == 1168 {
+                    Ok(())
+                } else {
+                    Err(PyxError::Keyring(format!(
+                        "CredDeleteW failed: {} (code: {})",
+                        error, error_code
+                    )))
+                }
             } else {
-                Err(PyxError::Keyring(format!(
-                    "CredDeleteW failed with code: {}",
-                    result
-                )))
+                Ok(())
             }
         }
     }
