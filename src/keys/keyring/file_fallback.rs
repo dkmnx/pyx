@@ -1,6 +1,14 @@
 use crate::error::{PyxError, Result};
 use crate::storage::paths::passphrase_path;
+use scrypt::{scrypt, Params as ScryptParams};
 use secrecy::{ExposeSecret, SecretString};
+
+const FILE_FALLBACK_KEY_PREFIX: &str = "pyx-passphrase";
+const FILE_FALLBACK_KDF_SALT: &[u8] = b"pyx-file-fallback-v2";
+const FILE_FALLBACK_KEY_LEN: usize = 32;
+const FILE_FALLBACK_KDF_LOG_N: u8 = 15;
+const FILE_FALLBACK_KDF_R: u32 = 8;
+const FILE_FALLBACK_KDF_P: u32 = 1;
 
 pub(super) fn file_fallback_enabled() -> bool {
     std::env::var("PYX_ALLOW_FILE_FALLBACK")
@@ -44,14 +52,24 @@ pub(super) fn get_passphrase_file() -> Result<Option<SecretString>> {
         return Ok(None);
     }
 
-    let machine_key = derive_machine_key();
-    match crate::crypto::age::decrypt_with_passphrase(&encrypted, &machine_key) {
-        Ok(decrypted) => match String::from_utf8(decrypted) {
-            Ok(passphrase) => Ok(Some(SecretString::new(passphrase.into_boxed_str()))),
-            Err(_) => Ok(None),
-        },
-        Err(_) => Ok(None),
+    let machine_id = get_machine_id();
+    let user = resolve_user();
+
+    if let Some(key_v2) = derive_machine_key_v2(&machine_id, &user) {
+        if let Some(passphrase) = decrypt_passphrase_with_key(&encrypted, &key_v2) {
+            return Ok(Some(passphrase));
+        }
     }
+
+    let legacy_key = derive_machine_key_legacy(&machine_id, &user);
+    if let Some(passphrase) = decrypt_passphrase_with_key(&encrypted, &legacy_key) {
+        if let Err(err) = set_passphrase_file(&passphrase) {
+            eprintln!("Warning: failed to migrate passphrase file encryption: {err}");
+        }
+        return Ok(Some(passphrase));
+    }
+
+    Ok(None)
 }
 
 pub(super) fn delete_passphrase_file() -> Result<()> {
@@ -64,14 +82,49 @@ pub(super) fn delete_passphrase_file() -> Result<()> {
 
 fn derive_machine_key() -> SecretString {
     let machine_id = get_machine_id();
-    let user = std::env::var("USER")
+    let user = resolve_user();
+
+    derive_machine_key_v2(&machine_id, &user)
+        .unwrap_or_else(|| derive_machine_key_legacy(&machine_id, &user))
+}
+
+fn derive_machine_key_v2(machine_id: &str, user: &str) -> Option<SecretString> {
+    let material = format!("{FILE_FALLBACK_KEY_PREFIX}:{machine_id}:{user}");
+    let params = ScryptParams::new(
+        FILE_FALLBACK_KDF_LOG_N,
+        FILE_FALLBACK_KDF_R,
+        FILE_FALLBACK_KDF_P,
+        FILE_FALLBACK_KEY_LEN,
+    )
+    .ok()?;
+
+    let mut output = [0u8; FILE_FALLBACK_KEY_LEN];
+    scrypt(
+        material.as_bytes(),
+        FILE_FALLBACK_KDF_SALT,
+        &params,
+        &mut output,
+    )
+    .ok()?;
+
+    Some(SecretString::new(hex::encode(output).into_boxed_str()))
+}
+
+fn derive_machine_key_legacy(machine_id: &str, user: &str) -> SecretString {
+    let combined = format!("{FILE_FALLBACK_KEY_PREFIX}:{machine_id}:{user}");
+    SecretString::new(hex::encode(combined.as_bytes()).into_boxed_str())
+}
+
+fn resolve_user() -> String {
+    std::env::var("USER")
         .or_else(|_| std::env::var("USERNAME"))
-        .unwrap_or_else(|_| "unknown-user".to_string());
+        .unwrap_or_else(|_| "unknown-user".to_string())
+}
 
-    let combined = format!("pyx-passphrase:{machine_id}:{user}");
-    let hash = hex::encode(combined.as_bytes());
-
-    SecretString::new(hash.into_boxed_str())
+fn decrypt_passphrase_with_key(encrypted: &str, key: &SecretString) -> Option<SecretString> {
+    let decrypted = crate::crypto::age::decrypt_with_passphrase(encrypted, key).ok()?;
+    let passphrase = String::from_utf8(decrypted).ok()?;
+    Some(SecretString::new(passphrase.into_boxed_str()))
 }
 
 fn get_machine_id() -> String {
@@ -144,4 +197,71 @@ fn get_machine_id() -> String {
         std::env::consts::ARCH,
         home
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ENV_MUTEX;
+    use secrecy::ExposeSecret;
+    use tempfile::tempdir;
+
+    fn legacy_machine_key_for_current_host() -> SecretString {
+        let machine_id = get_machine_id();
+        let user = std::env::var("USER")
+            .or_else(|_| std::env::var("USERNAME"))
+            .unwrap_or_else(|_| "unknown-user".to_string());
+
+        let combined = format!("pyx-passphrase:{machine_id}:{user}");
+        SecretString::new(hex::encode(combined.as_bytes()).into_boxed_str())
+    }
+
+    #[test]
+    fn derive_machine_key_is_not_plain_hex_encoding() {
+        let machine_id = get_machine_id();
+        let user = std::env::var("USER")
+            .or_else(|_| std::env::var("USERNAME"))
+            .unwrap_or_else(|_| "unknown-user".to_string());
+        let derived = derive_machine_key();
+
+        let legacy = hex::encode(format!("pyx-passphrase:{machine_id}:{user}").as_bytes());
+
+        assert_ne!(derived.expose_secret(), legacy);
+    }
+
+    #[test]
+    fn get_passphrase_file_migrates_legacy_encryption_format() {
+        let _guard = ENV_MUTEX.lock().unwrap();
+        let temp = tempdir().unwrap();
+
+        unsafe {
+            std::env::set_var("XDG_DATA_HOME", temp.path());
+        }
+
+        let passphrase = SecretString::new("legacy-passphrase".to_string().into_boxed_str());
+        let legacy_key = legacy_machine_key_for_current_host();
+
+        let encrypted = crate::crypto::age::encrypt_with_passphrase(
+            passphrase.expose_secret().as_bytes(),
+            &legacy_key,
+        )
+        .unwrap();
+
+        let path = passphrase_path().unwrap();
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+        std::fs::write(&path, &encrypted).unwrap();
+
+        let before = std::fs::read_to_string(&path).unwrap();
+        let loaded = get_passphrase_file().unwrap().unwrap();
+        let after = std::fs::read_to_string(&path).unwrap();
+
+        assert_eq!(loaded.expose_secret(), passphrase.expose_secret());
+        assert_ne!(before, after);
+
+        unsafe {
+            std::env::remove_var("XDG_DATA_HOME");
+        }
+    }
 }
