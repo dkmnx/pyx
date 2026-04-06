@@ -10,9 +10,8 @@ use super::KeyringBackend;
 
 /// macOS keyring backend using the security CLI for Keychain access.
 ///
-/// Note: The security CLI passes the password via command-line argument (-w),
-/// which means it may be visible in process listings. For production use,
-/// consider using the Security.framework directly via FFI or a crate.
+/// Passwords are written via stdin when setting entries to avoid exposing
+/// secrets in process listings.
 pub(crate) struct MacOsKeyring;
 
 impl MacOsKeyring {
