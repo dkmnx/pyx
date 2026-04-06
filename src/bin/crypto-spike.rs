@@ -58,7 +58,7 @@ fn test_decrypt_master_key(path: &str, passphrase: &str) {
     println!("=== Crypto Compatibility Spike ===");
     println!("Testing decryption of Go-generated master.key");
     println!("File: {}", path);
-    println!("Passphrase: {}", passphrase);
+    println!("Passphrase: [REDACTED]");
     println!();
 
     // Read the encrypted master.key file
@@ -79,7 +79,6 @@ fn test_decrypt_master_key(path: &str, passphrase: &str) {
     match decrypt_with_scrypt(&content, passphrase) {
         Ok(master_key) => {
             println!("✓ SUCCESS: Decrypted master key!");
-            println!("Master key (hex): {}", hex::encode(&master_key));
             println!("Master key length: {} bytes", master_key.len());
             println!();
             println!("This confirms Rust can decrypt Go-generated age ciphertexts.");
@@ -173,8 +172,7 @@ fn decrypt_provider_ciphers(database_path: &str, master_key_hex: &str) {
 
         match decrypt_with_scrypt(cipher, &String::from_utf8_lossy(&master_key)) {
             Ok(plaintext) => {
-                let api_key = String::from_utf8_lossy(&plaintext);
-                println!("  ✓ Decrypted API key: {}", api_key);
+                println!("  ✓ Decrypted API key [LENGTH: {} bytes]", plaintext.len());
             }
             Err(e) => {
                 eprintln!("  ✗ Failed to decrypt: {}", e);
