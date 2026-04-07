@@ -3,13 +3,12 @@
 use crate::cli::ShellType;
 use crate::error::Result;
 use crate::pi::exec::install_completion_for_shell;
-use clap::CommandFactory;
 use std::io;
 
 /// Generate shell completion script
 pub fn generate_completion(shell: ShellType) -> Result<()> {
-    let mut cmd = crate::cli::Cli::command();
-    let bin_name = cmd.get_name().to_string();
+    let mut cmd = crate::cli::Cli::clap_command();
+    let bin_name = "pyx".to_string();
 
     let mut stdout = io::stdout();
 

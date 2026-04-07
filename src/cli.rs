@@ -4,6 +4,19 @@ use clap::{Parser, Subcommand};
 
 pub use crate::pi::exec::ShellType;
 
+/// Subcommand names for routing logic in `should_use_clap`.
+/// Keep in sync with `Commands` enum.
+pub const SUBCOMMAND_NAMES: &[&str] = &[
+    "setup",
+    "list",
+    "delete",
+    "models",
+    "pi",
+    "reset",
+    "completion",
+    "version",
+];
+
 #[derive(Parser)]
 #[command(name = "pyx")]
 #[command(author, version, about = "Secure API key management for pi")]
@@ -11,14 +24,14 @@ pub use crate::pi::exec::ShellType;
 pub struct Cli {
     /// Provider name to use
     #[arg(index = 1)]
-    pub provider: Option<String>,
+    provider: Option<String>,
 
     /// Session ID to use
     #[arg(short = 's', long = "session")]
-    pub session: Option<String>,
+    session: Option<String>,
 
     #[command(subcommand)]
-    pub command: Option<Commands>,
+    command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
@@ -103,4 +116,25 @@ pub enum ModelsCommands {
 pub enum PiCommands {
     /// Install pi if not already installed
     Install,
+}
+
+impl Cli {
+    pub fn provider(&self) -> Option<&str> {
+        self.provider.as_deref()
+    }
+
+    pub fn session(&self) -> Option<&str> {
+        self.session.as_deref()
+    }
+
+    pub fn parsed_command(&self) -> Option<&Commands> {
+        self.command.as_ref()
+    }
+
+    /// Returns a clap Command built from this Cli definition.
+    /// Use this for shell completion generation.
+    pub fn clap_command() -> clap::Command {
+        use clap::CommandFactory;
+        Self::command()
+    }
 }

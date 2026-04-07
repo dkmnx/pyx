@@ -69,7 +69,17 @@ fn reset_failed_attempts(path: &Path) {
     states.remove(&key);
 }
 
-/// Key manager - holds the decrypted master key
+/// Key manager - holds the decrypted master key.
+///
+/// The master key is stored as a hex-encoded string internally. This encoding:
+/// - Avoids binary data issues in storage (null bytes, encoding problems)
+/// - Is human-readable for debugging
+/// - Is compatible with the Go implementation's storage format
+///
+/// Two access patterns are provided:
+/// - `get_key_hex()`: Returns hex string for storage/file operations
+/// - `get_key_bytes()`: Returns raw bytes wrapped in `Zeroizing` for crypto operations
+///   that need byte input. The `Zeroizing` wrapper ensures memory is zeroed on drop.
 pub struct KeyManager {
     key: SecretString,
 }

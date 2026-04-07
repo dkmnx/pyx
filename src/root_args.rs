@@ -1,8 +1,6 @@
 //! Root command argument parsing helpers.
 
-use clap::CommandFactory;
-
-use crate::cli::Cli;
+use crate::cli::SUBCOMMAND_NAMES;
 use crate::error::{PyxError, Result};
 
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -24,24 +22,20 @@ pub fn should_use_clap(args: &[String]) -> bool {
 
     // Check if any positional-like argument (before --) is a known subcommand.
     // This handles cases like: pyx -s abc version -> version is a subcommand
-    let command = Cli::command();
     for arg in args.iter().take_while(|a| *a != "--") {
         // Skip flags and their values
         if arg.starts_with('-') && !arg.starts_with("--") {
-            // Short flag (could be combined like -abc or -a value)
             continue;
         }
         if arg.starts_with("--") && !arg.contains('=') {
-            // Long flag without = value
             continue;
         }
         if arg.starts_with("--") && arg.contains('=') {
-            // Long flag with = value (e.g., --session=abc)
             continue;
         }
 
         // This looks like a positional argument
-        if command.get_subcommands().any(|sub| sub.get_name() == *arg) {
+        if SUBCOMMAND_NAMES.contains(&arg.as_str()) {
             return true;
         }
     }

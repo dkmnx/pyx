@@ -73,10 +73,28 @@ mod tests {
         ));
         db.save_to_path(&db_path).unwrap();
 
-        // Would need to override database_path() for full testing
         assert!(db.has_provider("test-provider"));
 
         db.remove("test-provider");
         assert!(!db.has_provider("test-provider"));
+    }
+
+    #[test]
+    fn test_remove_returns_entry() {
+        let mut db = Database::default();
+        db.upsert(ProviderEntry::new(
+            "my-provider".to_string(),
+            "cipher-key".to_string(),
+        ));
+
+        let removed = db.remove("my-provider");
+        assert!(removed.is_some());
+        assert_eq!(removed.unwrap().provider, "my-provider");
+    }
+
+    #[test]
+    fn test_remove_nonexistent_returns_none() {
+        let mut db = Database::default();
+        assert!(db.remove("nonexistent").is_none());
     }
 }

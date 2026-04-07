@@ -121,15 +121,26 @@ mod tests {
         let dir = tempdir().unwrap();
         let path = dir.path().join("test.txt");
 
-        // Create file
         fs::write(&path, "test").unwrap();
         assert!(path.exists());
 
-        // Delete it
         delete_file("Test file", &path).unwrap();
         assert!(!path.exists());
 
-        // Delete non-existent (should not error)
         assert!(delete_file("Non-existent", &path).is_ok());
+    }
+
+    #[test]
+    fn test_backup_path() {
+        let path = PathBuf::from("/data/database.json");
+        let bak = backup_path(&path);
+        assert_eq!(bak, PathBuf::from("/data/database.json.bak"));
+    }
+
+    #[test]
+    fn test_backup_path_no_extension() {
+        let path = PathBuf::from("/data/db");
+        let bak = backup_path(&path);
+        assert_eq!(bak, PathBuf::from("/data/db.bak"));
     }
 }
