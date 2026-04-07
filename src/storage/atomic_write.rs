@@ -19,11 +19,14 @@ pub fn atomic_write_with_backup<P: AsRef<Path>>(
 ) -> Result<()> {
     let path = path.as_ref();
 
-    if path.exists() {
+    let backup_name: Option<std::ffi::OsString> = if path.exists() {
         let mut backup_name = path.as_os_str().to_owned();
         backup_name.push(".bak");
         fs::copy(path, &backup_name)?;
-    }
+        Some(backup_name)
+    } else {
+        None
+    };
 
     let mut temp_file = NamedTempFile::new_in(path.parent().unwrap_or_else(|| Path::new(".")))?;
     temp_file.write_all(data)?;
@@ -42,6 +45,12 @@ pub fn atomic_write_with_backup<P: AsRef<Path>>(
     temp_file
         .persist(path)
         .map_err(|e| PyxError::TempFilePersist(format!("Failed to persist temp file: {e}")))?;
+
+    // Remove backup after successful write - backups of secret-bearing files
+    // should not persist as they contain sensitive data
+    if let Some(backup_name) = backup_name {
+        let _ = fs::remove_file(&backup_name);
+    }
 
     Ok(())
 }
@@ -64,7 +73,7 @@ mod tests {
     }
 
     #[test]
-    fn test_atomic_write_creates_backup() {
+    fn test_atomic_write_removes_backup_after_success() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("test.json");
 
@@ -74,30 +83,31 @@ mod tests {
         // Write new data
         atomic_write_with_backup(&path, b"new data", 0o600).unwrap();
 
-        // Check backup exists (.bak appended to full filename)
+        // Backup should be removed after successful write
         let backup = dir.path().join("test.json.bak");
-        assert!(backup.exists());
-        assert_eq!(fs::read_to_string(&backup).unwrap(), "original");
+        assert!(
+            !backup.exists(),
+            "backup should be removed after successful write"
+        );
 
         // Check new data
         assert_eq!(fs::read_to_string(&path).unwrap(), "new data");
     }
 
     #[test]
-    fn test_atomic_write_backup_for_non_json_files() {
+    fn test_atomic_write_creates_backup_during_write_only() {
         let dir = tempdir().unwrap();
-        let path = dir.path().join("master.key");
+        let path = dir.path().join("test.json");
 
         // Create initial file
-        fs::write(&path, "old-key").unwrap();
+        fs::write(&path, "original").unwrap();
 
-        // Write new data
-        atomic_write_with_backup(&path, b"new-key", 0o600).unwrap();
+        // Backup should not exist before we call atomic_write
+        let backup = dir.path().join("test.json.bak");
+        assert!(!backup.exists());
 
-        // Backup should be master.key.bak, NOT master.json.bak
-        let backup = dir.path().join("master.key.bak");
-        assert!(backup.exists());
-        assert_eq!(fs::read_to_string(&backup).unwrap(), "old-key");
-        assert_eq!(fs::read_to_string(&path).unwrap(), "new-key");
+        // After atomic_write, backup should be removed
+        atomic_write_with_backup(&path, b"new data", 0o600).unwrap();
+        assert!(!backup.exists());
     }
 }

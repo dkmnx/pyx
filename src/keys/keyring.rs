@@ -112,12 +112,13 @@ pub fn set_passphrase(passphrase: &SecretString) -> Result<()> {
 
 /// Clear passphrase from keyring and file fallback.
 ///
-/// Only clears the file fallback when PYX_ALLOW_FILE_FALLBACK is enabled.
+/// Always attempts to delete the file fallback if it exists, regardless of
+/// whether fallback is currently enabled. This prevents orphaned passphrase
+/// files when fallback was previously used but is now disabled.
 pub fn clear_passphrase() -> Result<()> {
-    // Delete from file only if fallback is enabled
-    if file_fallback_enabled() {
-        delete_passphrase_file()?;
-    }
+    // Always try to delete the passphrase file - even if fallback is disabled,
+    // an orphaned file from a previous session could still exist
+    delete_passphrase_file()?;
 
     let _ = with_backend(|b| b.delete_password(SERVICE_NAME, USER_NAME));
 
@@ -257,6 +258,49 @@ mod tests {
         unsafe {
             std::env::remove_var("XDG_DATA_HOME");
             std::env::remove_var("PYX_ALLOW_FILE_FALLBACK");
+        }
+    }
+
+    #[test]
+    fn test_clear_passphrase_removes_file_even_when_fallback_disabled() {
+        let _guard = ENV_MUTEX.lock().unwrap();
+        let temp = tempdir().unwrap();
+
+        unsafe {
+            std::env::set_var("XDG_DATA_HOME", temp.path());
+            std::env::set_var("PYX_ALLOW_FILE_FALLBACK", "1");
+        }
+
+        set_backend(Box::new(MockKeyring::new()));
+
+        // Create a passphrase file
+        let passphrase = SecretString::new("orphan-passphrase".to_string().into_boxed_str());
+        set_passphrase(&passphrase).unwrap();
+
+        // Verify file exists
+        let file_path = passphrase_path().unwrap();
+        assert!(
+            file_path.exists(),
+            "passphrase file should exist before clear"
+        );
+
+        // Disable fallback
+        unsafe {
+            std::env::remove_var("PYX_ALLOW_FILE_FALLBACK");
+        }
+        assert!(!file_fallback_enabled());
+
+        // Clear should still remove the file
+        clear_passphrase().unwrap();
+        assert!(
+            !file_path.exists(),
+            "passphrase file should be removed even when fallback disabled"
+        );
+
+        reset_backend();
+
+        unsafe {
+            std::env::remove_var("XDG_DATA_HOME");
         }
     }
 

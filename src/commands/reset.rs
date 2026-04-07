@@ -3,7 +3,8 @@
 use crate::error::{PyxError, Result};
 use crate::keys::manager::KeyManager;
 use crate::storage::paths::{
-    database_path, master_key_path, models_cache_path, providers_env_path, settings_path,
+    database_path, master_key_path, models_cache_path, passphrase_path, providers_env_path,
+    settings_path,
 };
 use std::fs;
 use std::io::IsTerminal;
@@ -54,6 +55,9 @@ pub fn execute(skip_confirm: bool) -> Result<()> {
 
     // Delete providers config
     delete_file("Providers config", &providers_env_path()?)?;
+
+    // Delete passphrase fallback file (if exists)
+    delete_file("Passphrase file", &passphrase_path()?)?;
 
     // Clear keyring
     if KeyManager::master_key_exists() || keyring_has_entry() {
