@@ -77,4 +77,61 @@ mod tests {
         assert_eq!(db.len(), 0);
         assert!(!db.has_provider("anything"));
     }
+
+    #[test]
+    fn test_database_roundtrip() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("database.json");
+
+        let mut db = Database::default();
+        db.upsert(ProviderEntry::new("test".to_string(), "cipher".to_string()));
+        db.save_to_path(&db_path).unwrap();
+
+        let loaded = Database::load_from_path(&db_path).unwrap();
+        assert_eq!(loaded.len(), 1);
+        assert!(loaded.has_provider("test"));
+    }
+
+    #[test]
+    fn test_database_upsert_updates_existing() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("database.json");
+
+        let mut db = Database::default();
+        db.upsert(ProviderEntry::new(
+            "test".to_string(),
+            "cipher1".to_string(),
+        ));
+        db.save_to_path(&db_path).unwrap();
+
+        db.upsert(ProviderEntry::new(
+            "test".to_string(),
+            "cipher2".to_string(),
+        ));
+        db.save_to_path(&db_path).unwrap();
+
+        let loaded = Database::load_from_path(&db_path).unwrap();
+        assert_eq!(loaded.len(), 1);
+    }
+
+    #[test]
+    fn test_database_get_provider_names_sorted() {
+        let mut db = Database::default();
+        db.upsert(ProviderEntry::new("zebra".to_string(), "c".to_string()));
+        db.upsert(ProviderEntry::new("apple".to_string(), "a".to_string()));
+        db.upsert(ProviderEntry::new("mango".to_string(), "b".to_string()));
+
+        let names = db.get_provider_names();
+        assert_eq!(names, vec!["apple", "mango", "zebra"]);
+    }
+
+    #[test]
+    fn test_database_len_after_multiple_upserts() {
+        let mut db = Database::default();
+        db.upsert(ProviderEntry::new("a".to_string(), "1".to_string()));
+        db.upsert(ProviderEntry::new("b".to_string(), "2".to_string()));
+
+        assert_eq!(db.len(), 2);
+        assert_eq!(db.get_provider_names().len(), 2);
+    }
 }

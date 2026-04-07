@@ -371,4 +371,132 @@ mod tests {
             std::env::remove_var("XDG_DATA_HOME");
         }
     }
+
+    #[test]
+    fn test_has_custom_providers_returns_true_when_configured() {
+        let _guard = ENV_MUTEX.lock().unwrap();
+        let temp = tempdir().unwrap();
+
+        unsafe {
+            std::env::set_var("XDG_DATA_HOME", temp.path());
+        }
+
+        let mut config = ProvidersEnvConfig::default();
+        config
+            .upsert("test-provider".to_string(), "TEST_API_KEY".to_string())
+            .unwrap();
+        config.save().unwrap();
+
+        assert!(has_custom_providers().unwrap());
+
+        unsafe {
+            std::env::remove_var("XDG_DATA_HOME");
+        }
+    }
+
+    #[test]
+    fn test_has_custom_providers_returns_false_when_empty() {
+        let _guard = ENV_MUTEX.lock().unwrap();
+        let temp = tempdir().unwrap();
+
+        unsafe {
+            std::env::set_var("XDG_DATA_HOME", temp.path());
+        }
+
+        let config = ProvidersEnvConfig::default();
+        config.save().unwrap();
+
+        assert!(!has_custom_providers().unwrap());
+
+        unsafe {
+            std::env::remove_var("XDG_DATA_HOME");
+        }
+    }
+
+    #[test]
+    fn test_has_custom_providers_returns_false_when_no_config() {
+        let _guard = ENV_MUTEX.lock().unwrap();
+        let temp = tempdir().unwrap();
+
+        unsafe {
+            std::env::set_var("XDG_DATA_HOME", temp.path());
+        }
+
+        assert!(!has_custom_providers().unwrap());
+
+        unsafe {
+            std::env::remove_var("XDG_DATA_HOME");
+        }
+    }
+
+    #[test]
+    fn test_format_time_now_returns_valid_format() {
+        let formatted = format_time_now();
+
+        assert!(formatted.contains("UTC"));
+        assert!(formatted.contains(":"));
+        assert!(formatted.len() >= 10);
+
+        let parts: Vec<&str> = formatted.split_whitespace().collect();
+        assert_eq!(parts.len(), 2);
+        assert_eq!(parts[1], "UTC");
+
+        let time_parts: Vec<&str> = parts[0].split(':').collect();
+        assert_eq!(time_parts.len(), 3);
+
+        let hours: u32 = time_parts[0].parse().unwrap();
+        let mins: u32 = time_parts[1].parse().unwrap();
+        let secs: u32 = time_parts[2].parse().unwrap();
+
+        assert!(hours < 24);
+        assert!(mins < 60);
+        assert!(secs < 60);
+    }
+
+    #[test]
+    fn test_format_time_now_is_reasonable() {
+        let re = regex::Regex::new(r"^(\d{2}):(\d{2}):(\d{2}) UTC$").unwrap();
+        let formatted = format_time_now();
+
+        let caps = re.captures(&formatted).unwrap();
+
+        let hours: u32 = caps.get(1).unwrap().as_str().parse().unwrap();
+        let mins: u32 = caps.get(2).unwrap().as_str().parse().unwrap();
+        let secs: u32 = caps.get(3).unwrap().as_str().parse().unwrap();
+
+        assert!(hours < 24);
+        assert!(mins < 60);
+        assert!(secs < 60);
+    }
+
+    #[test]
+    fn test_get_provider_list_deduplicates() {
+        let _guard = ENV_MUTEX.lock().unwrap();
+        let temp = tempdir().unwrap();
+
+        unsafe {
+            std::env::set_var("XDG_DATA_HOME", temp.path());
+        }
+
+        let mut cache = ModelsCache::new("v1.0.0");
+        cache.upsert_models("openai".to_string(), vec!["gpt-4".to_string()]);
+        cache.upsert_models("anthropic".to_string(), vec!["claude-3".to_string()]);
+        cache.save().unwrap();
+
+        let mut config = ProvidersEnvConfig::default();
+        config
+            .upsert("openai".to_string(), "DUPLICATE_API_KEY".to_string())
+            .unwrap();
+        config.save().unwrap();
+
+        let providers = get_provider_list().unwrap();
+        assert!(providers.contains(&"openai".to_string()));
+        assert!(providers.contains(&"anthropic".to_string()));
+        let openai_count = providers.iter().filter(|p| *p == "openai").count();
+        assert_eq!(openai_count, 1);
+
+        unsafe {
+            std::env::remove_var("XDG_DATA_HOME");
+        }
+    }
 }

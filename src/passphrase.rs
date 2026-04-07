@@ -84,20 +84,14 @@ mod tests {
     use super::*;
     use crate::keys::keyring::{get_passphrase, reset_backend, set_backend, MockKeyring};
     use crate::keys::manager::KeyManager;
-    use crate::ENV_MUTEX;
+    use crate::test_helpers::EnvGuard;
     use secrecy::ExposeSecret;
     use tempfile::tempdir;
 
     #[test]
     fn load_with_passphrase_restores_keyring_entry() {
-        let _guard = ENV_MUTEX.lock().unwrap();
         let temp = tempdir().unwrap();
-
-        unsafe {
-            std::env::set_var("XDG_DATA_HOME", temp.path());
-            std::env::remove_var("PYX_PASSPHRASE");
-            std::env::remove_var("PYX_ALLOW_FILE_FALLBACK");
-        }
+        let _env = EnvGuard::set_var("XDG_DATA_HOME", temp.path());
 
         set_backend(Box::new(MockKeyring::new()));
 
@@ -116,8 +110,5 @@ mod tests {
         );
 
         reset_backend();
-        unsafe {
-            std::env::remove_var("XDG_DATA_HOME");
-        }
     }
 }

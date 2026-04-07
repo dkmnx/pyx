@@ -71,4 +71,44 @@ mod tests {
         assert!(validate_keyring_args("service", "user\r").is_err());
         assert!(validate_keyring_args("service", "user\0").is_err());
     }
+
+    #[test]
+    fn test_validate_keyring_args_length_limit() {
+        let long_service = "a".repeat(257);
+        assert!(validate_keyring_args(&long_service, "user").is_err());
+
+        let valid_service = "a".repeat(256);
+        assert!(validate_keyring_args(&valid_service, "user").is_ok());
+
+        let long_username = "b".repeat(257);
+        assert!(validate_keyring_args("service", &long_username).is_err());
+
+        let valid_username = "b".repeat(256);
+        assert!(validate_keyring_args("service", &valid_username).is_ok());
+    }
+
+    #[test]
+    fn test_validate_keyring_args_control_characters() {
+        assert!(validate_keyring_args("service\x01", "user").is_err());
+        assert!(validate_keyring_args("service", "user\x02").is_err());
+        assert!(validate_keyring_args("service\t", "user").is_err());
+        assert!(validate_keyring_args("service", "user\x1b").is_err());
+    }
+
+    #[test]
+    fn test_validate_keyring_args_special_characters_allowed() {
+        assert!(validate_keyring_args("my-service", "user.name").is_ok());
+        assert!(validate_keyring_args("service_with_underscore", "user_name").is_ok());
+        assert!(validate_keyring_args("service.with.dots", "user@email").is_ok());
+        assert!(validate_keyring_args("service-with-dashes", "user-name").is_ok());
+    }
+
+    #[test]
+    fn test_validate_keyring_args_returns_keyring_error() {
+        let result = validate_keyring_args("", "user");
+        assert!(matches!(result, Err(crate::error::PyxError::Keyring(_))));
+
+        let result = validate_keyring_args("service", "");
+        assert!(matches!(result, Err(crate::error::PyxError::Keyring(_))));
+    }
 }

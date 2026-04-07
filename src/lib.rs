@@ -15,6 +15,7 @@ pub mod providers;
 pub mod root_args;
 pub mod session;
 pub mod storage;
+pub mod test_helpers;
 pub mod validation;
 
 // Re-export commonly used types
@@ -53,7 +54,8 @@ mod tests {
     }
 
     fn is_env_mutation(line: &str) -> bool {
-        line.contains("std::env::set_var(") || line.contains("std::env::remove_var(")
+        (line.contains("std::env::set_var(") || line.contains("std::env::remove_var("))
+            && !line.contains("EnvGuard")
     }
 
     fn find_block_end(lines: &[String], start: usize) -> usize {

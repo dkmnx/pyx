@@ -104,48 +104,27 @@ pub fn ensure_data_dir() -> Result<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ENV_MUTEX;
+    use crate::test_helpers::EnvGuard;
 
     #[test]
     fn test_get_data_dir_with_xdg() {
-        let _guard = ENV_MUTEX.lock().unwrap();
-        unsafe {
-            std::env::set_var("XDG_DATA_HOME", "/test/xdg");
-        }
-
+        let _guard = EnvGuard::set_var("XDG_DATA_HOME", "/test/xdg");
         let path = get_data_dir().unwrap();
         assert_eq!(path, PathBuf::from("/test/xdg/pyx"));
-
-        unsafe {
-            std::env::remove_var("XDG_DATA_HOME");
-        }
     }
 
     /// HOME fallback is only reached on Unix when dirs::data_local_dir() is unavailable.
     #[cfg(unix)]
     #[test]
     fn test_get_data_dir_with_home() {
-        let _guard = ENV_MUTEX.lock().unwrap();
-        unsafe {
-            std::env::set_var("HOME", "/test/home");
-            std::env::remove_var("XDG_DATA_HOME");
-        }
-
+        let _guard = EnvGuard::remove_var("XDG_DATA_HOME");
+        let _guard = EnvGuard::set_var("HOME", "/test/home");
         let path = get_data_dir().unwrap();
         assert_eq!(path, PathBuf::from("/test/home/.local/share/pyx"));
-
-        unsafe {
-            std::env::remove_var("HOME");
-        }
     }
 
     #[test]
     fn test_get_data_dir_resolves_something() {
-        let _guard = ENV_MUTEX.lock().unwrap();
-        unsafe {
-            std::env::remove_var("XDG_DATA_HOME");
-        }
-
         // With default environment, should resolve via dirs::data_local_dir() or HOME
         let path = get_data_dir();
         assert!(path.is_ok());

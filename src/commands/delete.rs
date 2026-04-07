@@ -97,4 +97,64 @@ mod tests {
         let mut db = Database::default();
         assert!(db.remove("nonexistent").is_none());
     }
+
+    #[test]
+    fn test_database_remove_is_idempotent() {
+        let mut db = Database::default();
+        db.upsert(ProviderEntry::new("test".to_string(), "cipher".to_string()));
+
+        let first = db.remove("test");
+        let second = db.remove("test");
+
+        assert!(first.is_some());
+        assert!(second.is_none());
+    }
+
+    #[test]
+    fn test_database_remove_after_save() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("database.json");
+
+        let mut db = Database::default();
+        db.upsert(ProviderEntry::new("test".to_string(), "cipher".to_string()));
+        db.save_to_path(&db_path).unwrap();
+
+        db.remove("test");
+        db.save_to_path(&db_path).unwrap();
+
+        let loaded = Database::load_from_path(&db_path).unwrap();
+        assert!(!loaded.has_provider("test"));
+        assert!(loaded.is_empty());
+    }
+
+    #[test]
+    fn test_database_remove_multiple_providers() {
+        let mut db = Database::default();
+        db.upsert(ProviderEntry::new("a".to_string(), "1".to_string()));
+        db.upsert(ProviderEntry::new("b".to_string(), "2".to_string()));
+        db.upsert(ProviderEntry::new("c".to_string(), "3".to_string()));
+
+        db.remove("b");
+        assert_eq!(db.len(), 2);
+        assert!(db.has_provider("a"));
+        assert!(!db.has_provider("b"));
+        assert!(db.has_provider("c"));
+
+        db.remove("a");
+        assert_eq!(db.len(), 1);
+        assert!(db.has_provider("c"));
+    }
+
+    #[test]
+    fn test_execute_error_for_nonexistent_provider() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("database.json");
+
+        let db = Database::default();
+        db.save_to_path(&db_path).unwrap();
+
+        let result = execute("nonexistent", true);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), PyxError::ProviderNotFound(_)));
+    }
 }

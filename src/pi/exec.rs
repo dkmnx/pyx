@@ -420,4 +420,143 @@ printf '%s\n' '# bash completion for pyx'
             std::env::remove_var("HOME");
         }
     }
+
+    #[test]
+    fn test_shell_type_from_str_valid() {
+        assert_eq!("bash".parse::<ShellType>().unwrap(), ShellType::Bash);
+        assert_eq!("zsh".parse::<ShellType>().unwrap(), ShellType::Zsh);
+        assert_eq!("fish".parse::<ShellType>().unwrap(), ShellType::Fish);
+        assert_eq!(
+            "powershell".parse::<ShellType>().unwrap(),
+            ShellType::Powershell
+        );
+        assert_eq!("pwsh".parse::<ShellType>().unwrap(), ShellType::Powershell);
+    }
+
+    #[test]
+    fn test_shell_type_from_str_case_insensitive() {
+        assert_eq!("BASH".parse::<ShellType>().unwrap(), ShellType::Bash);
+        assert_eq!("Zsh".parse::<ShellType>().unwrap(), ShellType::Zsh);
+        assert_eq!("FISH".parse::<ShellType>().unwrap(), ShellType::Fish);
+    }
+
+    #[test]
+    fn test_shell_type_from_str_invalid() {
+        assert!("csh".parse::<ShellType>().is_err());
+        assert!("tcsh".parse::<ShellType>().is_err());
+        assert!("invalid".parse::<ShellType>().is_err());
+        assert!("".parse::<ShellType>().is_err());
+    }
+
+    #[test]
+    fn test_shell_type_display() {
+        assert_eq!(ShellType::Bash.to_string(), "bash");
+        assert_eq!(ShellType::Zsh.to_string(), "zsh");
+        assert_eq!(ShellType::Fish.to_string(), "fish");
+        assert_eq!(ShellType::Powershell.to_string(), "powershell");
+    }
+
+    #[test]
+    fn test_shell_type_to_clap_complete_shell() {
+        assert_eq!(
+            ShellType::Bash.to_clap_complete_shell(),
+            clap_complete::Shell::Bash
+        );
+        assert_eq!(
+            ShellType::Zsh.to_clap_complete_shell(),
+            clap_complete::Shell::Zsh
+        );
+        assert_eq!(
+            ShellType::Fish.to_clap_complete_shell(),
+            clap_complete::Shell::Fish
+        );
+        assert_eq!(
+            ShellType::Powershell.to_clap_complete_shell(),
+            clap_complete::Shell::PowerShell
+        );
+    }
+
+    #[test]
+    fn test_completion_script_install_path_bash() {
+        let _guard = ENV_MUTEX.lock().unwrap();
+        let temp = tempdir().unwrap();
+        let home = temp.path().join("home");
+        std::fs::create_dir_all(&home).unwrap();
+        unsafe {
+            std::env::set_var("HOME", &home);
+        }
+        let path = completion_script_install_path(ShellType::Bash).unwrap();
+        assert!(path.to_str().unwrap().contains("bash_completions"));
+        assert!(path.to_str().unwrap().ends_with("pyx.bash"));
+        unsafe {
+            std::env::remove_var("HOME");
+        }
+    }
+
+    #[test]
+    fn test_completion_script_install_path_zsh() {
+        let _guard = ENV_MUTEX.lock().unwrap();
+        let temp = tempdir().unwrap();
+        let home = temp.path().join("home");
+        std::fs::create_dir_all(&home).unwrap();
+        unsafe {
+            std::env::set_var("HOME", &home);
+        }
+        let path = completion_script_install_path(ShellType::Zsh).unwrap();
+        assert!(path.to_str().unwrap().contains(".zsh"));
+        assert!(path.to_str().unwrap().contains("completions"));
+        assert!(path.to_str().unwrap().ends_with("_pyx"));
+        unsafe {
+            std::env::remove_var("HOME");
+        }
+    }
+
+    #[test]
+    fn test_completion_script_install_path_fish() {
+        let _guard = ENV_MUTEX.lock().unwrap();
+        let temp = tempdir().unwrap();
+        let home = temp.path().join("home");
+        std::fs::create_dir_all(&home).unwrap();
+        unsafe {
+            std::env::set_var("HOME", &home);
+        }
+        let path = completion_script_install_path(ShellType::Fish).unwrap();
+        assert!(path.to_str().unwrap().contains("fish"));
+        assert!(path.to_str().unwrap().ends_with("pyx.fish"));
+        unsafe {
+            std::env::remove_var("HOME");
+        }
+    }
+
+    #[test]
+    fn test_completion_script_install_path_powershell() {
+        let _guard = ENV_MUTEX.lock().unwrap();
+        let temp = tempdir().unwrap();
+        let home = temp.path().join("home");
+        std::fs::create_dir_all(&home).unwrap();
+        unsafe {
+            std::env::set_var("HOME", &home);
+        }
+        let path = completion_script_install_path(ShellType::Powershell).unwrap();
+        assert!(path.to_str().unwrap().contains("PowerShell"));
+        assert!(path.to_str().unwrap().ends_with("pyx.ps1"));
+        unsafe {
+            std::env::remove_var("HOME");
+        }
+    }
+
+    #[test]
+    fn test_shell_type_clone_and_copy() {
+        let shell = ShellType::Bash;
+        let cloned = shell;
+        let _copied = shell;
+        assert_eq!(cloned, ShellType::Bash);
+    }
+
+    #[test]
+    fn test_shell_type_equality() {
+        assert_eq!(ShellType::Bash, ShellType::Bash);
+        assert_ne!(ShellType::Bash, ShellType::Zsh);
+        assert_ne!(ShellType::Fish, ShellType::Powershell);
+    }
 }
