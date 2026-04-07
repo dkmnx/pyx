@@ -350,11 +350,8 @@ mod tests {
     #[test]
     fn test_find_pi_returns_option() {
         let result = find_pi();
-        match result {
-            Some(path) => {
-                assert!(!path.is_empty());
-            }
-            None => {}
+        if let Some(path) = result {
+            assert!(!path.is_empty());
         }
     }
 
