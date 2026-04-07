@@ -3,7 +3,11 @@
 //! This module defines the KeyringBackend trait and dispatches to the
 //! platform-specific implementation (Linux, macOS, or Windows).
 
-use std::sync::{Mutex, MutexGuard};
+#[cfg(test)]
+use std::cell::RefCell;
+#[cfg(test)]
+use std::sync::Arc;
+use std::sync::Mutex;
 
 use crate::error::{PyxError, Result};
 
@@ -89,22 +93,23 @@ impl KeyringBackend for UnsupportedKeyring {
     }
 }
 
-static BACKEND: Mutex<Option<Box<dyn KeyringBackend>>> = Mutex::new(None);
-
-fn get_backend() -> MutexGuard<'static, Option<Box<dyn KeyringBackend>>> {
-    BACKEND.lock().unwrap()
+#[cfg(test)]
+thread_local! {
+    static TEST_BACKEND: RefCell<Option<Arc<dyn KeyringBackend>>> = RefCell::new(None);
 }
 
 #[cfg(test)]
 pub fn set_backend(backend: Box<dyn KeyringBackend>) {
-    let mut current = get_backend();
-    *current = Some(backend);
+    TEST_BACKEND.with(|current| {
+        *current.borrow_mut() = Some(Arc::from(backend));
+    });
 }
 
 #[cfg(test)]
 pub fn reset_backend() {
-    let mut current = get_backend();
-    *current = None;
+    TEST_BACKEND.with(|current| {
+        *current.borrow_mut() = None;
+    });
 }
 
 /// Execute a function with the current backend, or the default platform backend.
@@ -112,12 +117,12 @@ pub(super) fn with_backend<F, T>(f: F) -> T
 where
     F: FnOnce(&dyn KeyringBackend) -> T,
 {
-    let guard = get_backend();
-    if let Some(ref backend) = *guard {
-        return f(backend.as_ref());
+    #[cfg(test)]
+    {
+        if let Some(backend) = TEST_BACKEND.with(|current| current.borrow().clone()) {
+            return f(backend.as_ref());
+        }
     }
-
-    drop(guard);
 
     // Dispatch to platform-specific backend
     #[cfg(target_os = "linux")]
