@@ -4,8 +4,11 @@ use crate::crypto::age::{decrypt_with_passphrase, encrypt_with_passphrase};
 use crate::error::{PyxError, Result};
 use crate::keys::keyring;
 use crate::storage::paths::master_key_path;
+use once_cell::sync::Lazy;
 use secrecy::{ExposeSecret, SecretString};
+use std::collections::HashMap;
 use std::fs;
+use std::path::Path;
 use std::sync::Mutex;
 use std::time::Instant;
 use zeroize::Zeroizing;
@@ -20,13 +23,16 @@ struct RateLimitState {
     last_failed_attempt: Option<Instant>,
 }
 
-static RATE_LIMIT: Mutex<RateLimitState> = Mutex::new(RateLimitState {
-    failed_attempts: 0,
-    last_failed_attempt: None,
-});
+static RATE_LIMITS: Lazy<Mutex<HashMap<String, RateLimitState>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
 
-fn check_rate_limit() -> Result<()> {
-    let mut state = RATE_LIMIT.lock().unwrap();
+fn check_rate_limit(path: &Path) -> Result<()> {
+    let key = path.to_string_lossy().into_owned();
+    let mut states = RATE_LIMITS.lock().unwrap();
+    let state = states.entry(key).or_insert_with(|| RateLimitState {
+        failed_attempts: 0,
+        last_failed_attempt: None,
+    });
 
     if state.failed_attempts >= MAX_FAILED_ATTEMPTS {
         if let Some(last) = state.last_failed_attempt {
@@ -45,16 +51,22 @@ fn check_rate_limit() -> Result<()> {
     Ok(())
 }
 
-fn record_failed_attempt() {
-    let mut state = RATE_LIMIT.lock().unwrap();
+fn record_failed_attempt(path: &Path) {
+    let key = path.to_string_lossy().into_owned();
+    let mut states = RATE_LIMITS.lock().unwrap();
+    let state = states.entry(key).or_insert_with(|| RateLimitState {
+        failed_attempts: 0,
+        last_failed_attempt: None,
+    });
+
     state.failed_attempts += 1;
     state.last_failed_attempt = Some(Instant::now());
 }
 
-fn reset_failed_attempts() {
-    let mut state = RATE_LIMIT.lock().unwrap();
-    state.failed_attempts = 0;
-    state.last_failed_attempt = None;
+fn reset_failed_attempts(path: &Path) {
+    let key = path.to_string_lossy().into_owned();
+    let mut states = RATE_LIMITS.lock().unwrap();
+    states.remove(&key);
 }
 
 /// Key manager - holds the decrypted master key
@@ -67,13 +79,12 @@ impl KeyManager {
     /// Matches Go implementation: env var → keyring → legacy "default"
     /// Includes rate limiting for failed decryption attempts.
     pub fn load() -> Result<Self> {
-        check_rate_limit()?;
-
         // Matches Go's getPassphrase priority
         let primary_passphrase = keyring::get_passphrase()?
             .ok_or_else(|| PyxError::Keyring("No passphrase available".to_string()))?;
 
         let path = master_key_path()?;
+        check_rate_limit(&path)?;
         let encrypted_content = fs::read_to_string(&path)
             .map_err(|e| PyxError::Config(format!("Failed to read master.key: {e}")))?;
 
@@ -83,13 +94,13 @@ impl KeyManager {
         // No interactive prompt - matches Go
         let decrypted = decrypt_master_key_with_candidates(&encrypted_content, &passphrases)
             .map_err(|e| {
-                record_failed_attempt();
+                record_failed_attempt(&path);
                 PyxError::Crypto(format!(
                     "Failed to decrypt master key: {e}. Run 'pyx setup' to reconfigure."
                 ))
             })?;
 
-        reset_failed_attempts();
+        reset_failed_attempts(&path);
 
         // Hex encoding avoids binary data issues in storage
         let master_key_hex = hex::encode(&decrypted);
@@ -102,9 +113,8 @@ impl KeyManager {
     /// Load master key using a provided passphrase directly.
     /// Used when passphrase isn't available from keyring/env.
     pub fn load_with_passphrase(passphrase: &SecretString) -> Result<Self> {
-        check_rate_limit()?;
-
         let path = master_key_path()?;
+        check_rate_limit(&path)?;
         let encrypted_content = fs::read_to_string(&path)
             .map_err(|e| PyxError::Config(format!("Failed to read master.key: {e}")))?;
 
@@ -112,11 +122,11 @@ impl KeyManager {
 
         let decrypted = decrypt_master_key_with_candidates(&encrypted_content, &passphrases)
             .map_err(|e| {
-                record_failed_attempt();
+                record_failed_attempt(&path);
                 PyxError::Crypto(format!("Failed to decrypt master key: {e}"))
             })?;
 
-        reset_failed_attempts();
+        reset_failed_attempts(&path);
 
         let master_key_hex = hex::encode(&decrypted);
 
