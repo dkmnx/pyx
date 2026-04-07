@@ -10,7 +10,7 @@ const DEFAULT_TTL_SECONDS: i64 = 24 * 60 * 60;
 
 /// Execute the models command
 pub fn execute(json: bool, refresh: bool, provider: Option<&str>) -> Result<()> {
-    let cache = load_cache_or_error(refresh)?;
+    let cache = load_cache_or_error(refresh, json)?;
 
     if refresh || cache.is_stale(DEFAULT_TTL_SECONDS) {
         return handle_refresh(&cache, json, refresh, provider);
@@ -19,7 +19,7 @@ pub fn execute(json: bool, refresh: bool, provider: Option<&str>) -> Result<()> 
     print_models(&cache, json, provider)
 }
 
-fn load_cache_or_error(refresh: bool) -> Result<ModelsCache> {
+fn load_cache_or_error(refresh: bool, json: bool) -> Result<ModelsCache> {
     match ModelsCache::load() {
         Ok(cache) => Ok(cache),
         Err(PyxError::Config(_)) => {
@@ -28,7 +28,9 @@ fn load_cache_or_error(refresh: bool) -> Result<ModelsCache> {
                     "No models cache found. Run 'pyx models update' first.".to_string(),
                 ))
             } else {
-                println!("No models cache found. Run 'pyx models update' to fetch models.");
+                if !json {
+                    eprintln!("No models cache found. Run 'pyx models update' to fetch models.");
+                }
                 Err(PyxError::Cancelled)
             }
         }
@@ -43,15 +45,17 @@ fn handle_refresh(
     provider: Option<&str>,
 ) -> Result<()> {
     if explicit_refresh {
-        println!("Refreshing models cache...");
-    } else {
-        println!("Cache is stale, fetching updated models...");
+        eprintln!("Refreshing models cache...");
+    } else if !json {
+        eprintln!("Cache is stale, fetching updated models...");
     }
 
     match fetch_models_from_remote() {
         Ok(new_cache) => {
             new_cache.save()?;
-            println!("Models cache updated.");
+            if !json {
+                eprintln!("Models cache updated.");
+            }
             print_models(&new_cache, json, provider)
         }
         Err(e) => {

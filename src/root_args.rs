@@ -22,9 +22,31 @@ pub fn should_use_clap(args: &[String]) -> bool {
         return true;
     }
 
+    // Check if any positional-like argument (before --) is a known subcommand.
+    // This handles cases like: pyx -s abc version -> version is a subcommand
     let command = Cli::command();
-    let is_known_subcommand = command.get_subcommands().any(|sub| sub.get_name() == first);
-    is_known_subcommand
+    for arg in args.iter().take_while(|a| *a != "--") {
+        // Skip flags and their values
+        if arg.starts_with('-') && !arg.starts_with("--") {
+            // Short flag (could be combined like -abc or -a value)
+            continue;
+        }
+        if arg.starts_with("--") && !arg.contains('=') {
+            // Long flag without = value
+            continue;
+        }
+        if arg.starts_with("--") && arg.contains('=') {
+            // Long flag with = value (e.g., --session=abc)
+            continue;
+        }
+
+        // This looks like a positional argument
+        if command.get_subcommands().any(|sub| sub.get_name() == *arg) {
+            return true;
+        }
+    }
+
+    false
 }
 
 /// Parse root invocation arguments with Go-compatible behavior.
@@ -157,5 +179,16 @@ mod tests {
 
         // "add" is not a subcommand - it should be treated as provider name
         assert!(!should_use_clap(&vecs(&["add"])));
+    }
+
+    #[test]
+    fn should_route_subcommand_after_global_flags() {
+        // version after -s flag should route to clap
+        assert!(should_use_clap(&vecs(&["-s", "abc", "version"])));
+        assert!(should_use_clap(&vecs(&["--session", "abc", "list"])));
+        assert!(should_use_clap(&vecs(&["--session=abc", "delete"])));
+
+        // After --, args are pi args, not subcommands
+        assert!(!should_use_clap(&vecs(&["-s", "abc", "--", "list"])));
     }
 }

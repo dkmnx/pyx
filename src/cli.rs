@@ -35,6 +35,10 @@ pub enum Commands {
     Delete {
         /// Provider name to delete
         provider: String,
+
+        /// Skip confirmation prompt
+        #[arg(short = 'y', long)]
+        yes: bool,
     },
 
     /// Manage AI models

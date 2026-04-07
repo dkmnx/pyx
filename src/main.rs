@@ -52,8 +52,8 @@ fn run_subcommand_mode() -> Result<()> {
                 pyx_rs::commands::list::execute()?;
             }
         }
-        Some(Commands::Delete { provider }) => {
-            pyx_rs::commands::delete::execute(&provider)?;
+        Some(Commands::Delete { provider, yes }) => {
+            pyx_rs::commands::delete::execute(&provider, yes)?;
         }
         Some(Commands::Models {
             provider,
