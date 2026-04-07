@@ -62,7 +62,11 @@ pub enum Commands {
     },
 
     /// Reset pyx to initial state
-    Reset,
+    Reset {
+        /// Skip confirmation prompt
+        #[arg(short = 'y', long)]
+        yes: bool,
+    },
 
     /// Install shell completion script
     Completion {

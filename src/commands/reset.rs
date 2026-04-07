@@ -6,6 +6,7 @@ use crate::storage::paths::{
     database_path, master_key_path, models_cache_path, providers_env_path, settings_path,
 };
 use std::fs;
+use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 
 /// Append `.bak` to a path (backup naming convention)
@@ -16,7 +17,7 @@ fn backup_path(path: &Path) -> PathBuf {
 }
 
 /// Execute the reset command
-pub fn execute() -> Result<()> {
+pub fn execute(skip_confirm: bool) -> Result<()> {
     println!("=== Pyx Reset ===");
     println!();
     println!("WARNING: This will permanently delete all pyx data:");
@@ -27,7 +28,7 @@ pub fn execute() -> Result<()> {
     println!();
 
     // Confirm deletion
-    if !confirm_reset()? {
+    if !skip_confirm && !confirm_reset()? {
         println!("Reset cancelled.");
         return Ok(());
     }
@@ -72,6 +73,14 @@ pub fn execute() -> Result<()> {
 }
 
 fn confirm_reset() -> Result<bool> {
+    use std::io::stdin;
+
+    if !stdin().is_terminal() {
+        return Err(PyxError::Validation(
+            "Confirmation requires an interactive terminal. Use --yes to skip.".into(),
+        ));
+    }
+
     use inquire::Confirm;
 
     let confirmed = Confirm::new("Are you sure you want to reset?")

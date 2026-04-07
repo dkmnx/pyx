@@ -76,8 +76,8 @@ fn run_subcommand_mode() -> Result<()> {
                 pyx_rs::commands::pi::execute_status()?;
             }
         },
-        Some(Commands::Reset) => {
-            pyx_rs::commands::reset::execute()?;
+        Some(Commands::Reset { yes }) => {
+            pyx_rs::commands::reset::execute(yes)?;
         }
         Some(Commands::Completion { shell, install }) => {
             if install {

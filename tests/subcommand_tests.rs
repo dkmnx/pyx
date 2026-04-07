@@ -226,7 +226,27 @@ fn reset_subcommand_requires_confirmation() {
     cmd.arg("reset")
         .env("XDG_DATA_HOME", env.xdg_data_str())
         .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
-    cmd.assert().failure();
+    cmd.assert()
+        .failure()
+        .stderr(predicates::str::contains("interactive terminal"));
+}
+
+#[test]
+fn reset_subcommand_with_yes_flag_succeeds() {
+    let temp = tempdir().unwrap();
+    let env = setup_pyx_env(&temp);
+
+    let mut cmd = Command::cargo_bin("pyx").unwrap();
+    cmd.arg("reset")
+        .arg("--yes")
+        .env("XDG_DATA_HOME", env.xdg_data_str())
+        .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
+    cmd.assert()
+        .success()
+        .stdout(predicates::str::contains("Reset complete"));
+
+    // Verify data was actually deleted
+    assert!(!env.data_dir.join("database.json").exists());
 }
 
 #[test]
