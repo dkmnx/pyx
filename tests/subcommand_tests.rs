@@ -107,6 +107,7 @@ fn delete_subcommand_removes_provider() {
     let mut cmd = Command::cargo_bin("pyx").unwrap();
     cmd.arg("delete")
         .arg("openai")
+        .arg("--yes")
         .env("XDG_DATA_HOME", env.xdg_data_str())
         .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
     cmd.assert()

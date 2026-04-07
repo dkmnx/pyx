@@ -197,7 +197,7 @@ fn get_provider_list() -> Result<Vec<String>> {
 fn prompt_provider_selection(providers: &[String], db: &Database) -> Result<String> {
     let provider = match prompt::prompt_provider(providers) {
         Ok(p) => p,
-        Err(PyxError::Validation(msg)) if msg.contains("cancelled") => {
+        Err(PyxError::Cancelled) => {
             println!("\n\nSetup cancelled!");
             return Err(PyxError::Cancelled);
         }

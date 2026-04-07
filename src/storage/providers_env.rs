@@ -89,7 +89,7 @@ impl ProvidersEnvConfig {
         Ok(Some(config))
     }
 
-    /// Save providers.json to disk (uses simple format)
+    /// Save providers.json to disk (merges both formats)
     pub fn save(&self) -> Result<()> {
         let path = providers_env_path()?;
 
@@ -97,7 +97,27 @@ impl ProvidersEnvConfig {
             std::fs::create_dir_all(parent)?;
         }
 
-        let content = serde_json::to_string_pretty(&self.simple_map)?;
+        // Merge simple_map entries into providers array to preserve all data
+        let mut all_providers = self.providers.clone();
+        for (name, env_var) in &self.simple_map {
+            if !all_providers.iter().any(|p| &p.name == name) {
+                all_providers.push(ProviderEnvMapping {
+                    name: name.clone(),
+                    env_var: env_var.clone(),
+                });
+            }
+        }
+
+        // Sort for deterministic output
+        all_providers.sort_by(|a, b| a.name.cmp(&b.name));
+
+        let config = Self {
+            schema_version: 1,
+            providers: all_providers,
+            simple_map: HashMap::new(),
+        };
+
+        let content = serde_json::to_string_pretty(&config)?;
         std::fs::write(&path, content)?;
 
         #[cfg(unix)]

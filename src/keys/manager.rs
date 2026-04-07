@@ -28,7 +28,7 @@ static RATE_LIMITS: Lazy<Mutex<HashMap<String, RateLimitState>>> =
 
 fn check_rate_limit(path: &Path) -> Result<()> {
     let key = path.to_string_lossy().into_owned();
-    let mut states = RATE_LIMITS.lock().unwrap();
+    let mut states = RATE_LIMITS.lock().unwrap_or_else(|e| e.into_inner()); // Recover from poison if it occurs
     let state = states.entry(key).or_insert_with(|| RateLimitState {
         failed_attempts: 0,
         last_failed_attempt: None,
@@ -53,7 +53,7 @@ fn check_rate_limit(path: &Path) -> Result<()> {
 
 fn record_failed_attempt(path: &Path) {
     let key = path.to_string_lossy().into_owned();
-    let mut states = RATE_LIMITS.lock().unwrap();
+    let mut states = RATE_LIMITS.lock().unwrap_or_else(|e| e.into_inner()); // Recover from poison if it occurs
     let state = states.entry(key).or_insert_with(|| RateLimitState {
         failed_attempts: 0,
         last_failed_attempt: None,
@@ -65,7 +65,7 @@ fn record_failed_attempt(path: &Path) {
 
 fn reset_failed_attempts(path: &Path) {
     let key = path.to_string_lossy().into_owned();
-    let mut states = RATE_LIMITS.lock().unwrap();
+    let mut states = RATE_LIMITS.lock().unwrap_or_else(|e| e.into_inner()); // Recover from poison if it occurs
     states.remove(&key);
 }
 

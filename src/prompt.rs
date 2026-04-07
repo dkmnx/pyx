@@ -50,9 +50,7 @@ pub fn prompt_secret(options: SecretPromptOptions) -> Result<String> {
 
 fn inquire_error_to_pyx(err: InquireError) -> PyxError {
     match err {
-        InquireError::OperationCanceled | InquireError::OperationInterrupted => {
-            PyxError::Validation("operation cancelled".to_string())
-        }
+        InquireError::OperationCanceled | InquireError::OperationInterrupted => PyxError::Cancelled,
         _ => PyxError::Validation(format!("Failed to read input: {err}")),
     }
 }
@@ -144,7 +142,7 @@ pub fn prompt_provider(providers: &[String]) -> Result<String> {
     let input = prompt_provider_input(providers)?;
 
     if input.is_empty() {
-        return Err(PyxError::Validation("operation cancelled".to_string()));
+        return Err(PyxError::Cancelled);
     }
 
     resolve_provider_match(providers, &input)
