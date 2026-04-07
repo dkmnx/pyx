@@ -1,5 +1,8 @@
 //! Root command argument parsing helpers.
 
+use clap::CommandFactory;
+
+use crate::cli::Cli;
 use crate::error::{PyxError, Result};
 
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -9,25 +12,19 @@ pub struct RootInvocation {
     pub pi_args: Vec<String>,
 }
 
-const ROOT_SUBCOMMANDS: [&str; 9] = [
-    "setup",
-    "list",
-    "delete",
-    "models",
-    "pi",
-    "reset",
-    "completion",
-    "version",
-    "help",
-];
-
 pub fn should_use_clap(args: &[String]) -> bool {
     if args.is_empty() {
         return false;
     }
 
     let first = args[0].as_str();
-    matches!(first, "-h" | "--help" | "-V" | "--version") || ROOT_SUBCOMMANDS.contains(&first)
+    if matches!(first, "-h" | "--help" | "-V" | "--version") {
+        return true;
+    }
+
+    let command = Cli::command();
+    let is_known_subcommand = command.get_subcommands().any(|sub| sub.get_name() == first);
+    is_known_subcommand
 }
 
 /// Parse root invocation arguments with Go-compatible behavior.
