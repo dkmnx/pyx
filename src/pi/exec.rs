@@ -1,18 +1,19 @@
 //! Execute pi process
 
 use crate::error::{PyxError, Result};
+use clap::ValueEnum;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
 /// Shell type for completion installation
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum ShellType {
     Bash,
     Zsh,
     Fish,
-    PowerShell,
+    Powershell,
 }
 
 impl std::fmt::Display for ShellType {
@@ -21,7 +22,7 @@ impl std::fmt::Display for ShellType {
             ShellType::Bash => write!(f, "bash"),
             ShellType::Zsh => write!(f, "zsh"),
             ShellType::Fish => write!(f, "fish"),
-            ShellType::PowerShell => write!(f, "powershell"),
+            ShellType::Powershell => write!(f, "powershell"),
         }
     }
 }
@@ -34,8 +35,20 @@ impl std::str::FromStr for ShellType {
             "bash" => Ok(ShellType::Bash),
             "zsh" => Ok(ShellType::Zsh),
             "fish" => Ok(ShellType::Fish),
-            "powershell" | "pwsh" => Ok(ShellType::PowerShell),
+            "powershell" | "pwsh" => Ok(ShellType::Powershell),
             _ => Err(PyxError::Validation(format!("Unknown shell type: {s}"))),
+        }
+    }
+}
+
+impl ShellType {
+    /// Convert to clap_complete Shell type
+    pub fn to_clap_complete_shell(&self) -> clap_complete::Shell {
+        match self {
+            ShellType::Bash => clap_complete::Shell::Bash,
+            ShellType::Zsh => clap_complete::Shell::Zsh,
+            ShellType::Fish => clap_complete::Shell::Fish,
+            ShellType::Powershell => clap_complete::Shell::PowerShell,
         }
     }
 }
@@ -224,7 +237,7 @@ pub fn detect_current_shell() -> ShellType {
     }
     #[cfg(windows)]
     {
-        ShellType::PowerShell
+        ShellType::Powershell
     }
     #[cfg(not(any(unix, windows)))]
     {
@@ -245,7 +258,7 @@ pub fn completion_script_install_path(shell: ShellType) -> Result<PathBuf> {
             .join("fish")
             .join("completions")
             .join("pyx.fish"),
-        ShellType::PowerShell => home.join("Documents").join("PowerShell").join("pyx.ps1"),
+        ShellType::Powershell => home.join("Documents").join("PowerShell").join("pyx.ps1"),
     };
 
     Ok(path)
@@ -294,7 +307,7 @@ pub fn install_completion_for_shell(shell: ShellType) -> Result<()> {
             println!();
             println!("  Completions will be loaded automatically in new shell sessions.");
         }
-        ShellType::PowerShell => {
+        ShellType::Powershell => {
             println!();
             println!("  To enable completions for every new session, add to your profile:");
             println!(
@@ -356,7 +369,7 @@ mod tests {
     fn test_detect_current_shell() {
         let shell = detect_current_shell();
         match shell {
-            ShellType::Bash | ShellType::Zsh | ShellType::Fish | ShellType::PowerShell => {}
+            ShellType::Bash | ShellType::Zsh | ShellType::Fish | ShellType::Powershell => {}
         }
     }
 

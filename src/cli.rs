@@ -2,6 +2,8 @@
 
 use clap::{Parser, Subcommand};
 
+pub use crate::pi::exec::ShellType;
+
 #[derive(Parser)]
 #[command(name = "pyx")]
 #[command(author, version, about = "Secure API key management for pi")]
@@ -72,12 +74,13 @@ pub enum Commands {
         yes: bool,
     },
 
-    /// Install shell completion script
+    /// Generate or install shell completion script
     Completion {
         /// Shell type (bash, zsh, fish, powershell)
-        shell: String,
+        #[arg(value_enum)]
+        shell: ShellType,
 
-        /// Install completion script to shell config
+        /// Install completion script to shell config directory
         #[arg(long)]
         install: bool,
     },
