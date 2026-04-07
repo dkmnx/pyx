@@ -10,16 +10,6 @@ path = "src/lib.rs"
 name = "pyx"
 path = "src/main.rs"
 
-[[bin]]
-name = "crypto-spike"
-path = "src/bin/crypto-spike.rs"
-required-features = ["spike"]
-
-[features]
-default = []
-# Enable crypto compatibility spike binary (Phase 0.1 exploratory code)
-spike = []
-
 [dependencies]
 # CLI parsing
 clap = { version = "4.5", features = ["derive", "env"] }
