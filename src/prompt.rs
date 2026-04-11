@@ -8,7 +8,6 @@ pub struct SecretPromptOptions {
     pub helper: Option<String>,
     pub confirmation: Option<(String, String)>,
     pub empty_error: String,
-    pub allow_empty: bool,
 }
 
 pub fn prompt_secret(options: SecretPromptOptions) -> Result<String> {
@@ -17,7 +16,6 @@ pub fn prompt_secret(options: SecretPromptOptions) -> Result<String> {
         helper,
         confirmation,
         empty_error,
-        allow_empty,
     } = options;
 
     if let Some(helper_text) = helper {
@@ -35,13 +33,9 @@ pub fn prompt_secret(options: SecretPromptOptions) -> Result<String> {
         password_prompt = password_prompt.without_confirmation();
     }
 
-    if allow_empty {
-        password_prompt = password_prompt.without_confirmation();
-    }
-
     let value = password_prompt.prompt().map_err(inquire_error_to_pyx)?;
 
-    if !allow_empty && value.is_empty() {
+    if value.is_empty() {
         return Err(PyxError::Validation(empty_error));
     }
 

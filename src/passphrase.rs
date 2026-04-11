@@ -18,7 +18,6 @@ pub fn prompt_new_passphrase() -> Result<SecretString> {
             "Passphrases do not match".to_string(),
         )),
         empty_error: "Passphrase cannot be empty".to_string(),
-        allow_empty: false,
     })?;
 
     Ok(SecretString::new(passphrase.into_boxed_str()))
@@ -35,7 +34,6 @@ pub fn prompt_existing_passphrase(prompt_text: Option<&str>) -> Result<SecretStr
         helper: Some(helper_text),
         confirmation: None,
         empty_error: "Passphrase cannot be empty".to_string(),
-        allow_empty: false,
     })?;
 
     Ok(SecretString::new(passphrase.into_boxed_str()))
