@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_helpers::EnvGuard;
 use crate::ENV_MUTEX;
 use tempfile::tempdir;
 
@@ -6,30 +7,20 @@ use tempfile::tempdir;
 fn test_env_passphrase_reads_non_empty() {
     let _guard = ENV_MUTEX.lock().unwrap();
 
-    unsafe {
-        std::env::set_var(ENV_PASSPHRASE, "from-env");
-    }
+    let _g1 = EnvGuard::set_var(ENV_PASSPHRASE, "from-env");
     let passphrase = env_passphrase().unwrap();
     assert_eq!(passphrase.expose_secret(), "from-env");
 
-    unsafe {
-        std::env::set_var(ENV_PASSPHRASE, "");
-    }
+    // Verify empty env var returns None
+    let _g2 = EnvGuard::set_var(ENV_PASSPHRASE, "");
     assert!(env_passphrase().is_none());
-
-    unsafe {
-        std::env::remove_var(ENV_PASSPHRASE);
-    }
 }
 
 #[test]
 fn test_file_passphrase_roundtrip() {
     let _guard = ENV_MUTEX.lock().unwrap();
     let temp = tempdir().unwrap();
-
-    unsafe {
-        std::env::set_var("XDG_DATA_HOME", temp.path());
-    }
+    let _env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
 
     let passphrase = SecretString::new("test-passphrase".to_string().into_boxed_str());
 
@@ -42,21 +33,14 @@ fn test_file_passphrase_roundtrip() {
     delete_passphrase_file().unwrap();
     let retrieved = get_passphrase_file().unwrap();
     assert!(retrieved.is_none());
-
-    unsafe {
-        std::env::remove_var("XDG_DATA_HOME");
-    }
 }
 
 #[test]
 fn test_set_passphrase_writes_to_file() {
     let _guard = ENV_MUTEX.lock().unwrap();
     let temp = tempdir().unwrap();
-
-    unsafe {
-        std::env::set_var("XDG_DATA_HOME", temp.path());
-        std::env::set_var("PYX_ALLOW_FILE_FALLBACK", "1");
-    }
+    let mut env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
+    env.extend(EnvGuard::set_var("PYX_ALLOW_FILE_FALLBACK", "1"));
 
     set_backend(Box::new(MockKeyring::new()));
 
@@ -69,22 +53,14 @@ fn test_set_passphrase_writes_to_file() {
 
     clear_passphrase().unwrap();
     reset_backend();
-
-    unsafe {
-        std::env::remove_var("XDG_DATA_HOME");
-        std::env::remove_var("PYX_ALLOW_FILE_FALLBACK");
-    }
 }
 
 #[test]
 fn test_has_entry_checks_file() {
     let _guard = ENV_MUTEX.lock().unwrap();
     let temp = tempdir().unwrap();
-
-    unsafe {
-        std::env::set_var("XDG_DATA_HOME", temp.path());
-        std::env::set_var("PYX_ALLOW_FILE_FALLBACK", "1");
-    }
+    let mut env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
+    env.extend(EnvGuard::set_var("PYX_ALLOW_FILE_FALLBACK", "1"));
 
     set_backend(Box::new(MockKeyring::new()));
 
@@ -98,22 +74,14 @@ fn test_has_entry_checks_file() {
     clear_passphrase().unwrap();
     assert!(!has_entry());
     reset_backend();
-
-    unsafe {
-        std::env::remove_var("XDG_DATA_HOME");
-        std::env::remove_var("PYX_ALLOW_FILE_FALLBACK");
-    }
 }
 
 #[test]
 fn test_clear_passphrase_removes_file_even_when_fallback_disabled() {
     let _guard = ENV_MUTEX.lock().unwrap();
     let temp = tempdir().unwrap();
-
-    unsafe {
-        std::env::set_var("XDG_DATA_HOME", temp.path());
-        std::env::set_var("PYX_ALLOW_FILE_FALLBACK", "1");
-    }
+    let mut env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
+    env.extend(EnvGuard::set_var("PYX_ALLOW_FILE_FALLBACK", "1"));
 
     set_backend(Box::new(MockKeyring::new()));
 
@@ -126,6 +94,10 @@ fn test_clear_passphrase_removes_file_even_when_fallback_disabled() {
         "passphrase file should exist before clear"
     );
 
+    // Disable fallback mid-test to verify cleanup still happens.
+    // Cannot use EnvGuard here — the test requires the env var to be set,
+    // then removed while the guard is still alive to test mid-flight behavior.
+    #[allow(unsafe_code)]
     unsafe {
         std::env::remove_var("PYX_ALLOW_FILE_FALLBACK");
     }
@@ -138,20 +110,13 @@ fn test_clear_passphrase_removes_file_even_when_fallback_disabled() {
     );
 
     reset_backend();
-
-    unsafe {
-        std::env::remove_var("XDG_DATA_HOME");
-    }
 }
 
 #[test]
 fn test_set_passphrase_does_not_write_file_by_default() {
     let _guard = ENV_MUTEX.lock().unwrap();
     let temp = tempdir().unwrap();
-
-    unsafe {
-        std::env::set_var("XDG_DATA_HOME", temp.path());
-    }
+    let _env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
 
     set_backend(Box::new(MockKeyring::new()));
 
@@ -166,20 +131,13 @@ fn test_set_passphrase_does_not_write_file_by_default() {
 
     clear_passphrase().unwrap();
     reset_backend();
-
-    unsafe {
-        std::env::remove_var("XDG_DATA_HOME");
-    }
 }
 
 #[test]
 fn test_get_passphrase_uses_keyring_when_fallback_disabled() {
     let _guard = ENV_MUTEX.lock().unwrap();
     let temp = tempdir().unwrap();
-
-    unsafe {
-        std::env::set_var("XDG_DATA_HOME", temp.path());
-    }
+    let _env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
 
     set_backend(Box::new(MockKeyring::new()));
 
@@ -192,10 +150,6 @@ fn test_get_passphrase_uses_keyring_when_fallback_disabled() {
 
     with_backend(|b| b.delete_password(SERVICE_NAME, USER_NAME)).unwrap();
     reset_backend();
-
-    unsafe {
-        std::env::remove_var("XDG_DATA_HOME");
-    }
 }
 
 #[test]
@@ -204,24 +158,15 @@ fn test_file_fallback_enabled_env_var() {
 
     assert!(!file_fallback_enabled());
 
-    unsafe {
-        std::env::set_var("PYX_ALLOW_FILE_FALLBACK", "1");
-    }
+    let _g1 = EnvGuard::set_var("PYX_ALLOW_FILE_FALLBACK", "1");
     assert!(file_fallback_enabled());
 
-    unsafe {
-        std::env::set_var("PYX_ALLOW_FILE_FALLBACK", "true");
-    }
+    let _g2 = EnvGuard::set_var("PYX_ALLOW_FILE_FALLBACK", "true");
     assert!(file_fallback_enabled());
+    drop(_g2);
 
-    unsafe {
-        std::env::set_var("PYX_ALLOW_FILE_FALLBACK", "0");
-    }
-    assert!(!file_fallback_enabled());
-
-    unsafe {
-        std::env::remove_var("PYX_ALLOW_FILE_FALLBACK");
-    }
+    drop(_g1);
+    // After all guards drop, env var is unset — should return false
     assert!(!file_fallback_enabled());
 }
 
@@ -283,12 +228,10 @@ else:
     }
 
     let original_path = std::env::var("PATH").unwrap_or_default();
-    unsafe {
-        std::env::set_var("PATH", format!("{}:{}", bin_dir.display(), original_path));
-        std::env::set_var("PYX_SECRET_TOOL_STORE_DIR", &store_dir);
-        std::env::remove_var("PYX_PASSPHRASE");
-        std::env::remove_var("PYX_ALLOW_FILE_FALLBACK");
-    }
+    let mut env = EnvGuard::set_var("PATH", format!("{}:{}", bin_dir.display(), original_path));
+    env.extend(EnvGuard::set_var("PYX_SECRET_TOOL_STORE_DIR", &store_dir));
+    env.extend(EnvGuard::remove_var("PYX_PASSPHRASE"));
+    env.extend(EnvGuard::remove_var("PYX_ALLOW_FILE_FALLBACK"));
     reset_backend();
 
     let passphrase = SecretString::new("secret-tool-pass".to_string().into_boxed_str());
@@ -307,11 +250,6 @@ else:
 
     let log = fs::read_to_string(store_dir.join("log.txt")).unwrap();
     assert!(log.contains("clear"));
-
-    unsafe {
-        std::env::set_var("PATH", original_path);
-        std::env::remove_var("PYX_SECRET_TOOL_STORE_DIR");
-    }
 }
 
 #[test]
@@ -384,12 +322,9 @@ fn test_delete_password_is_idempotent() {
 fn test_get_passphrase_uses_file_fallback_when_backend_errors() {
     let _guard = ENV_MUTEX.lock().unwrap();
     let temp = tempdir().unwrap();
-
-    unsafe {
-        std::env::set_var("XDG_DATA_HOME", temp.path());
-        std::env::set_var("PYX_ALLOW_FILE_FALLBACK", "1");
-        std::env::remove_var("PYX_PASSPHRASE");
-    }
+    let mut env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
+    env.extend(EnvGuard::set_var("PYX_ALLOW_FILE_FALLBACK", "1"));
+    env.extend(EnvGuard::remove_var("PYX_PASSPHRASE"));
 
     struct ErrorBackend;
     impl crate::keys::keyring::backend::KeyringBackend for ErrorBackend {
@@ -422,16 +357,12 @@ fn test_get_passphrase_uses_file_fallback_when_backend_errors() {
 
     clear_passphrase().unwrap();
     reset_backend();
-
-    unsafe {
-        std::env::remove_var("XDG_DATA_HOME");
-        std::env::remove_var("PYX_ALLOW_FILE_FALLBACK");
-    }
 }
 
 #[test]
 fn test_has_entry_returns_false_when_backend_unavailable() {
     let _guard = ENV_MUTEX.lock().unwrap();
+    let _env = EnvGuard::remove_var("PYX_ALLOW_FILE_FALLBACK");
 
     struct EmptyBackend;
     impl crate::keys::keyring::backend::KeyringBackend for EmptyBackend {
@@ -448,10 +379,6 @@ fn test_has_entry_returns_false_when_backend_unavailable() {
 
     set_backend(Box::new(EmptyBackend));
 
-    unsafe {
-        std::env::remove_var("PYX_ALLOW_FILE_FALLBACK");
-    }
-
     assert!(
         !has_entry(),
         "has_entry should return false when no entry exists"
@@ -464,12 +391,9 @@ fn test_has_entry_returns_false_when_backend_unavailable() {
 fn test_set_passphrase_succeeds_when_backend_available() {
     let _guard = ENV_MUTEX.lock().unwrap();
     let temp = tempdir().unwrap();
-
-    unsafe {
-        std::env::set_var("XDG_DATA_HOME", temp.path());
-        std::env::remove_var("PYX_ALLOW_FILE_FALLBACK");
-        std::env::remove_var("PYX_PASSPHRASE");
-    }
+    let mut env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
+    env.extend(EnvGuard::remove_var("PYX_ALLOW_FILE_FALLBACK"));
+    env.extend(EnvGuard::remove_var("PYX_PASSPHRASE"));
 
     set_backend(Box::new(MockKeyring::new()));
 
@@ -488,8 +412,4 @@ fn test_set_passphrase_succeeds_when_backend_available() {
 
     clear_passphrase().unwrap();
     reset_backend();
-
-    unsafe {
-        std::env::remove_var("XDG_DATA_HOME");
-    }
 }

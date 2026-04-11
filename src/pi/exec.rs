@@ -343,6 +343,7 @@ pub fn platform_info() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_helpers::EnvGuard;
     use crate::ENV_MUTEX;
     use std::fs;
     use tempfile::tempdir;
@@ -390,17 +391,14 @@ printf '%s\n' '# bash completion for pyx'
         let home = temp.path().join("home");
         fs::create_dir_all(&home).unwrap();
 
-        let original_path = std::env::var("PATH").unwrap_or_default();
-        let new_path = if original_path.is_empty() {
+        let mut path_guard = EnvGuard::set_var("HOME", &home);
+        let current_path = std::env::var("PATH").unwrap_or_default();
+        let new_path = if current_path.is_empty() {
             bin_dir.display().to_string()
         } else {
-            format!("{}:{}", bin_dir.display(), original_path)
+            format!("{}:{}", bin_dir.display(), current_path)
         };
-
-        unsafe {
-            std::env::set_var("HOME", &home);
-            std::env::set_var("PATH", new_path);
-        }
+        path_guard.extend(EnvGuard::set_var("PATH", new_path));
 
         install_completion_for_shell(ShellType::Bash).unwrap();
 
@@ -409,11 +407,6 @@ printf '%s\n' '# bash completion for pyx'
         assert!(fs::read_to_string(installed)
             .unwrap()
             .contains("bash completion for pyx"));
-
-        unsafe {
-            std::env::set_var("PATH", original_path);
-            std::env::remove_var("HOME");
-        }
     }
 
     #[test]
@@ -477,15 +470,10 @@ printf '%s\n' '# bash completion for pyx'
         let temp = tempdir().unwrap();
         let home = temp.path().join("home");
         std::fs::create_dir_all(&home).unwrap();
-        unsafe {
-            std::env::set_var("HOME", &home);
-        }
+        let _env = EnvGuard::set_var("HOME", &home);
         let path = completion_script_install_path(ShellType::Bash).unwrap();
         assert!(path.to_str().unwrap().contains("bash_completions"));
         assert!(path.to_str().unwrap().ends_with("pyx.bash"));
-        unsafe {
-            std::env::remove_var("HOME");
-        }
     }
 
     #[test]
@@ -494,16 +482,11 @@ printf '%s\n' '# bash completion for pyx'
         let temp = tempdir().unwrap();
         let home = temp.path().join("home");
         std::fs::create_dir_all(&home).unwrap();
-        unsafe {
-            std::env::set_var("HOME", &home);
-        }
+        let _env = EnvGuard::set_var("HOME", &home);
         let path = completion_script_install_path(ShellType::Zsh).unwrap();
         assert!(path.to_str().unwrap().contains(".zsh"));
         assert!(path.to_str().unwrap().contains("completions"));
         assert!(path.to_str().unwrap().ends_with("_pyx"));
-        unsafe {
-            std::env::remove_var("HOME");
-        }
     }
 
     #[test]
@@ -512,15 +495,10 @@ printf '%s\n' '# bash completion for pyx'
         let temp = tempdir().unwrap();
         let home = temp.path().join("home");
         std::fs::create_dir_all(&home).unwrap();
-        unsafe {
-            std::env::set_var("HOME", &home);
-        }
+        let _env = EnvGuard::set_var("HOME", &home);
         let path = completion_script_install_path(ShellType::Fish).unwrap();
         assert!(path.to_str().unwrap().contains("fish"));
         assert!(path.to_str().unwrap().ends_with("pyx.fish"));
-        unsafe {
-            std::env::remove_var("HOME");
-        }
     }
 
     #[test]
@@ -529,15 +507,10 @@ printf '%s\n' '# bash completion for pyx'
         let temp = tempdir().unwrap();
         let home = temp.path().join("home");
         std::fs::create_dir_all(&home).unwrap();
-        unsafe {
-            std::env::set_var("HOME", &home);
-        }
+        let _env = EnvGuard::set_var("HOME", &home);
         let path = completion_script_install_path(ShellType::Powershell).unwrap();
         assert!(path.to_str().unwrap().contains("PowerShell"));
         assert!(path.to_str().unwrap().ends_with("pyx.ps1"));
-        unsafe {
-            std::env::remove_var("HOME");
-        }
     }
 
     #[test]

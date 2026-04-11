@@ -282,6 +282,7 @@ fn decrypt_master_key_with_candidates(
 mod tests {
     use super::*;
     use crate::keys::keyring::{reset_backend, set_backend, MockKeyring};
+    use crate::test_helpers::EnvGuard;
     use crate::ENV_MUTEX;
 
     #[test]
@@ -299,10 +300,7 @@ mod tests {
     #[test]
     fn test_build_passphrase_candidates_adds_env_only_by_default() {
         let _guard = ENV_MUTEX.lock().unwrap();
-
-        unsafe {
-            std::env::set_var(ENV_PASSPHRASE, "env-pass");
-        }
+        let _env = EnvGuard::set_var(ENV_PASSPHRASE, "env-pass");
 
         let primary = SecretString::new("keyring-pass".to_string().into_boxed_str());
         let candidates = build_passphrase_candidates(&primary);
@@ -311,19 +309,12 @@ mod tests {
         assert_eq!(candidates.len(), 2);
         assert_eq!(candidates[0].expose_secret(), "keyring-pass");
         assert_eq!(candidates[1].expose_secret(), "env-pass");
-
-        unsafe {
-            std::env::remove_var(ENV_PASSPHRASE);
-        }
     }
 
     #[test]
     fn test_build_passphrase_candidates_adds_legacy_when_enabled() {
         let _guard = ENV_MUTEX.lock().unwrap();
-
-        unsafe {
-            std::env::set_var("PYX_ALLOW_LEGACY_PASSPHRASE", "1");
-        }
+        let _env = EnvGuard::set_var("PYX_ALLOW_LEGACY_PASSPHRASE", "1");
 
         let primary = SecretString::new("keyring-pass".to_string().into_boxed_str());
         let candidates = build_passphrase_candidates(&primary);
@@ -333,10 +324,6 @@ mod tests {
         assert_eq!(candidates.len(), 2);
         assert_eq!(candidates[0].expose_secret(), "keyring-pass");
         assert_eq!(candidates[1].expose_secret(), LEGACY_PASSPHRASE);
-
-        unsafe {
-            std::env::remove_var("PYX_ALLOW_LEGACY_PASSPHRASE");
-        }
     }
 
     #[test]
@@ -349,9 +336,7 @@ mod tests {
 
         // Set up test environment
         set_backend(Box::new(MockKeyring::new()));
-        unsafe {
-            std::env::set_var("XDG_DATA_HOME", temp.path());
-        }
+        let _env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
 
         // Generate a new key manager
         let manager = KeyManager::generate().unwrap();
@@ -369,9 +354,6 @@ mod tests {
 
         // Cleanup
         KeyManager::delete_master_key().unwrap();
-        unsafe {
-            std::env::remove_var("XDG_DATA_HOME");
-        }
         reset_backend();
     }
 }

@@ -266,6 +266,7 @@ fn format_time_now() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_helpers::EnvGuard;
     use crate::ENV_MUTEX;
     use std::cell::Cell;
     use tempfile::tempdir;
@@ -275,10 +276,7 @@ mod tests {
     fn fetch_providers_skips_remote_fetch_when_cache_is_fresh() {
         let _guard = ENV_MUTEX.lock().unwrap();
         let temp = tempdir().unwrap();
-
-        unsafe {
-            std::env::set_var("XDG_DATA_HOME", temp.path());
-        }
+        let _env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
 
         let mut cache = ModelsCache::new("v1.0.0");
         cache.upsert_models("openai".to_string(), vec!["gpt-4".to_string()]);
@@ -293,20 +291,13 @@ mod tests {
         .unwrap();
 
         assert!(!called.get());
-
-        unsafe {
-            std::env::remove_var("XDG_DATA_HOME");
-        }
     }
 
     #[test]
     fn fetch_providers_uses_stale_cache_when_refresh_fails() {
         let _guard = ENV_MUTEX.lock().unwrap();
         let temp = tempdir().unwrap();
-
-        unsafe {
-            std::env::set_var("XDG_DATA_HOME", temp.path());
-        }
+        let _env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
 
         let mut cache = ModelsCache::new("v1.0.0");
         cache.upsert_models("openai".to_string(), vec!["gpt-4".to_string()]);
@@ -321,39 +312,25 @@ mod tests {
         .unwrap();
 
         assert!(called.get());
-
-        unsafe {
-            std::env::remove_var("XDG_DATA_HOME");
-        }
     }
 
     #[test]
     fn fetch_providers_errors_when_cache_missing_and_refresh_fails() {
         let _guard = ENV_MUTEX.lock().unwrap();
         let temp = tempdir().unwrap();
-
-        unsafe {
-            std::env::set_var("XDG_DATA_HOME", temp.path());
-        }
+        let _env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
 
         let err = fetch_providers_with(|| Err(PyxError::Network("offline".to_string())))
             .expect_err("missing cache should fail");
 
         assert!(matches!(err, PyxError::Network(_)));
-
-        unsafe {
-            std::env::remove_var("XDG_DATA_HOME");
-        }
     }
 
     #[test]
     fn get_provider_list_includes_custom_providers_without_models_cache() {
         let _guard = ENV_MUTEX.lock().unwrap();
         let temp = tempdir().unwrap();
-
-        unsafe {
-            std::env::set_var("XDG_DATA_HOME", temp.path());
-        }
+        let _env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
 
         let mut config = ProvidersEnvConfig::default();
         config
@@ -366,20 +343,13 @@ mod tests {
 
         let providers = get_provider_list().unwrap();
         assert_eq!(providers, vec!["custom-provider".to_string()]);
-
-        unsafe {
-            std::env::remove_var("XDG_DATA_HOME");
-        }
     }
 
     #[test]
     fn test_has_custom_providers_returns_true_when_configured() {
         let _guard = ENV_MUTEX.lock().unwrap();
         let temp = tempdir().unwrap();
-
-        unsafe {
-            std::env::set_var("XDG_DATA_HOME", temp.path());
-        }
+        let _env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
 
         let mut config = ProvidersEnvConfig::default();
         config
@@ -388,45 +358,27 @@ mod tests {
         config.save().unwrap();
 
         assert!(has_custom_providers().unwrap());
-
-        unsafe {
-            std::env::remove_var("XDG_DATA_HOME");
-        }
     }
 
     #[test]
     fn test_has_custom_providers_returns_false_when_empty() {
         let _guard = ENV_MUTEX.lock().unwrap();
         let temp = tempdir().unwrap();
-
-        unsafe {
-            std::env::set_var("XDG_DATA_HOME", temp.path());
-        }
+        let _env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
 
         let config = ProvidersEnvConfig::default();
         config.save().unwrap();
 
         assert!(!has_custom_providers().unwrap());
-
-        unsafe {
-            std::env::remove_var("XDG_DATA_HOME");
-        }
     }
 
     #[test]
     fn test_has_custom_providers_returns_false_when_no_config() {
         let _guard = ENV_MUTEX.lock().unwrap();
         let temp = tempdir().unwrap();
-
-        unsafe {
-            std::env::set_var("XDG_DATA_HOME", temp.path());
-        }
+        let _env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
 
         assert!(!has_custom_providers().unwrap());
-
-        unsafe {
-            std::env::remove_var("XDG_DATA_HOME");
-        }
     }
 
     #[test]
@@ -473,10 +425,7 @@ mod tests {
     fn test_get_provider_list_deduplicates() {
         let _guard = ENV_MUTEX.lock().unwrap();
         let temp = tempdir().unwrap();
-
-        unsafe {
-            std::env::set_var("XDG_DATA_HOME", temp.path());
-        }
+        let _env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
 
         let mut cache = ModelsCache::new("v1.0.0");
         cache.upsert_models("openai".to_string(), vec!["gpt-4".to_string()]);
@@ -494,9 +443,5 @@ mod tests {
         assert!(providers.contains(&"anthropic".to_string()));
         let openai_count = providers.iter().filter(|p| *p == "openai").count();
         assert_eq!(openai_count, 1);
-
-        unsafe {
-            std::env::remove_var("XDG_DATA_HOME");
-        }
     }
 }
