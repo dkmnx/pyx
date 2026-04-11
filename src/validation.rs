@@ -14,20 +14,14 @@ pub fn validate_keyring_args(service: &str, username: &str) -> Result<(), PyxErr
             "Service and username cannot be empty".to_string(),
         ));
     }
-    // Check for newlines or control characters that could cause CLI injection
-    if service
-        .chars()
-        .any(|c| c.is_control() || c == '\n' || c == '\r' || c == '\0')
-    {
+    // Check for control characters that could cause CLI injection
+    if service.chars().any(|c| c.is_control()) {
         return Err(PyxError::Keyring(format!(
             "Service name contains invalid characters: {:?}",
             service
         )));
     }
-    if username
-        .chars()
-        .any(|c| c.is_control() || c == '\n' || c == '\r' || c == '\0')
-    {
+    if username.chars().any(|c| c.is_control()) {
         return Err(PyxError::Keyring(format!(
             "Username contains invalid characters: {:?}",
             username
