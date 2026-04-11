@@ -31,7 +31,7 @@ pub fn execute(skip_confirm: bool) -> Result<()> {
     // Confirm deletion
     if !skip_confirm && !confirm_reset()? {
         println!("Reset cancelled.");
-        return Ok(());
+        return Err(PyxError::Cancelled);
     }
 
     println!();

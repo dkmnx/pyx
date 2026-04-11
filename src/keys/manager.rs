@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use std::sync::Mutex;
+
 use std::time::Instant;
 use zeroize::Zeroizing;
 
@@ -18,6 +19,11 @@ const ENV_PASSPHRASE: &str = "PYX_PASSPHRASE";
 const MAX_FAILED_ATTEMPTS: u32 = 5;
 const LOCKOUT_DURATION_SECS: u64 = 30;
 
+/// Master key length in bytes (256 bits)
+/// This is used throughout the codebase for consistent key generation
+pub const MASTER_KEY_BYTES: usize = 32;
+
+#[derive(Default)]
 struct RateLimitState {
     failed_attempts: u32,
     last_failed_attempt: Option<Instant>,
@@ -28,7 +34,7 @@ static RATE_LIMITS: Lazy<Mutex<HashMap<String, RateLimitState>>> =
 
 fn check_rate_limit(path: &Path) -> Result<()> {
     let key = path.to_string_lossy().into_owned();
-    let mut states = RATE_LIMITS.lock().unwrap_or_else(|e| e.into_inner()); // Recover from poison if it occurs
+    let mut states = RATE_LIMITS.lock().unwrap_or_else(|e| e.into_inner());
     let state = states.entry(key).or_insert_with(|| RateLimitState {
         failed_attempts: 0,
         last_failed_attempt: None,
@@ -53,19 +59,18 @@ fn check_rate_limit(path: &Path) -> Result<()> {
 
 fn record_failed_attempt(path: &Path) {
     let key = path.to_string_lossy().into_owned();
-    let mut states = RATE_LIMITS.lock().unwrap_or_else(|e| e.into_inner()); // Recover from poison if it occurs
+    let mut states = RATE_LIMITS.lock().unwrap_or_else(|e| e.into_inner());
     let state = states.entry(key).or_insert_with(|| RateLimitState {
         failed_attempts: 0,
         last_failed_attempt: None,
     });
-
     state.failed_attempts += 1;
     state.last_failed_attempt = Some(Instant::now());
 }
 
 fn reset_failed_attempts(path: &Path) {
     let key = path.to_string_lossy().into_owned();
-    let mut states = RATE_LIMITS.lock().unwrap_or_else(|e| e.into_inner()); // Recover from poison if it occurs
+    let mut states = RATE_LIMITS.lock().unwrap_or_else(|e| e.into_inner());
     states.remove(&key);
 }
 
@@ -147,7 +152,7 @@ impl KeyManager {
 
     /// Generate a new random master key
     pub fn generate() -> Result<Self> {
-        let mut key_bytes = vec![0u8; 32];
+        let mut key_bytes = vec![0u8; MASTER_KEY_BYTES];
         getrandom::fill(&mut key_bytes)
             .map_err(|e| PyxError::Crypto(format!("Failed to generate random key: {e}")))?;
 
