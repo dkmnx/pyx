@@ -9,6 +9,6 @@ pub fn execute_status() -> Result<()> {
 }
 
 /// Execute pi install command
-pub fn execute_install() -> Result<()> {
-    exec::install_pi_with_prompt()
+pub fn execute_install(force: bool) -> Result<()> {
+    exec::install_pi_with_prompt(force)
 }

@@ -69,8 +69,8 @@ fn run_subcommand_mode() -> Result<()> {
             }
         },
         Some(Commands::Pi { action }) => match action {
-            Some(PiCommands::Install) => {
-                pyx_rs::commands::pi::execute_install()?;
+            Some(PiCommands::Install { force }) => {
+                pyx_rs::commands::pi::execute_install(*force)?;
             }
             None => {
                 pyx_rs::commands::pi::execute_status()?;

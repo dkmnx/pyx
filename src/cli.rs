@@ -126,7 +126,11 @@ pub enum ModelsCommands {
 #[derive(Subcommand)]
 pub enum PiCommands {
     /// Install pi if not already installed
-    Install,
+    Install {
+        /// Reinstall even if already installed
+        #[arg(long)]
+        force: bool,
+    },
 }
 
 impl Cli {

@@ -83,8 +83,8 @@ pub fn spawn_pi(env_vars: &[(String, String)], args: &[String]) -> Result<i32> {
 }
 
 /// Install pi with package manager prompt (auto-selects if only one PM found)
-pub fn install_pi_with_prompt() -> Result<()> {
-    if find_pi().is_some() {
+pub fn install_pi_with_prompt(force: bool) -> Result<()> {
+    if !force && find_pi().is_some() {
         println!("pi is already installed.");
         if let Ok(version) = get_pi_version() {
             println!("pi version: {version}");
@@ -114,12 +114,12 @@ pub fn install_pi_with_prompt() -> Result<()> {
         choice
     };
 
-    install_pi_impl(Some(&pm))
+    install_pi_impl(Some(&pm), force)
 }
 
 /// Install pi with optional specific package manager
-fn install_pi_impl(pm_override: Option<&str>) -> Result<()> {
-    if find_pi().is_some() {
+fn install_pi_impl(pm_override: Option<&str>, force: bool) -> Result<()> {
+    if !force && find_pi().is_some() {
         println!("pi is already installed.");
         if let Ok(version) = get_pi_version() {
             println!("pi version: {version}");
@@ -168,7 +168,7 @@ fn detect_package_manager() -> Result<String> {
 
 /// Install pi if not already installed (auto-detect package manager)
 pub fn install_pi() -> Result<()> {
-    install_pi_with_prompt()
+    install_pi_with_prompt(false)
 }
 
 /// Check pi version
