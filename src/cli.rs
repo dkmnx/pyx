@@ -10,9 +10,9 @@ pub use crate::pi::exec::ShellType;
 /// includes it — no manual sync required.
 pub fn get_subcommand_names() -> &'static [&'static str] {
     use clap::CommandFactory;
-    use once_cell::sync::Lazy;
+    use std::sync::LazyLock;
 
-    static NAMES: Lazy<Vec<&'static str>> = Lazy::new(|| {
+    static NAMES: LazyLock<Vec<&'static str>> = LazyLock::new(|| {
         let cmd = Cli::command();
         let mut names: Vec<String> = cmd
             .get_subcommands()

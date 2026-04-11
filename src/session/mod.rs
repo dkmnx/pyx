@@ -1,11 +1,11 @@
 //! Session hint management
 
 use crate::error::{PyxError, Result};
-use once_cell::sync::Lazy;
 use regex::Regex;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 
-static SESSION_FILENAME_PATTERN: Lazy<Regex> = Lazy::new(|| {
+static SESSION_FILENAME_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"^(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z)_([[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12})\.jsonl$",
     )

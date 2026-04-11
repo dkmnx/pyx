@@ -3,14 +3,13 @@
 use crate::error::{PyxError, Result};
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
+use std::sync::LazyLock;
 
-static PROVIDER_FIELD_PATTERN: once_cell::sync::Lazy<Regex> = once_cell::sync::Lazy::new(|| {
-    Regex::new(r#"provider:\s*\"([^\"]+)\""#).expect("valid provider regex")
-});
-static MODEL_ID_PATTERN: once_cell::sync::Lazy<Regex> = once_cell::sync::Lazy::new(|| {
-    Regex::new(r#"id:\s*\"([^\"]+)\""#).expect("valid model id regex")
-});
-static PROVIDER_SECTION_PATTERN: once_cell::sync::Lazy<Regex> = once_cell::sync::Lazy::new(|| {
+static PROVIDER_FIELD_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"provider:\s*\"([^\"]+)\""#).expect("valid provider regex"));
+static MODEL_ID_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"id:\s*\"([^\"]+)\""#).expect("valid model id regex"));
+static PROVIDER_SECTION_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"^\"([a-z][a-z0-9-]*)\":\s*\{\s*$"#).expect("valid provider section regex")
 });
 

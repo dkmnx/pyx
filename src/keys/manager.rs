@@ -4,11 +4,11 @@ use crate::crypto::age::{decrypt_with_passphrase, encrypt_with_passphrase};
 use crate::error::{PyxError, Result};
 use crate::keys::keyring;
 use crate::storage::paths::master_key_path;
-use once_cell::sync::Lazy;
 use secrecy::{ExposeSecret, SecretString};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+use std::sync::LazyLock;
 use std::sync::Mutex;
 
 use std::time::Instant;
@@ -29,8 +29,8 @@ struct RateLimitState {
     last_failed_attempt: Option<Instant>,
 }
 
-static RATE_LIMITS: Lazy<Mutex<HashMap<String, RateLimitState>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
+static RATE_LIMITS: LazyLock<Mutex<HashMap<String, RateLimitState>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 fn check_rate_limit(path: &Path) -> Result<()> {
     let key = path.to_string_lossy().into_owned();
