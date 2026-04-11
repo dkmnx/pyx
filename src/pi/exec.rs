@@ -371,6 +371,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn test_install_completion_for_shell_writes_generated_script() {
         let _guard = ENV_MUTEX.lock().unwrap();
         let temp = tempdir().unwrap();
@@ -383,11 +384,8 @@ printf '%s\n' '# bash completion for pyx'
 "#;
         fs::write(&fake_pyx, script).unwrap();
 
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            fs::set_permissions(&fake_pyx, fs::Permissions::from_mode(0o755)).unwrap();
-        }
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&fake_pyx, fs::Permissions::from_mode(0o755)).unwrap();
 
         let home = temp.path().join("home");
         fs::create_dir_all(&home).unwrap();

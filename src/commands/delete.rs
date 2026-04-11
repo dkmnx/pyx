@@ -59,6 +59,8 @@ fn stdin() -> std::io::Stdin {
 mod tests {
     use super::*;
     use crate::storage::database::ProviderEntry;
+    use crate::test_helpers::EnvGuard;
+    use crate::ENV_MUTEX;
     use tempfile::tempdir;
 
     #[test]
@@ -147,11 +149,17 @@ mod tests {
 
     #[test]
     fn test_execute_error_for_nonexistent_provider() {
+        let _guard = ENV_MUTEX.lock().unwrap();
         let dir = tempdir().unwrap();
-        let db_path = dir.path().join("database.json");
 
-        let db = Database::default();
-        db.save_to_path(&db_path).unwrap();
+        let _env = EnvGuard::set_var("XDG_DATA_HOME", dir.path());
+
+        let mut db = Database::default();
+        db.upsert(ProviderEntry::new(
+            "existing".to_string(),
+            "cipher".to_string(),
+        ));
+        db.save().unwrap();
 
         let result = execute("nonexistent", true);
         assert!(result.is_err());

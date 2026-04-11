@@ -120,7 +120,10 @@ mod tests {
         let _guard = EnvGuard::remove_var("XDG_DATA_HOME");
         let _guard = EnvGuard::set_var("HOME", "/test/home");
         let path = get_data_dir().unwrap();
-        assert_eq!(path, PathBuf::from("/test/home/.local/share/pyx"));
+        // macOS resolves dirs::data_local_dir() to ~/Library/Application Support before HOME fallback
+        let expected_macos = PathBuf::from("/test/home/Library/Application Support/pyx");
+        let expected_generic = PathBuf::from("/test/home/.local/share/pyx");
+        assert!(path == expected_macos || path == expected_generic);
     }
 
     #[test]
