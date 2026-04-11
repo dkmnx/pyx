@@ -5,14 +5,11 @@ use crate::models::fetch::fetch_models_from_remote;
 use crate::storage::models_cache::ModelsCache;
 use std::collections::BTreeMap;
 
-/// Default cache TTL in seconds (24 hours)
-const DEFAULT_TTL_SECONDS: i64 = 24 * 60 * 60;
-
 /// Execute the models command
 pub fn execute(json: bool, refresh: bool, provider: Option<&str>) -> Result<()> {
     let cache = load_cache_or_error(refresh, json)?;
 
-    if refresh || cache.is_stale(DEFAULT_TTL_SECONDS) {
+    if refresh || cache.is_stale_default() {
         return handle_refresh(&cache, json, refresh, provider);
     }
 
