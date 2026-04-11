@@ -233,6 +233,41 @@ mod tests {
     }
 
     #[test]
+    fn test_decrypt_api_key_master_key_success() {
+        let key = [7u8; 32];
+        let plaintext = b"sk-test-api-key";
+        let cipher = encrypt_with_key(plaintext, &key).unwrap();
+
+        let result = decrypt_api_key(&cipher, &key).unwrap();
+        assert_eq!(result, "sk-test-api-key");
+    }
+
+    #[test]
+    fn test_decrypt_api_key_both_paths_fail() {
+        let _guard = crate::ENV_MUTEX.lock().unwrap();
+
+        // PYX_PASSPHRASE ensures get_passphrase() returns immediately without
+        // hitting the OS keyring (which would hang on systems without secret-tool).
+        // This dependency relies on get_passphrase()'s env-var-first priority.
+        let _scrypt_guard = crate::test_helpers::EnvGuard::set_var("PYX_SCRYPT_WORK_FACTOR", "14");
+        let _pass_guard =
+            crate::test_helpers::EnvGuard::set_var("PYX_PASSPHRASE", "wrong-passphrase");
+
+        let master_key = [0u8; 32];
+        let wrong_key = [1u8; 32];
+        let plaintext = b"secret";
+
+        // Encrypt with wrong key so master key decryption fails
+        let cipher = encrypt_with_key(plaintext, &wrong_key).unwrap();
+
+        // Passphrase is wrong too, so fallback also fails
+        let result = decrypt_api_key(&cipher, &master_key);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, PyxError::Crypto(_)));
+    }
+
+    #[test]
     fn test_decrypt_api_key_rejects_invalid_utf8() {
         let key = [7u8; 32];
         let cipher = encrypt_with_key(&[0xff, 0xfe, 0xfd], &key).unwrap();
