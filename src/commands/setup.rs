@@ -13,7 +13,7 @@ use crate::storage::paths::database_path;
 use crate::storage::paths::ensure_data_dir;
 use crate::storage::providers_env::ProvidersEnvConfig;
 use std::collections::HashSet;
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::time::Instant;
 
 fn load_or_create_database() -> Result<Database> {
     let path = database_path()?;
@@ -225,7 +225,6 @@ fn prompt_api_key(provider: &str) -> Result<String> {
         helper: Some(format!("Enter API key for {provider} (input is hidden):")),
         confirmation: None,
         empty_error: "API key cannot be empty".to_string(),
-        allow_empty: false,
     })?;
 
     Ok(api_key)
@@ -252,15 +251,15 @@ fn store_provider_entry(
     Ok(is_update)
 }
 
+static TIME_FORMAT: std::sync::LazyLock<Vec<time::format_description::FormatItem<'static>>> =
+    std::sync::LazyLock::new(|| {
+        time::format_description::parse("[hour]:[minute]:[second] UTC").expect("valid time format")
+    });
+
 fn format_time_now() -> String {
-    let duration = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default();
-    let secs = duration.as_secs();
-    let hours = (secs % 86400) / 3600;
-    let mins = (secs % 3600) / 60;
-    let secs = secs % 60;
-    format!("{hours:02}:{mins:02}:{secs:02} UTC")
+    let now = time::OffsetDateTime::now_utc();
+    now.format(&TIME_FORMAT)
+        .expect("formatting UTC time should not fail")
 }
 
 #[cfg(test)]
