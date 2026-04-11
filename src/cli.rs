@@ -59,8 +59,8 @@ pub enum Commands {
 
     /// Delete a provider configuration
     Delete {
-        /// Provider name to delete
-        provider: String,
+        /// Provider name to delete (prompts interactively if omitted)
+        provider: Option<String>,
 
         /// Skip confirmation prompt
         #[arg(short = 'y', long)]

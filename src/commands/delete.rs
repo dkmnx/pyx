@@ -4,21 +4,32 @@ use crate::error::{PyxError, Result};
 use crate::storage::database::Database;
 
 /// Execute the delete command
-pub fn execute(provider_name: &str, skip_confirm: bool) -> Result<()> {
+pub fn execute(provider_name: Option<&str>, skip_confirm: bool) -> Result<()> {
     let mut db = Database::load_or_error()?;
 
-    if !db.has_provider(provider_name) {
+    if db.is_empty() {
+        return Err(PyxError::Config(
+            "No providers configured. Run 'pyx setup' to add a provider.".to_string(),
+        ));
+    }
+
+    let provider_name = match provider_name {
+        Some(name) => name.to_owned(),
+        None => prompt_provider_selection(&db)?,
+    };
+
+    if !db.has_provider(&provider_name) {
         return Err(PyxError::ProviderNotFound(format!(
             "Provider '{provider_name}' not found. Run 'pyx list' to see configured providers."
         )));
     }
 
-    if !skip_confirm && !confirm_delete(provider_name)? {
+    if !skip_confirm && !confirm_delete(&provider_name)? {
         println!("Delete cancelled.");
         return Ok(());
     }
 
-    let removed = db.remove(provider_name).ok_or_else(|| {
+    let removed = db.remove(&provider_name).ok_or_else(|| {
         PyxError::ProviderNotFound(format!(
             "Provider '{provider_name}' not found. Run 'pyx list' to see configured providers."
         ))
@@ -29,6 +40,24 @@ pub fn execute(provider_name: &str, skip_confirm: bool) -> Result<()> {
     println!("✓ Removed provider: {}", removed.provider);
 
     Ok(())
+}
+
+fn prompt_provider_selection(db: &Database) -> Result<String> {
+    use std::io::IsTerminal;
+
+    if !stdin().is_terminal() {
+        return Err(PyxError::Validation(
+            "No provider specified. Pass a provider name or run in an interactive terminal.".into(),
+        ));
+    }
+
+    let providers = db
+        .get_provider_names()
+        .into_iter()
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+
+    crate::prompt::prompt_provider(&providers)
 }
 
 fn confirm_delete(provider_name: &str) -> Result<bool> {
@@ -148,21 +177,61 @@ mod tests {
     }
 
     #[test]
-    fn test_execute_error_for_nonexistent_provider() {
-        let _guard = ENV_MUTEX.lock().unwrap();
+    fn test_execute_error_for_empty_database() {
+        let _guard = crate::ENV_MUTEX.lock().unwrap();
         let dir = tempdir().unwrap();
+        let _env = crate::test_helpers::EnvGuard::set_var(
+            "XDG_DATA_HOME",
+            dir.path().to_string_lossy().to_string(),
+        );
 
-        let _env = EnvGuard::set_var("XDG_DATA_HOME", dir.path());
+        let result = execute(Some("nonexistent"), true);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), PyxError::Config(_)));
+    }
+
+    #[test]
+    fn test_execute_error_for_nonexistent_provider() {
+        let _guard = crate::ENV_MUTEX.lock().unwrap();
+        let dir = tempdir().unwrap();
+        let _env = crate::test_helpers::EnvGuard::set_var(
+            "XDG_DATA_HOME",
+            dir.path().to_string_lossy().to_string(),
+        );
+
+        let db_path = dir.path().join("pyx").join("database.json");
+        std::fs::create_dir_all(db_path.parent().unwrap()).unwrap();
 
         let mut db = Database::default();
         db.upsert(ProviderEntry::new(
-            "existing".to_string(),
+            "other".to_string(),
             "cipher".to_string(),
         ));
-        db.save().unwrap();
+        db.save_to_path(&db_path).unwrap();
 
-        let result = execute("nonexistent", true);
+        let result = execute(Some("nonexistent"), true);
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), PyxError::ProviderNotFound(_)));
+    }
+
+    #[test]
+    fn test_execute_no_provider_non_terminal_is_error() {
+        let _guard = crate::ENV_MUTEX.lock().unwrap();
+        let dir = tempdir().unwrap();
+        let _env = crate::test_helpers::EnvGuard::set_var(
+            "XDG_DATA_HOME",
+            dir.path().to_string_lossy().to_string(),
+        );
+
+        let db_path = dir.path().join("pyx").join("database.json");
+        std::fs::create_dir_all(db_path.parent().unwrap()).unwrap();
+
+        let mut db = Database::default();
+        db.upsert(ProviderEntry::new("test".to_string(), "cipher".to_string()));
+        db.save_to_path(&db_path).unwrap();
+
+        // execute(None, ...) should fail when there's no terminal
+        let result = execute(None, true);
+        assert!(result.is_err());
     }
 }
