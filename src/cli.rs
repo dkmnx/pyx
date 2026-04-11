@@ -4,18 +4,29 @@ use clap::{Parser, Subcommand};
 
 pub use crate::pi::exec::ShellType;
 
-/// Subcommand names for routing logic in `should_use_clap`.
-/// Keep in sync with `Commands` enum.
-pub const SUBCOMMAND_NAMES: &[&str] = &[
-    "setup",
-    "list",
-    "delete",
-    "models",
-    "pi",
-    "reset",
-    "completion",
-    "version",
-];
+/// Returns the complete list of subcommand names derived from the Commands enum.
+/// Used by routing logic in `should_use_clap` to determine when to delegate to clap.
+/// This is generated dynamically so adding a new subcommand variant automatically
+/// includes it — no manual sync required.
+pub fn get_subcommand_names() -> &'static [&'static str] {
+    use clap::CommandFactory;
+    use once_cell::sync::Lazy;
+
+    static NAMES: Lazy<Vec<&'static str>> = Lazy::new(|| {
+        let cmd = Cli::command();
+        let mut names: Vec<String> = cmd
+            .get_subcommands()
+            .map(|sub| sub.get_name().to_string())
+            .collect();
+        names.sort();
+        names
+            .into_iter()
+            .map(|s| &*Box::leak(s.into_boxed_str()))
+            .collect()
+    });
+
+    &NAMES
+}
 
 #[derive(Parser)]
 #[command(name = "pyx")]
@@ -136,5 +147,26 @@ impl Cli {
     pub fn clap_command() -> clap::Command {
         use clap::CommandFactory;
         Self::command()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn subcommand_names_includes_all_variants() {
+        let names = get_subcommand_names();
+        let expected = [
+            "completion",
+            "delete",
+            "list",
+            "models",
+            "pi",
+            "reset",
+            "setup",
+            "version",
+        ];
+        assert_eq!(names, expected);
     }
 }

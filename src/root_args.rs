@@ -1,6 +1,6 @@
 //! Root command argument parsing helpers.
 
-use crate::cli::SUBCOMMAND_NAMES;
+use crate::cli::get_subcommand_names;
 use crate::error::{PyxError, Result};
 
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -35,7 +35,7 @@ pub fn should_use_clap(args: &[String]) -> bool {
         }
 
         // This looks like a positional argument
-        if SUBCOMMAND_NAMES.contains(&arg.as_str()) {
+        if get_subcommand_names().contains(&arg.as_str()) {
             return true;
         }
     }
