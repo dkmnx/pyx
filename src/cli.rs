@@ -41,6 +41,14 @@ pub struct Cli {
     #[arg(short = 's', long = "session")]
     session: Option<String>,
 
+    /// Continue the previous session
+    #[arg(short = 'c', long = "continue", conflicts_with = "session")]
+    continue_session: bool,
+
+    /// Interactively select a session to resume
+    #[arg(short = 'r', long = "resume", conflicts_with_all = ["session", "continue_session"])]
+    resume_session: bool,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -140,6 +148,14 @@ impl Cli {
 
     pub fn session(&self) -> Option<&str> {
         self.session.as_deref()
+    }
+
+    pub fn continue_session(&self) -> bool {
+        self.continue_session
+    }
+
+    pub fn resume_session(&self) -> bool {
+        self.resume_session
     }
 
     pub fn parsed_command(&self) -> Option<&Commands> {

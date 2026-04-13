@@ -88,8 +88,6 @@ fn stdin() -> std::io::Stdin {
 mod tests {
     use super::*;
     use crate::storage::database::ProviderEntry;
-    use crate::test_helpers::EnvGuard;
-    use crate::ENV_MUTEX;
     use tempfile::tempdir;
 
     #[test]

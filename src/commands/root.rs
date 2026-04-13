@@ -15,7 +15,13 @@ use crate::storage::database::Database;
 use std::collections::BTreeMap;
 
 /// Execute the root command (run pi with providers)
-pub fn execute(provider: Option<&str>, session: Option<&str>, pi_args: &[String]) -> Result<i32> {
+pub fn execute(
+    provider: Option<&str>,
+    session: Option<&str>,
+    continue_session: bool,
+    resume_session: bool,
+    pi_args: &[String],
+) -> Result<i32> {
     if !KeyManager::master_key_exists() {
         return Err(PyxError::Config(
             "Pyx not initialized. Run 'pyx setup' first.".to_string(),
@@ -39,11 +45,7 @@ pub fn execute(provider: Option<&str>, session: Option<&str>, pi_args: &[String]
     let providers_to_use = determine_providers(provider, &db)?;
     let env_vars = build_provider_env_vars(&db, &providers_to_use)?;
 
-    let mut args = pi_args.to_vec();
-    if let Some(session_id) = session {
-        args.push("--session".to_string());
-        args.push(session_id.to_string());
-    }
+    let args = build_pi_args(pi_args, session, continue_session, resume_session);
 
     let exit_code = spawn_pi(&env_vars, &args)?;
 
@@ -160,29 +162,33 @@ fn determine_providers(provider_arg: Option<&str>, db: &Database) -> Result<Vec<
     }
 }
 
+fn build_pi_args(
+    pi_args: &[String],
+    session: Option<&str>,
+    continue_session: bool,
+    resume_session: bool,
+) -> Vec<String> {
+    let mut args = pi_args.to_vec();
+    if let Some(session_id) = session {
+        args.push("--session".to_string());
+        args.push(session_id.to_string());
+    }
+    if continue_session {
+        args.push("--continue".to_string());
+    }
+    if resume_session {
+        args.push("--resume".to_string());
+    }
+    args
+}
+
 fn display_session_hint() {
-    let Ok(cwd) = std::env::current_dir() else {
-        return;
-    };
-
-    let Some(cwd_str) = cwd.to_str() else {
-        return;
-    };
-
-    let Ok(session_dir) = crate::session::dir_for_cwd(cwd_str) else {
-        return;
-    };
-
-    let Ok(Some(uuid)) = crate::session::find_most_recent_session(&session_dir) else {
-        return;
-    };
-
     eprintln!("  ██████  ██");
     eprintln!(
         "  ██  ██  ██    {}",
         "To continue this session, run:".white().dimmed()
     );
-    eprintln!("  ████  ██  ██  {}", format!("pyx -s {uuid}").yellow());
+    eprintln!("  ████  ██  ██  {}", "pyx -c".yellow());
     eprintln!("  ██    ██  ██\n");
 }
 
@@ -274,5 +280,49 @@ mod tests {
 
         let err = decrypt_api_key(&cipher, &key).expect_err("invalid utf-8 should fail");
         assert!(matches!(err, PyxError::Crypto(_)));
+    }
+
+    fn s(val: &str) -> String {
+        val.to_string()
+    }
+
+    #[test]
+    fn test_build_pi_args_no_session() {
+        let args = build_pi_args(&[s("--model"), s("gpt-4")], None, false, false);
+        assert_eq!(args, &[s("--model"), s("gpt-4")]);
+    }
+
+    #[test]
+    fn test_build_pi_args_with_session() {
+        let args = build_pi_args(&[s("--model"), s("gpt-4")], Some("abc-123"), false, false);
+        assert_eq!(
+            args,
+            &[s("--model"), s("gpt-4"), s("--session"), s("abc-123")]
+        );
+    }
+
+    #[test]
+    fn test_build_pi_args_continue() {
+        let args = build_pi_args(&[s("--model"), s("gpt-4")], None, true, false);
+        assert_eq!(args, &[s("--model"), s("gpt-4"), s("--continue")]);
+    }
+
+    #[test]
+    fn test_build_pi_args_resume() {
+        let args = build_pi_args(&[s("--model"), s("gpt-4")], None, false, true);
+        assert_eq!(args, &[s("--model"), s("gpt-4"), s("--resume")]);
+    }
+
+    #[test]
+    fn test_build_pi_args_with_session_and_provider() {
+        let args = build_pi_args(&[s("--model"), s("gpt-4")], Some("abc-123"), false, false);
+        assert!(args.contains(&s("--session")));
+        assert!(args.contains(&s("abc-123")));
+    }
+
+    #[test]
+    fn test_build_pi_args_empty_pi_args() {
+        let args = build_pi_args(&[], None, true, false);
+        assert_eq!(args, &[s("--continue")]);
     }
 }

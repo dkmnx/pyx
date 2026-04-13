@@ -7,6 +7,8 @@ use crate::error::{PyxError, Result};
 pub struct RootInvocation {
     pub provider: Option<String>,
     pub session: Option<String>,
+    pub continue_session: bool,
+    pub resume_session: bool,
     pub pi_args: Vec<String>,
 }
 
@@ -21,9 +23,7 @@ pub fn should_use_clap(args: &[String]) -> bool {
     }
 
     // Check if any positional-like argument (before --) is a known subcommand.
-    // This handles cases like: pyx -s abc version -> version is a subcommand
     for arg in args.iter().take_while(|a| *a != "--") {
-        // Skip flags and their values
         if arg.starts_with('-') && !arg.starts_with("--") {
             continue;
         }
@@ -34,7 +34,6 @@ pub fn should_use_clap(args: &[String]) -> bool {
             continue;
         }
 
-        // This looks like a positional argument
         if get_subcommand_names().contains(&arg.as_str()) {
             return true;
         }
@@ -45,11 +44,13 @@ pub fn should_use_clap(args: &[String]) -> bool {
 
 /// Parse root invocation arguments with Go-compatible behavior.
 ///
-/// - Supports pyx-level `-s/--session` extraction.
+/// - Supports pyx-level `-s/--session`, `-c/--continue`, `-r/--resume` extraction.
 /// - First positional (when not starting with '-') is treated as provider.
 /// - Remaining args are forwarded to pi.
 pub fn parse_root_invocation(args: &[String]) -> Result<RootInvocation> {
     let mut session: Option<String> = None;
+    let mut continue_session = false;
+    let mut resume_session = false;
     let mut filtered: Vec<String> = Vec::new();
 
     let mut i = 0;
@@ -76,8 +77,36 @@ pub fn parse_root_invocation(args: &[String]) -> Result<RootInvocation> {
             continue;
         }
 
+        if arg == "-c" || arg == "--continue" {
+            continue_session = true;
+            i += 1;
+            continue;
+        }
+
+        if arg == "-r" || arg == "--resume" {
+            resume_session = true;
+            i += 1;
+            continue;
+        }
+
         filtered.push(arg.clone());
         i += 1;
+    }
+
+    if continue_session && session.is_some() {
+        return Err(PyxError::Validation(
+            "Cannot use both --continue and --session".to_string(),
+        ));
+    }
+    if resume_session && session.is_some() {
+        return Err(PyxError::Validation(
+            "Cannot use both --resume and --session".to_string(),
+        ));
+    }
+    if continue_session && resume_session {
+        return Err(PyxError::Validation(
+            "Cannot use both --continue and --resume".to_string(),
+        ));
     }
 
     // Match Go parseArgs behavior for provider/pi args split.
@@ -92,6 +121,8 @@ pub fn parse_root_invocation(args: &[String]) -> Result<RootInvocation> {
             return Ok(RootInvocation {
                 provider,
                 session,
+                continue_session,
+                resume_session,
                 pi_args,
             });
         }
@@ -101,6 +132,8 @@ pub fn parse_root_invocation(args: &[String]) -> Result<RootInvocation> {
         return Ok(RootInvocation {
             provider: None,
             session,
+            continue_session,
+            resume_session,
             pi_args: Vec::new(),
         });
     }
@@ -109,6 +142,8 @@ pub fn parse_root_invocation(args: &[String]) -> Result<RootInvocation> {
         return Ok(RootInvocation {
             provider: None,
             session,
+            continue_session,
+            resume_session,
             pi_args: filtered,
         });
     }
@@ -116,6 +151,8 @@ pub fn parse_root_invocation(args: &[String]) -> Result<RootInvocation> {
     Ok(RootInvocation {
         provider: Some(filtered[0].clone()),
         session,
+        continue_session,
+        resume_session,
         pi_args: filtered[1..].to_vec(),
     })
 }
@@ -166,23 +203,85 @@ mod tests {
     }
 
     #[test]
+    fn parse_continue_flag() {
+        let args = vecs(&["-c", "openai", "--model", "gpt-4"]);
+        let parsed = parse_root_invocation(&args).unwrap();
+
+        assert!(parsed.continue_session);
+        assert!(parsed.session.is_none());
+        assert_eq!(parsed.provider.as_deref(), Some("openai"));
+        assert_eq!(parsed.pi_args, vecs(&["--model", "gpt-4"]));
+    }
+
+    #[test]
+    fn parse_continue_long_flag() {
+        let args = vecs(&["--continue", "openai"]);
+        let parsed = parse_root_invocation(&args).unwrap();
+
+        assert!(parsed.continue_session);
+        assert_eq!(parsed.provider.as_deref(), Some("openai"));
+        assert!(parsed.pi_args.is_empty());
+    }
+
+    #[test]
+    fn parse_resume_flag() {
+        let args = vecs(&["-r", "openai", "--model", "gpt-4"]);
+        let parsed = parse_root_invocation(&args).unwrap();
+
+        assert!(parsed.resume_session);
+        assert!(!parsed.continue_session);
+        assert!(parsed.session.is_none());
+        assert_eq!(parsed.provider.as_deref(), Some("openai"));
+        assert_eq!(parsed.pi_args, vecs(&["--model", "gpt-4"]));
+    }
+
+    #[test]
+    fn parse_resume_long_flag() {
+        let args = vecs(&["--resume"]);
+        let parsed = parse_root_invocation(&args).unwrap();
+
+        assert!(parsed.resume_session);
+        assert!(parsed.session.is_none());
+        assert!(!parsed.continue_session);
+        assert!(parsed.provider.is_none());
+        assert!(parsed.pi_args.is_empty());
+    }
+
+    #[test]
     fn should_route_subcommand_to_clap() {
         assert!(should_use_clap(&vecs(&["list"])));
         assert!(should_use_clap(&vecs(&["--help"])));
         assert!(!should_use_clap(&vecs(&["openai", "--model"])));
 
-        // "add" is not a subcommand - it should be treated as provider name
         assert!(!should_use_clap(&vecs(&["add"])));
     }
 
     #[test]
     fn should_route_subcommand_after_global_flags() {
-        // version after -s flag should route to clap
         assert!(should_use_clap(&vecs(&["-s", "abc", "version"])));
         assert!(should_use_clap(&vecs(&["--session", "abc", "list"])));
         assert!(should_use_clap(&vecs(&["--session=abc", "delete"])));
+        assert!(should_use_clap(&vecs(&["-c", "version"])));
+        assert!(should_use_clap(&vecs(&["-r", "list"])));
 
-        // After --, args are pi args, not subcommands
         assert!(!should_use_clap(&vecs(&["-s", "abc", "--", "list"])));
+    }
+
+    #[test]
+    fn parse_rejects_continue_and_session() {
+        let result = parse_root_invocation(&vecs(&["-c", "-s", "abc"]));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn parse_rejects_resume_and_session() {
+        let result = parse_root_invocation(&vecs(&["-r", "-s", "abc"]));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn parse_rejects_continue_and_resume() {
+        let result = parse_root_invocation(&vecs(&["-c", "-r"]));
+        assert!(result.is_err());
     }
 }

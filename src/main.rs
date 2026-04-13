@@ -28,6 +28,8 @@ fn run() -> Result<()> {
     let exit_code = pyx_rs::commands::root::execute(
         invocation.provider.as_deref(),
         invocation.session.as_deref(),
+        invocation.continue_session,
+        invocation.resume_session,
         &invocation.pi_args,
     )?;
 
@@ -94,7 +96,13 @@ fn run_subcommand_mode() -> Result<()> {
             }
         }
         None => {
-            let exit_code = pyx_rs::commands::root::execute(cli.provider(), cli.session(), &[])?;
+            let exit_code = pyx_rs::commands::root::execute(
+                cli.provider(),
+                cli.session(),
+                cli.continue_session(),
+                cli.resume_session(),
+                &[],
+            )?;
 
             if exit_code != 0 {
                 std::process::exit(exit_code);
