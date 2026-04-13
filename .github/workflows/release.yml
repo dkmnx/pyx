@@ -3,183 +3,41 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
-  workflow_dispatch:
+      - "v*"
 
-env:
-  CARGO_TERM_COLOR: always
-  RUST_BACKTRACE: 1
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  # Validate tag matches version
-  validate:
-    name: Validate tag
+  goreleaser:
+    name: GoReleaser
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-      is_prerelease: ${{ steps.check_prerelease.outputs.is_prerelease }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Get version from tag
-        id: version
-        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
-      - name: Check Cargo.toml version
-        run: |
-          cargo_version=$(grep -m1 '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
-          # Extract base version from tag (strip -alpha.N, -beta.N, -rc.N suffixes)
-          tag_base_version="${{ steps.version.outputs.version }}"
-          tag_base_version=$(echo "$tag_base_version" | sed -E 's/-(alpha|beta|rc)\.[0-9]+$//')
-          if [ "$cargo_version" != "$tag_base_version" ]; then
-            echo "Tag version base ($tag_base_version) does not match Cargo.toml version ($cargo_version)"
-            exit 1
-          fi
-          echo "Version match: $cargo_version"
-
-      - name: Check if prerelease
-        id: check_prerelease
-        run: |
-          version="${{ steps.version.outputs.version }}"
-          # Use bash regex matching instead of grep for portability
-          if [[ "$version" =~ -(alpha|beta|rc)\.[0-9]+$ ]]; then
-            echo "is_prerelease=true" >> $GITHUB_OUTPUT
-            echo "This is a prerelease: $version"
-          else
-            echo "is_prerelease=false" >> $GITHUB_OUTPUT
-            echo "This is a stable release: $version"
-          fi
-
-  # Build and release
-  release:
-    name: Release ${{ matrix.target }}
-    needs: validate
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            ext: tar.gz
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            ext: tar.gz
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            ext: tar.gz
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            ext: zip
-
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-go@v5
         with:
-          target: ${{ matrix.target }}
+          go-version: stable
 
-      - name: Install just
-        uses: taiki-e/install-action@v2
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          tool: just
+          toolchain: stable
 
-      - name: Install Linux dependencies
-        if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get update && sudo apt-get install -y libsecret-tools
+      - name: Install Zig
+        uses: goto-bus-stop/setup-zig@v2
 
-      - name: Cache Cargo
-        uses: Swatinem/rust-cache@v2
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
         with:
-          shared-key: "pyx-release"
-          cache-targets: true
-
-      - name: Build release
-        run: just build-prod
-        env:
-          CARGO_BUILD_TARGET: ${{ matrix.target }}
-
-      - name: Package binary (Unix)
-        if: matrix.ext == 'tar.gz'
-        shell: bash
-        run: |
-          # Determine binary location (cross-compilation puts it in target/{target}/release/)
-          if [ -f "target/${{ matrix.target }}/release/pyx" ]; then
-            binary_path="target/${{ matrix.target }}/release/pyx"
-          elif [ -f "target/release/pyx" ]; then
-            binary_path="target/release/pyx"
-          else
-            echo "Error: Could not find pyx binary"
-            find target -name "pyx*" -type f 2>/dev/null || true
-            exit 1
-          fi
-          echo "Found binary at: $binary_path"
-          tar -czvf "pyx-${{ needs.validate.outputs.version }}-${{ matrix.target }}.tar.gz" -C "$(dirname "$binary_path")" "$(basename "$binary_path")"
-
-      - name: Package binary (Windows)
-        if: matrix.ext == 'zip'
-        shell: powershell
-        run: |
-          $target = "${{ matrix.target }}"
-          $version = "${{ needs.validate.outputs.version }}"
-          
-          # Determine binary location
-          if (Test-Path "target/$target/release/pyx.exe") {
-            $binaryPath = "target/$target/release/pyx.exe"
-          } elseif (Test-Path "target/release/pyx.exe") {
-            $binaryPath = "target/release/pyx.exe"
-          } else {
-            Write-Error "Could not find pyx.exe binary"
-            Get-ChildItem -Path "target" -Filter "pyx*" -Recurse -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_.FullName }
-            exit 1
-          }
-          
-          Write-Host "Found binary at: $binaryPath"
-          Compress-Archive -Path $binaryPath -DestinationPath "pyx-$version-$target.zip"
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v7
-        with:
-          name: pyx-${{ matrix.target }}
-          path: |
-            pyx-${{ needs.validate.outputs.version }}-${{ matrix.target }}.${{ matrix.ext }}
-          retention-days: 5
-
-  # Create GitHub Release
-  create-release:
-    name: Create release
-    needs: [validate, release]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v8
-        with:
-          path: artifacts
-
-      - name: Generate checksums
-        run: |
-          cd artifacts
-          # Find all archive files in subdirectories and generate checksums
-          find . -type f \( -name "*.tar.gz" -o -name "*.zip" \) -exec sha256sum {} \; > SHA256SUMS.txt
-          cat SHA256SUMS.txt
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ needs.validate.outputs.version }}
-          name: Release v${{ needs.validate.outputs.version }}
-          draft: false
-          generate_release_notes: true
-          prerelease: ${{ needs.validate.outputs.is_prerelease == 'true' }}
-          files: |
-            artifacts/**/pyx-${{ needs.validate.outputs.version }}-*
-            artifacts/**/SHA256SUMS.txt
+          distribution: goreleaser
+          version: latest
+          args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
