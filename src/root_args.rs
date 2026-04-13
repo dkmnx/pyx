@@ -24,13 +24,7 @@ pub fn should_use_clap(args: &[String]) -> bool {
 
     // Check if any positional-like argument (before --) is a known subcommand.
     for arg in args.iter().take_while(|a| *a != "--") {
-        if arg.starts_with('-') && !arg.starts_with("--") {
-            continue;
-        }
-        if arg.starts_with("--") && !arg.contains('=') {
-            continue;
-        }
-        if arg.starts_with("--") && arg.contains('=') {
+        if arg.starts_with('-') {
             continue;
         }
 
