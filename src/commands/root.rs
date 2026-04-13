@@ -14,14 +14,17 @@ use crate::providers::mapping::ProviderEnvResolver;
 use crate::storage::database::Database;
 use std::collections::BTreeMap;
 
+/// Arguments for the root command (run pi with providers).
+pub struct RootCommandArgs<'a> {
+    pub provider: Option<&'a str>,
+    pub session: Option<&'a str>,
+    pub continue_session: bool,
+    pub resume_session: bool,
+    pub pi_args: &'a [String],
+}
+
 /// Execute the root command (run pi with providers)
-pub fn execute(
-    provider: Option<&str>,
-    session: Option<&str>,
-    continue_session: bool,
-    resume_session: bool,
-    pi_args: &[String],
-) -> Result<i32> {
+pub fn execute(args: RootCommandArgs) -> Result<i32> {
     if !KeyManager::master_key_exists() {
         return Err(PyxError::Config(
             "Pyx not initialized. Run 'pyx setup' first.".to_string(),
@@ -42,20 +45,13 @@ pub fn execute(
         ));
     }
 
-    let providers_to_use = determine_providers(provider, &db)?;
+    let providers_to_use = determine_providers(args.provider, &db)?;
     let env_vars = build_provider_env_vars(&db, &providers_to_use)?;
+    let spawn_args = build_pi_args(&args);
 
-    let args = build_pi_args(pi_args, session, continue_session, resume_session);
+    let exit_code = spawn_pi(&env_vars, &spawn_args)?;
 
-    let exit_code = spawn_pi(&env_vars, &args)?;
-
-    let is_non_interactive = pi_args
-        .windows(2)
-        .any(|w| w[0] == "-p" || w[0] == "--prompt")
-        || pi_args
-            .iter()
-            .any(|a| a.starts_with("-p=") || a.starts_with("--prompt="));
-    if !is_non_interactive {
+    if !is_non_interactive(args.pi_args) {
         display_session_hint();
     }
 
@@ -162,24 +158,29 @@ fn determine_providers(provider_arg: Option<&str>, db: &Database) -> Result<Vec<
     }
 }
 
-fn build_pi_args(
-    pi_args: &[String],
-    session: Option<&str>,
-    continue_session: bool,
-    resume_session: bool,
-) -> Vec<String> {
-    let mut args = pi_args.to_vec();
-    if let Some(session_id) = session {
-        args.push("--session".to_string());
-        args.push(session_id.to_string());
+fn build_pi_args(args: &RootCommandArgs) -> Vec<String> {
+    let mut result = args.pi_args.to_vec();
+    if let Some(session_id) = args.session {
+        result.push("--session".to_string());
+        result.push(session_id.to_string());
     }
-    if continue_session {
-        args.push("--continue".to_string());
+    if args.continue_session {
+        result.push("--continue".to_string());
     }
-    if resume_session {
-        args.push("--resume".to_string());
+    if args.resume_session {
+        result.push("--resume".to_string());
     }
-    args
+    result
+}
+
+/// Detect if pi is being invoked in non-interactive mode (piped prompt).
+fn is_non_interactive(pi_args: &[String]) -> bool {
+    pi_args
+        .windows(2)
+        .any(|w| w[0] == "-p" || w[0] == "--prompt")
+        || pi_args
+            .iter()
+            .any(|a| a.starts_with("-p=") || a.starts_with("--prompt="))
 }
 
 fn display_session_hint() {
@@ -286,15 +287,35 @@ mod tests {
         val.to_string()
     }
 
+    fn root_args<'a>(
+        pi_args: &'a [String],
+        session: Option<&'a str>,
+        continue_session: bool,
+        resume_session: bool,
+    ) -> RootCommandArgs<'a> {
+        RootCommandArgs {
+            provider: None,
+            session,
+            continue_session,
+            resume_session,
+            pi_args,
+        }
+    }
+
     #[test]
     fn test_build_pi_args_no_session() {
-        let args = build_pi_args(&[s("--model"), s("gpt-4")], None, false, false);
+        let args = build_pi_args(&root_args(&[s("--model"), s("gpt-4")], None, false, false));
         assert_eq!(args, &[s("--model"), s("gpt-4")]);
     }
 
     #[test]
     fn test_build_pi_args_with_session() {
-        let args = build_pi_args(&[s("--model"), s("gpt-4")], Some("abc-123"), false, false);
+        let args = build_pi_args(&root_args(
+            &[s("--model"), s("gpt-4")],
+            Some("abc-123"),
+            false,
+            false,
+        ));
         assert_eq!(
             args,
             &[s("--model"), s("gpt-4"), s("--session"), s("abc-123")]
@@ -303,26 +324,40 @@ mod tests {
 
     #[test]
     fn test_build_pi_args_continue() {
-        let args = build_pi_args(&[s("--model"), s("gpt-4")], None, true, false);
+        let args = build_pi_args(&root_args(&[s("--model"), s("gpt-4")], None, true, false));
         assert_eq!(args, &[s("--model"), s("gpt-4"), s("--continue")]);
     }
 
     #[test]
     fn test_build_pi_args_resume() {
-        let args = build_pi_args(&[s("--model"), s("gpt-4")], None, false, true);
+        let args = build_pi_args(&root_args(&[s("--model"), s("gpt-4")], None, false, true));
         assert_eq!(args, &[s("--model"), s("gpt-4"), s("--resume")]);
     }
 
     #[test]
     fn test_build_pi_args_with_session_and_provider() {
-        let args = build_pi_args(&[s("--model"), s("gpt-4")], Some("abc-123"), false, false);
+        let args = build_pi_args(&root_args(
+            &[s("--model"), s("gpt-4")],
+            Some("abc-123"),
+            false,
+            false,
+        ));
         assert!(args.contains(&s("--session")));
         assert!(args.contains(&s("abc-123")));
     }
 
     #[test]
     fn test_build_pi_args_empty_pi_args() {
-        let args = build_pi_args(&[], None, true, false);
+        let args = build_pi_args(&root_args(&[], None, true, false));
         assert_eq!(args, &[s("--continue")]);
+    }
+
+    #[test]
+    fn test_is_non_interactive_detects_prompt_flag() {
+        assert!(is_non_interactive(&[s("-p"), s("hello")]));
+        assert!(is_non_interactive(&[s("--prompt"), s("hello")]));
+        assert!(is_non_interactive(&[s("-p=hello")]));
+        assert!(is_non_interactive(&[s("--prompt=hello")]));
+        assert!(!is_non_interactive(&[s("--model"), s("gpt-4")]));
     }
 }

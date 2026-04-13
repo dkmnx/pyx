@@ -25,13 +25,13 @@ fn run() -> Result<()> {
     }
 
     let invocation = parse_root_invocation(&raw_args)?;
-    let exit_code = pyx_rs::commands::root::execute(
-        invocation.provider.as_deref(),
-        invocation.session.as_deref(),
-        invocation.continue_session,
-        invocation.resume_session,
-        &invocation.pi_args,
-    )?;
+    let exit_code = pyx_rs::commands::root::execute(pyx_rs::commands::root::RootCommandArgs {
+        provider: invocation.provider.as_deref(),
+        session: invocation.session.as_deref(),
+        continue_session: invocation.continue_session,
+        resume_session: invocation.resume_session,
+        pi_args: &invocation.pi_args,
+    })?;
 
     if exit_code != 0 {
         std::process::exit(exit_code);
@@ -67,7 +67,11 @@ fn run_subcommand_mode() -> Result<()> {
                 pyx_rs::commands::models::execute_update()?;
             }
             None => {
-                pyx_rs::commands::models::execute(*json, *refresh, provider.as_deref())?;
+                pyx_rs::commands::models::execute(pyx_rs::commands::models::ModelsCommandArgs {
+                    json: *json,
+                    refresh: *refresh,
+                    provider: provider.as_deref(),
+                })?;
             }
         },
         Some(Commands::Pi { action }) => match action {
@@ -96,13 +100,14 @@ fn run_subcommand_mode() -> Result<()> {
             }
         }
         None => {
-            let exit_code = pyx_rs::commands::root::execute(
-                cli.provider(),
-                cli.session(),
-                cli.continue_session(),
-                cli.resume_session(),
-                &[],
-            )?;
+            let exit_code =
+                pyx_rs::commands::root::execute(pyx_rs::commands::root::RootCommandArgs {
+                    provider: cli.provider(),
+                    session: cli.session(),
+                    continue_session: cli.continue_session(),
+                    resume_session: cli.resume_session(),
+                    pi_args: &[],
+                })?;
 
             if exit_code != 0 {
                 std::process::exit(exit_code);
