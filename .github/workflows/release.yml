@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: write
-  packages: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -18,13 +17,9 @@ jobs:
     name: GoReleaser
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: stable
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -33,13 +28,15 @@ jobs:
       - name: Install Zig
         uses: goto-bus-stop/setup-zig@v2
 
+      - name: Generate release notes
+        run: |
+          awk '/^## \[/{c++; if(c>1)exit; if(c==1){next}} c>0' CHANGELOG.md | tail -c +2 > /tmp/release-notes.txt
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: latest
-          args: >
-            release --clean
-            --release-notes <(awk '/^## \\[/{c++; if(c>1)exit; if(c==1){next}} c>0' CHANGELOG.md | tail -c +2)
+          args: release --clean --release-notes /tmp/release-notes.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
