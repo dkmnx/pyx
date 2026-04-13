@@ -1,6 +1,11 @@
 # pyx
 
-Secure CLI tool for managing AI provider API keys with age encryption and pi coding agent integration.
+```text
+██████  ██
+██  ██  ██    Secure CLI tool for managing AI provider API keys 
+████  ██  ██  with age encryption and pi coding agent integration.
+██    ██  ██
+```
 
 [![Rust](https://img.shields.io/badge/Rust-1.75+-orange?style=flat&logo=rust)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
