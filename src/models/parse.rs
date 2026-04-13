@@ -102,8 +102,8 @@ pub fn parse_models(content: &str) -> Result<HashMap<String, Vec<String>>> {
 }
 
 /// Legacy parser helper that flattens all parsed model IDs.
-pub fn parse_model_data(data: &str) -> Result<Vec<String>> {
-    let parsed = parse_models(data)?;
+pub fn parse_model_data(models_content: &str) -> Result<Vec<String>> {
+    let parsed = parse_models(models_content)?;
     let mut providers: Vec<_> = parsed.into_iter().collect();
     providers.sort_by(|(left, _), (right, _)| left.cmp(right));
 

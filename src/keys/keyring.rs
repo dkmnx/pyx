@@ -55,7 +55,7 @@ pub fn get_passphrase() -> Result<Option<SecretString>> {
     // Backend errors (unavailable keyring) are treated as "not found" to allow
     // fallback to file or user prompt without failing on transient issues.
     let backend_result = with_backend(|b| b.get_password(SERVICE_NAME, USER_NAME));
-    let backend_pw = match backend_result {
+    let keyring_passphrase = match backend_result {
         Ok(Some(pw)) => Some(pw),
         Ok(None) => None,
         Err(e) => {
@@ -65,7 +65,7 @@ pub fn get_passphrase() -> Result<Option<SecretString>> {
         }
     };
 
-    if let Some(pw) = backend_pw {
+    if let Some(pw) = keyring_passphrase {
         return Ok(Some(SecretString::new(pw.into_boxed_str())));
     }
 

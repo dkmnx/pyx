@@ -3,6 +3,8 @@
 use crate::error::{PyxError, Result};
 use inquire::{Autocomplete, Confirm, InquireError, Password, Text};
 
+const MAX_AUTOCOMPLETE_SUGGESTIONS: usize = 7;
+
 pub struct SecretPromptOptions {
     pub prompt: String,
     pub helper: Option<String>,
@@ -75,7 +77,7 @@ impl Autocomplete for ProviderCompletion {
             .providers
             .iter()
             .filter(|provider| provider.to_lowercase().contains(&input_lower))
-            .take(7) // Max 7 results like Go
+            .take(MAX_AUTOCOMPLETE_SUGGESTIONS)
             .cloned()
             .collect();
 
