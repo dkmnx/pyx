@@ -10,10 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Provider name validation against pi's model list (prevents typos)
-- `ply models` command to list available providers/models with `--update` flag
-- `ply list` command showing configured providers with their models
-- `ply delete` command with interactive provider selection
-- `ply reset` command to clear all encrypted data
+- `pyx models` command to list available providers/models with `update` subcommand
+- `pyx list` command showing configured providers with their models
+- `pyx delete` command with interactive provider selection
+- `pyx reset` command to clear all encrypted data
 - `-s`/`--session` flag for pi session support
 - DeepSeek and Qwen provider support (via extensions)
 - Auto-install pi if missing (with package manager selection)
@@ -23,11 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **[BREAKING]:** Replaced `ply config` hierarchy with direct commands:
-  - `ply config list` → `ply list`
-  - `ply config delete <provider>` → `ply delete`
-  - `ply config edit <provider>` → `ply edit <provider>`
+  - `pyx config list` → `pyx list`
+  - `pyx config delete <provider>` → `pyx delete`
+  - `pyx config edit <provider>` → `pyx edit <provider>`
 - **[BREAKING]:** Removed default provider concept - now runs all configured providers by default
-- **[BREAKING]:** Removed `ply init` command - use `ply setup` instead
+- **[BREAKING]:** Removed `pyx init` command - use `pyx setup` instead
 - Replaced AES-GCM with age encryption for all credential storage
 - Models fetched from GitHub on first use (no longer embedded, enables updates)
 - Recovery mode automatically triggered when database exists without master key
@@ -35,7 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Cross-platform compatibility (Windows paths, executables, PowerShell)
-- Provider validation error messages now suggest `ply models update`
+- Provider validation error messages now suggest `pyx models update`
 - Documentation corrections for provider environment variable mappings
 - Quickstart URL in README now uses correct GitHub releases pattern
 - Added missing validation rules documentation for provider names and environment variables

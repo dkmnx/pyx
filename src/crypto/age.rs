@@ -148,7 +148,7 @@ pub fn decrypt_with_passphrase(ciphertext: &str, passphrase: &SecretString) -> R
 }
 
 /// Custom scrypt-based recipient for key-based encryption.
-/// Uses the `aead` crate for AES-256-GCM operations directly, avoiding age_core internals.
+/// Uses ChaCha20-Poly1305 for encryption operations, avoiding age_core internals.
 /// Required for Go compatibility when using raw binary keys (not passphrases).
 #[derive(Clone)]
 struct RawScryptRecipient {
@@ -198,7 +198,7 @@ impl age::Recipient for RawScryptRecipient {
 }
 
 /// Custom scrypt-based identity for key-based decryption.
-/// Uses the `aead` crate for AES-256-GCM operations directly, avoiding age_core internals.
+/// Uses ChaCha20-Poly1305 for encryption operations, avoiding age_core internals.
 /// Required for Go compatibility when using raw binary keys (not passphrases).
 #[derive(Clone)]
 struct RawScryptIdentity {

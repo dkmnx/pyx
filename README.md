@@ -29,7 +29,7 @@ pyx
 
 ## Features
 
-- **Secure Storage** - Age encryption (AES-256-GCM) for all API keys
+- **Secure Storage** - Age encryption (ChaCha20-Poly1305) for all API keys
 - **Multiple Providers** - Support for Anthropic, OpenAI, Google, Groq, and 50+ more
 - **Multi-Provider** - Run pi with all configured providers simultaneously
 - **Shell Completion** - Full bash, zsh, fish, and PowerShell support
