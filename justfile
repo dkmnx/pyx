@@ -85,6 +85,12 @@ check: fmt lint test-all
 check-ci: fmt-check lint test-all
     @echo "All CI checks passed!"
 
+# Dry-run release to verify goreleaser config and changelog extraction
+pre-release: check
+    @echo "Running goreleaser dry-run..."
+    goreleaser release --clean --snapshot --release-notes "$(awk '/^## \\[/{c++; if(c>1)exit; if(c==1){next}} c>0' CHANGELOG.md | tail -c +2)"
+    @echo "Dry-run complete!"
+
 # Install git hooks
 hooks:
     @echo "Installing git hooks..."
@@ -96,24 +102,4 @@ hooks:
 # Show help
 [default]
 help:
-    @echo "Available targets:"
-    @echo "  build             - Build the application (debug)"
-    @echo "  build-prod        - Build for production (release)"
-    @echo "  test              - Run unit tests"
-    @echo "  test-v            - Run tests with verbose output"
-    @echo "  test-run RUN      - Run specific test"
-    @echo "  test-integration  - Run integration tests"
-    @echo "  test-all          - Run all tests (unit + integration)"
-    @echo "  fmt               - Format code"
-    @echo "  fmt-check         - Check formatting (non-mutating, for CI)"
-    @echo "  lint              - Lint code (clippy)"
-    @echo "  clean             - Clean build artifacts"
-    @echo "  install           - Install binary"
-    @echo "  check             - Run all checks (fmt, lint, test-all)"
-    @echo "  check-ci          - CI checks (fmt-check, lint, test-all)"
-    @echo "  help              - Show this help message"
-    @echo ""
-    @echo "Examples:"
-    @echo "  just build"
-    @echo "  just test"
-    @echo "  just test-run test_get_env_var"
+    @just --list
