@@ -5,10 +5,14 @@ use crate::error::{PyxError, Result};
 use crate::keys::keyring;
 use crate::storage::paths::master_key_path;
 use secrecy::{ExposeSecret, SecretString};
+use std::collections::HashMap;
 use std::fs;
+use std::path::Path;
+use std::sync::LazyLock;
 use std::sync::Mutex;
-use std::sync::OnceLock;
+
 use std::time::Instant;
+use zeroize::Zeroizing;
 
 const LEGACY_PASSPHRASE: &str = "default";
 const ENV_PASSPHRASE: &str = "PYX_PASSPHRASE";
@@ -25,17 +29,16 @@ struct RateLimitState {
     last_failed_attempt: Option<Instant>,
 }
 
-/// Global rate limiter state using OnceLock for thread-safe lazy initialization.
-/// Uses a Mutex internally to allow mutable access.
-static RATE_LIMIT: OnceLock<Mutex<RateLimitState>> = OnceLock::new();
+static RATE_LIMITS: LazyLock<Mutex<HashMap<String, RateLimitState>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
-/// Get a reference to the rate limit mutex, initializing it lazily if needed.
-fn get_rate_limit() -> &'static Mutex<RateLimitState> {
-    RATE_LIMIT.get_or_init(|| Mutex::new(RateLimitState::default()))
-}
-
-fn check_rate_limit() -> Result<()> {
-    let state = get_rate_limit().lock().unwrap();
+fn check_rate_limit(path: &Path) -> Result<()> {
+    let key = path.to_string_lossy().into_owned();
+    let mut states = RATE_LIMITS.lock().unwrap_or_else(|e| e.into_inner());
+    let state = states.entry(key).or_insert_with(|| RateLimitState {
+        failed_attempts: 0,
+        last_failed_attempt: None,
+    });
 
     if state.failed_attempts >= MAX_FAILED_ATTEMPTS {
         if let Some(last) = state.last_failed_attempt {
@@ -46,9 +49,6 @@ fn check_rate_limit() -> Result<()> {
                     "Too many failed attempts, please wait {remaining} seconds before retrying"
                 )));
             }
-            drop(state);
-            // Lockout expired, reset the counter
-            let mut state = get_rate_limit().lock().unwrap();
             state.failed_attempts = 0;
             state.last_failed_attempt = None;
         }
@@ -57,19 +57,34 @@ fn check_rate_limit() -> Result<()> {
     Ok(())
 }
 
-fn record_failed_attempt() {
-    let mut state = get_rate_limit().lock().unwrap();
+fn record_failed_attempt(path: &Path) {
+    let key = path.to_string_lossy().into_owned();
+    let mut states = RATE_LIMITS.lock().unwrap_or_else(|e| e.into_inner());
+    let state = states.entry(key).or_insert_with(|| RateLimitState {
+        failed_attempts: 0,
+        last_failed_attempt: None,
+    });
     state.failed_attempts += 1;
     state.last_failed_attempt = Some(Instant::now());
 }
 
-fn reset_failed_attempts() {
-    let mut state = get_rate_limit().lock().unwrap();
-    state.failed_attempts = 0;
-    state.last_failed_attempt = None;
+fn reset_failed_attempts(path: &Path) {
+    let key = path.to_string_lossy().into_owned();
+    let mut states = RATE_LIMITS.lock().unwrap_or_else(|e| e.into_inner());
+    states.remove(&key);
 }
 
-/// Key manager - holds the decrypted master key
+/// Key manager - holds the decrypted master key.
+///
+/// The master key is stored as a hex-encoded string internally. This encoding:
+/// - Avoids binary data issues in storage (null bytes, encoding problems)
+/// - Is human-readable for debugging
+/// - Is compatible with the Go implementation's storage format
+///
+/// Two access patterns are provided:
+/// - `get_key_hex()`: Returns hex string for storage/file operations
+/// - `get_key_bytes()`: Returns raw bytes wrapped in `Zeroizing` for crypto operations
+///   that need byte input. The `Zeroizing` wrapper ensures memory is zeroed on drop.
 pub struct KeyManager {
     key: SecretString,
 }
@@ -79,35 +94,30 @@ impl KeyManager {
     /// Matches Go implementation: env var → keyring → legacy "default"
     /// Includes rate limiting for failed decryption attempts.
     pub fn load() -> Result<Self> {
-        // Check rate limiting before attempting decryption
-        check_rate_limit()?;
-
-        // Get passphrase (matches Go's getPassphrase priority)
+        // Matches Go's getPassphrase priority
         let primary_passphrase = keyring::get_passphrase()?
             .ok_or_else(|| PyxError::Keyring("No passphrase available".to_string()))?;
 
-        // Read encrypted master.key
         let path = master_key_path()?;
+        check_rate_limit(&path)?;
         let encrypted_content = fs::read_to_string(&path)
             .map_err(|e| PyxError::Config(format!("Failed to read master.key: {e}")))?;
 
-        // Build passphrase candidates (matches Go's fallback chain)
+        // Matches Go's fallback chain
         let passphrases = build_passphrase_candidates(&primary_passphrase);
 
-        // Decrypt with fallback candidates (no interactive prompt - matches Go)
+        // No interactive prompt - matches Go
         let decrypted = decrypt_master_key_with_candidates(&encrypted_content, &passphrases)
             .map_err(|e| {
-                // Record failed attempt for rate limiting
-                record_failed_attempt();
+                record_failed_attempt(&path);
                 PyxError::Crypto(format!(
                     "Failed to decrypt master key: {e}. Run 'pyx setup' to reconfigure."
                 ))
             })?;
 
-        // Reset failed attempts on success
-        reset_failed_attempts();
+        reset_failed_attempts(&path);
 
-        // Convert to hex string for storage (avoiding binary data issues)
+        // Hex encoding avoids binary data issues in storage
         let master_key_hex = hex::encode(&decrypted);
 
         Ok(Self {
@@ -118,25 +128,20 @@ impl KeyManager {
     /// Load master key using a provided passphrase directly.
     /// Used when passphrase isn't available from keyring/env.
     pub fn load_with_passphrase(passphrase: &SecretString) -> Result<Self> {
-        // Check rate limiting before attempting decryption
-        check_rate_limit()?;
-
-        // Read encrypted master.key
         let path = master_key_path()?;
+        check_rate_limit(&path)?;
         let encrypted_content = fs::read_to_string(&path)
             .map_err(|e| PyxError::Config(format!("Failed to read master.key: {e}")))?;
 
-        // Build passphrase candidates (includes env var if set, and legacy if enabled)
         let passphrases = build_passphrase_candidates(passphrase);
 
-        // Decrypt with fallback candidates
         let decrypted = decrypt_master_key_with_candidates(&encrypted_content, &passphrases)
             .map_err(|e| {
-                record_failed_attempt();
+                record_failed_attempt(&path);
                 PyxError::Crypto(format!("Failed to decrypt master key: {e}"))
             })?;
 
-        reset_failed_attempts();
+        reset_failed_attempts(&path);
 
         let master_key_hex = hex::encode(&decrypted);
 
@@ -147,12 +152,10 @@ impl KeyManager {
 
     /// Generate a new random master key
     pub fn generate() -> Result<Self> {
-        // Generate random bytes for master key using getrandom crate
         let mut key_bytes = vec![0u8; MASTER_KEY_BYTES];
         getrandom::fill(&mut key_bytes)
             .map_err(|e| PyxError::Crypto(format!("Failed to generate random key: {e}")))?;
 
-        // Store as hex string
         let master_key_hex = hex::encode(&key_bytes);
 
         Ok(Self {
@@ -162,15 +165,12 @@ impl KeyManager {
 
     /// Save encrypted master key to disk using the provided passphrase
     pub fn save_with_passphrase(&self, passphrase: &SecretString) -> Result<()> {
-        // Decode hex to bytes
         let key_bytes = hex::decode(self.key.expose_secret())
             .map_err(|e| PyxError::Crypto(format!("Invalid master key hex: {e}")))?;
 
-        // Encrypt with passphrase
         let encrypted = encrypt_with_passphrase(&key_bytes, passphrase)
             .map_err(|e| PyxError::Crypto(format!("Failed to encrypt master key: {e}")))?;
 
-        // Write to file
         let path = master_key_path()?;
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
@@ -178,7 +178,6 @@ impl KeyManager {
 
         fs::write(&path, &encrypted)?;
 
-        // Set file permissions (Unix only)
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -202,10 +201,12 @@ impl KeyManager {
         self.key.expose_secret()
     }
 
-    /// Get the master key as bytes
-    pub fn get_key_bytes(&self) -> Result<Vec<u8>> {
-        hex::decode(self.key.expose_secret())
-            .map_err(|e| PyxError::Crypto(format!("Invalid master key hex: {e}")))
+    /// Get the master key as bytes, protected by Zeroizing.
+    pub fn get_key_bytes(&self) -> Result<Zeroizing<Vec<u8>>> {
+        Ok(Zeroizing::new(
+            hex::decode(self.key.expose_secret())
+                .map_err(|e| PyxError::Crypto(format!("Invalid master key hex: {e}")))?,
+        ))
     }
 
     /// Set passphrase in keyring
@@ -281,6 +282,7 @@ fn decrypt_master_key_with_candidates(
 mod tests {
     use super::*;
     use crate::keys::keyring::{reset_backend, set_backend, MockKeyring};
+    use crate::test_helpers::EnvGuard;
     use crate::ENV_MUTEX;
 
     #[test]
@@ -298,10 +300,7 @@ mod tests {
     #[test]
     fn test_build_passphrase_candidates_adds_env_only_by_default() {
         let _guard = ENV_MUTEX.lock().unwrap();
-
-        unsafe {
-            std::env::set_var(ENV_PASSPHRASE, "env-pass");
-        }
+        let _env = EnvGuard::set_var(ENV_PASSPHRASE, "env-pass");
 
         let primary = SecretString::new("keyring-pass".to_string().into_boxed_str());
         let candidates = build_passphrase_candidates(&primary);
@@ -310,19 +309,12 @@ mod tests {
         assert_eq!(candidates.len(), 2);
         assert_eq!(candidates[0].expose_secret(), "keyring-pass");
         assert_eq!(candidates[1].expose_secret(), "env-pass");
-
-        unsafe {
-            std::env::remove_var(ENV_PASSPHRASE);
-        }
     }
 
     #[test]
     fn test_build_passphrase_candidates_adds_legacy_when_enabled() {
         let _guard = ENV_MUTEX.lock().unwrap();
-
-        unsafe {
-            std::env::set_var("PYX_ALLOW_LEGACY_PASSPHRASE", "1");
-        }
+        let _env = EnvGuard::set_var("PYX_ALLOW_LEGACY_PASSPHRASE", "1");
 
         let primary = SecretString::new("keyring-pass".to_string().into_boxed_str());
         let candidates = build_passphrase_candidates(&primary);
@@ -332,10 +324,6 @@ mod tests {
         assert_eq!(candidates.len(), 2);
         assert_eq!(candidates[0].expose_secret(), "keyring-pass");
         assert_eq!(candidates[1].expose_secret(), LEGACY_PASSPHRASE);
-
-        unsafe {
-            std::env::remove_var("PYX_ALLOW_LEGACY_PASSPHRASE");
-        }
     }
 
     #[test]
@@ -348,9 +336,7 @@ mod tests {
 
         // Set up test environment
         set_backend(Box::new(MockKeyring::new()));
-        unsafe {
-            std::env::set_var("XDG_DATA_HOME", temp.path());
-        }
+        let _env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
 
         // Generate a new key manager
         let manager = KeyManager::generate().unwrap();
@@ -368,9 +354,6 @@ mod tests {
 
         // Cleanup
         KeyManager::delete_master_key().unwrap();
-        unsafe {
-            std::env::remove_var("XDG_DATA_HOME");
-        }
         reset_backend();
     }
 }

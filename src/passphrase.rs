@@ -18,7 +18,6 @@ pub fn prompt_new_passphrase() -> Result<SecretString> {
             "Passphrases do not match".to_string(),
         )),
         empty_error: "Passphrase cannot be empty".to_string(),
-        allow_empty: false,
     })?;
 
     Ok(SecretString::new(passphrase.into_boxed_str()))
@@ -35,10 +34,24 @@ pub fn prompt_existing_passphrase(prompt_text: Option<&str>) -> Result<SecretStr
         helper: Some(helper_text),
         confirmation: None,
         empty_error: "Passphrase cannot be empty".to_string(),
-        allow_empty: false,
     })?;
 
     Ok(SecretString::new(passphrase.into_boxed_str()))
+}
+
+/// Load a key manager from a user-provided passphrase and restore the keyring entry.
+pub(crate) fn load_key_manager_with_passphrase(
+    passphrase: &SecretString,
+) -> Result<crate::keys::manager::KeyManager> {
+    use crate::keys::manager::KeyManager;
+
+    let manager = KeyManager::load_with_passphrase(passphrase)?;
+
+    if let Err(e) = KeyManager::set_passphrase(passphrase) {
+        eprintln!("Warning: failed to store passphrase in OS keyring: {e}");
+    }
+
+    Ok(manager)
 }
 
 /// Load key manager with passphrase fallback to interactive prompt.
@@ -53,7 +66,7 @@ pub fn load_key_manager_with_fallback() -> Result<crate::keys::manager::KeyManag
             // Keyring unavailable - prompt user
             eprintln!("Passphrase not found in OS keyring.");
             let passphrase = prompt_existing_passphrase(Some("Enter your pyx passphrase"))?;
-            KeyManager::load_with_passphrase(&passphrase).map_err(|e| {
+            load_key_manager_with_passphrase(&passphrase).map_err(|e| {
                 PyxError::Crypto(format!(
                     "Failed to decrypt master key: {e}. \
                      If you forgot your passphrase, run 'pyx reset' to start fresh."
@@ -66,10 +79,34 @@ pub fn load_key_manager_with_fallback() -> Result<crate::keys::manager::KeyManag
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::keys::keyring::{get_passphrase, reset_backend, set_backend, MockKeyring};
+    use crate::keys::manager::KeyManager;
+    use crate::test_helpers::EnvGuard;
+    use secrecy::ExposeSecret;
+    use tempfile::tempdir;
+
     #[test]
-    fn test_prompt_new_passphrase_creates_secret() {
-        // This test would require mocking the prompt system
-        // For now, we just verify the function exists and compiles
-        // Integration tests cover the actual prompting behavior
+    fn load_with_passphrase_restores_keyring_entry() {
+        let temp = tempdir().unwrap();
+        let _env = EnvGuard::set_var("XDG_DATA_HOME", temp.path());
+
+        set_backend(Box::new(MockKeyring::new()));
+
+        let passphrase = SecretString::new("test-passphrase".to_string().into_boxed_str());
+        let manager = KeyManager::generate().unwrap();
+        let expected_key = manager.get_key_hex().to_string();
+        manager.save_with_passphrase(&passphrase).unwrap();
+
+        assert!(get_passphrase().unwrap().is_none());
+
+        let loaded = load_key_manager_with_passphrase(&passphrase).unwrap();
+        assert_eq!(loaded.get_key_hex(), expected_key);
+        assert_eq!(
+            get_passphrase().unwrap().unwrap().expose_secret(),
+            passphrase.expose_secret()
+        );
+
+        reset_backend();
     }
 }

@@ -86,13 +86,13 @@ impl ModelsCache {
     }
 
     /// Get models for a provider
-    pub fn get_models(&self, provider: &str) -> Option<&Vec<String>> {
-        self.models.get(provider)
+    pub fn get_models(&self, provider: &str) -> Option<&[String]> {
+        self.models.get(provider).map(Vec::as_slice)
     }
 
     /// Get all providers in cache
-    pub fn get_providers(&self) -> impl Iterator<Item = &String> {
-        self.models.keys()
+    pub fn get_providers(&self) -> impl Iterator<Item = &str> {
+        self.models.keys().map(String::as_str)
     }
 }
 

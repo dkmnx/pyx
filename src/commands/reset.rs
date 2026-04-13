@@ -3,13 +3,22 @@
 use crate::error::{PyxError, Result};
 use crate::keys::manager::KeyManager;
 use crate::storage::paths::{
-    database_path, master_key_path, models_cache_path, providers_env_path, settings_path,
+    database_path, master_key_path, models_cache_path, passphrase_path, providers_env_path,
+    settings_path,
 };
 use std::fs;
-use std::path::Path;
+use std::io::IsTerminal;
+use std::path::{Path, PathBuf};
+
+/// Append `.bak` to a path (backup naming convention)
+fn backup_path(path: &Path) -> PathBuf {
+    let mut name = path.as_os_str().to_owned();
+    name.push(".bak");
+    PathBuf::from(name)
+}
 
 /// Execute the reset command
-pub fn execute() -> Result<()> {
+pub fn execute(skip_confirm: bool) -> Result<()> {
     println!("=== Pyx Reset ===");
     println!();
     println!("WARNING: This will permanently delete all pyx data:");
@@ -20,7 +29,7 @@ pub fn execute() -> Result<()> {
     println!();
 
     // Confirm deletion
-    if !confirm_reset()? {
+    if !skip_confirm && !confirm_reset()? {
         println!("Reset cancelled.");
         return Err(PyxError::Cancelled);
     }
@@ -32,24 +41,23 @@ pub fn execute() -> Result<()> {
     delete_file("Master key", &master_key_path()?)?;
 
     // Delete database
-    delete_file("Provider database", &database_path()?)?;
-    delete_file(
-        "Database backup",
-        &database_path()?.with_extension("json.bak"),
-    )?;
+    let db_path = database_path()?;
+    delete_file("Provider database", &db_path)?;
+    delete_file("Database backup", &backup_path(&db_path))?;
 
     // Delete models cache
     delete_file("Models cache", &models_cache_path()?)?;
 
     // Delete settings
-    delete_file("Settings", &settings_path()?)?;
-    delete_file(
-        "Settings backup",
-        &settings_path()?.with_extension("json.bak"),
-    )?;
+    let settings_p = settings_path()?;
+    delete_file("Settings", &settings_p)?;
+    delete_file("Settings backup", &backup_path(&settings_p))?;
 
     // Delete providers config
     delete_file("Providers config", &providers_env_path()?)?;
+
+    // Delete passphrase fallback file (if exists)
+    delete_file("Passphrase file", &passphrase_path()?)?;
 
     // Clear keyring
     if KeyManager::master_key_exists() || keyring_has_entry() {
@@ -68,8 +76,15 @@ pub fn execute() -> Result<()> {
     Ok(())
 }
 
-/// Confirm reset with user
 fn confirm_reset() -> Result<bool> {
+    use std::io::stdin;
+
+    if !stdin().is_terminal() {
+        return Err(PyxError::Validation(
+            "Confirmation requires an interactive terminal. Use --yes to skip.".into(),
+        ));
+    }
+
     use inquire::Confirm;
 
     let confirmed = Confirm::new("Are you sure you want to reset?")
@@ -80,7 +95,6 @@ fn confirm_reset() -> Result<bool> {
     Ok(confirmed)
 }
 
-/// Delete a file if it exists
 fn delete_file(description: &str, path: &Path) -> Result<()> {
     if path.exists() {
         fs::remove_file(path)
@@ -92,18 +106,8 @@ fn delete_file(description: &str, path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Check if keyring has an entry
 fn keyring_has_entry() -> bool {
-    use keyring::Entry;
-
-    // Check pyx entry
-    if let Ok(entry) = Entry::new("pyx", "master-key") {
-        if entry.get_password().is_ok() {
-            return true;
-        }
-    }
-
-    false
+    crate::keys::keyring::has_entry()
 }
 
 #[cfg(test)]
@@ -117,15 +121,26 @@ mod tests {
         let dir = tempdir().unwrap();
         let path = dir.path().join("test.txt");
 
-        // Create file
         fs::write(&path, "test").unwrap();
         assert!(path.exists());
 
-        // Delete it
         delete_file("Test file", &path).unwrap();
         assert!(!path.exists());
 
-        // Delete non-existent (should not error)
         assert!(delete_file("Non-existent", &path).is_ok());
+    }
+
+    #[test]
+    fn test_backup_path() {
+        let path = PathBuf::from("/data/database.json");
+        let bak = backup_path(&path);
+        assert_eq!(bak, PathBuf::from("/data/database.json.bak"));
+    }
+
+    #[test]
+    fn test_backup_path_no_extension() {
+        let path = PathBuf::from("/data/db");
+        let bak = backup_path(&path);
+        assert_eq!(bak, PathBuf::from("/data/db.bak"));
     }
 }

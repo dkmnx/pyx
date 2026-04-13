@@ -1,5 +1,7 @@
 # Usage Guide
 
+Complete command reference for pyx.
+
 ## Commands
 
 ### setup
@@ -86,7 +88,9 @@ pyx version
 pyx version --json
 ```
 
-### Run pi
+With `--json`, outputs version information as JSON including git metadata.
+
+## Running pi
 
 ```bash
 pyx                  # All configured providers
@@ -96,6 +100,8 @@ pyx -- --help        # Pass args to pi
 ```
 
 ## Environment Variables
+
+See [Providers Reference](../reference/providers.md) for full list.
 
 | Provider     | Variable               |
 | ------------ | ---------------------- |
@@ -110,10 +116,8 @@ pyx -- --help        # Pass args to pi
 
 ## Custom Providers
 
-Add to `~/.local/share/pyx/providers.json`:
+See [Providers Reference](../reference/providers.md#custom-providers) for configuration.
 
-```json
-{
-  "my-provider": "MY_PROVIDER_API_KEY"
-}
-```
+## Configuration Files
+
+See [Storage Reference](../reference/storage.md) for file details.

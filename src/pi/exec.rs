@@ -1,18 +1,19 @@
 //! Execute pi process
 
 use crate::error::{PyxError, Result};
+use clap::ValueEnum;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
 /// Shell type for completion installation
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum ShellType {
     Bash,
     Zsh,
     Fish,
-    PowerShell,
+    Powershell,
 }
 
 impl std::fmt::Display for ShellType {
@@ -21,7 +22,7 @@ impl std::fmt::Display for ShellType {
             ShellType::Bash => write!(f, "bash"),
             ShellType::Zsh => write!(f, "zsh"),
             ShellType::Fish => write!(f, "fish"),
-            ShellType::PowerShell => write!(f, "powershell"),
+            ShellType::Powershell => write!(f, "powershell"),
         }
     }
 }
@@ -34,8 +35,20 @@ impl std::str::FromStr for ShellType {
             "bash" => Ok(ShellType::Bash),
             "zsh" => Ok(ShellType::Zsh),
             "fish" => Ok(ShellType::Fish),
-            "powershell" | "pwsh" => Ok(ShellType::PowerShell),
+            "powershell" | "pwsh" => Ok(ShellType::Powershell),
             _ => Err(PyxError::Validation(format!("Unknown shell type: {s}"))),
+        }
+    }
+}
+
+impl ShellType {
+    /// Convert to clap_complete Shell type
+    pub fn to_clap_complete_shell(&self) -> clap_complete::Shell {
+        match self {
+            ShellType::Bash => clap_complete::Shell::Bash,
+            ShellType::Zsh => clap_complete::Shell::Zsh,
+            ShellType::Fish => clap_complete::Shell::Fish,
+            ShellType::Powershell => clap_complete::Shell::PowerShell,
         }
     }
 }
@@ -58,12 +71,10 @@ pub fn spawn_pi(env_vars: &[(String, String)], args: &[String]) -> Result<i32> {
     let mut cmd = Command::new(&pi_path);
     cmd.args(args);
 
-    // Inject environment variables
     for (key, value) in env_vars {
         cmd.env(key, value);
     }
 
-    // Execute and preserve exit code
     let status = cmd
         .status()
         .map_err(|e| PyxError::CommandExecution(format!("Failed to execute pi: {e}")))?;
@@ -71,21 +82,9 @@ pub fn spawn_pi(env_vars: &[(String, String)], args: &[String]) -> Result<i32> {
     Ok(status.code().unwrap_or(1))
 }
 
-/// Install pi if not already installed (auto-detect package manager)
-pub fn install_pi_auto() -> Result<()> {
-    install_pi_impl(None)
-}
-
-/// Install pi with package manager prompt
-pub fn install_pi_with_prompt() -> Result<()> {
-    // For now, auto-detect (prompt can be added later if needed)
-    install_pi_impl(None)
-}
-
-/// Install pi with optional specific package manager
-fn install_pi_impl(pm_override: Option<&str>) -> Result<()> {
-    // Check if pi is already installed
-    if find_pi().is_some() {
+/// Install pi with package manager prompt (auto-selects if only one PM found)
+pub fn install_pi_with_prompt(force: bool) -> Result<()> {
+    if !force && find_pi().is_some() {
         println!("pi is already installed.");
         if let Ok(version) = get_pi_version() {
             println!("pi version: {version}");
@@ -93,7 +92,41 @@ fn install_pi_impl(pm_override: Option<&str>) -> Result<()> {
         return Ok(());
     }
 
-    // Use specified package manager or detect
+    let available: Vec<String> = ["npm", "pnpm", "yarn", "bun"]
+        .iter()
+        .filter(|pm| which::which(pm).is_ok())
+        .map(|pm| pm.to_string())
+        .collect();
+
+    if available.is_empty() {
+        return Err(PyxError::CommandExecution(
+            "No package manager found (npm, pnpm, yarn, bun). Please install one first."
+                .to_string(),
+        ));
+    }
+
+    let pm = if available.len() == 1 {
+        available[0].clone()
+    } else {
+        let choice = inquire::Select::new("Select a package manager", available.clone())
+            .prompt()
+            .map_err(|e| PyxError::Validation(format!("Failed to read selection: {e}")))?;
+        choice
+    };
+
+    install_pi_impl(Some(&pm), force)
+}
+
+/// Install pi with optional specific package manager
+fn install_pi_impl(pm_override: Option<&str>, force: bool) -> Result<()> {
+    if !force && find_pi().is_some() {
+        println!("pi is already installed.");
+        if let Ok(version) = get_pi_version() {
+            println!("pi version: {version}");
+        }
+        return Ok(());
+    }
+
     let pm = if let Some(pm) = pm_override {
         pm.to_string()
     } else {
@@ -102,7 +135,6 @@ fn install_pi_impl(pm_override: Option<&str>) -> Result<()> {
 
     println!("Installing pi using {pm}...");
 
-    // Install pi globally
     let status = Command::new(&pm)
         .args(["install", "-g", "@mariozechner/pi-coding-agent"])
         .status()
@@ -134,9 +166,9 @@ fn detect_package_manager() -> Result<String> {
     })
 }
 
-/// Install pi if not already installed (legacy function for backward compatibility)
+/// Install pi if not already installed (auto-detect package manager)
 pub fn install_pi() -> Result<()> {
-    install_pi_auto()
+    install_pi_with_prompt(false)
 }
 
 /// Check pi version
@@ -149,7 +181,14 @@ pub fn get_pi_version() -> Result<String> {
         .output()
         .map_err(|e| PyxError::CommandExecution(format!("Failed to get pi version: {e}")))?;
 
-    let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let version = String::from_utf8_lossy(&output.stderr).trim().to_string();
+
+    let version = if version.is_empty() {
+        String::from_utf8_lossy(&output.stdout).trim().to_string()
+    } else {
+        version
+    };
+
     Ok(version)
 }
 
@@ -176,7 +215,6 @@ pub fn show_pi_status() -> Result<()> {
 
 /// Detect current shell type
 pub fn detect_current_shell() -> ShellType {
-    // Check SHELL environment variable
     if let Ok(shell) = env::var("SHELL") {
         let shell_path = PathBuf::from(&shell);
         if let Some(name) = shell_path.file_name().and_then(|n| n.to_str()) {
@@ -189,19 +227,17 @@ pub fn detect_current_shell() -> ShellType {
         }
     }
 
-    // Check for fish-specific environment variable
     if env::var("__FISH_VERSION_DIR").is_ok() {
         return ShellType::Fish;
     }
 
-    // Platform-specific defaults
     #[cfg(unix)]
     {
         ShellType::Bash
     }
     #[cfg(windows)]
     {
-        ShellType::PowerShell
+        ShellType::Powershell
     }
     #[cfg(not(any(unix, windows)))]
     {
@@ -222,7 +258,7 @@ pub fn completion_script_install_path(shell: ShellType) -> Result<PathBuf> {
             .join("fish")
             .join("completions")
             .join("pyx.fish"),
-        ShellType::PowerShell => home.join("Documents").join("PowerShell").join("pyx.ps1"),
+        ShellType::Powershell => home.join("Documents").join("PowerShell").join("pyx.ps1"),
     };
 
     Ok(path)
@@ -230,7 +266,6 @@ pub fn completion_script_install_path(shell: ShellType) -> Result<PathBuf> {
 
 /// Install shell completion for the specified shell
 pub fn install_completion_for_shell(shell: ShellType) -> Result<()> {
-    // Generate completion script using pyx
     let output = Command::new("pyx")
         .args(["completion", &shell.to_string()])
         .output()
@@ -245,21 +280,17 @@ pub fn install_completion_for_shell(shell: ShellType) -> Result<()> {
         )));
     }
 
-    // Get install path
     let script_path = completion_script_install_path(shell)?;
 
-    // Ensure directory exists
     if let Some(parent) = script_path.parent() {
         fs::create_dir_all(parent)?;
     }
 
-    // Write completion script
     fs::write(&script_path, &output.stdout)?;
 
     println!("✓ Completion script installed for {shell} shell");
     println!("  Script location: {}", script_path.display());
 
-    // Print activation instructions
     match shell {
         ShellType::Zsh => {
             println!();
@@ -276,7 +307,7 @@ pub fn install_completion_for_shell(shell: ShellType) -> Result<()> {
             println!();
             println!("  Completions will be loaded automatically in new shell sessions.");
         }
-        ShellType::PowerShell => {
+        ShellType::Powershell => {
             println!();
             println!("  To enable completions for every new session, add to your profile:");
             println!(
@@ -306,46 +337,28 @@ pub fn install_completion() -> Result<()> {
 
 /// Platform info string (OS/ARCH)
 pub fn platform_info() -> String {
-    #[cfg(unix)]
-    {
-        format!("{}/{}", std::env::consts::OS, std::env::consts::ARCH)
-    }
-    #[cfg(windows)]
-    {
-        format!("{}/{}", std::env::consts::OS, std::env::consts::ARCH)
-    }
-    #[cfg(not(any(unix, windows)))]
-    {
-        format!("{}/{}", std::env::consts::OS, std::env::consts::ARCH)
-    }
+    format!("{}/{}", std::env::consts::OS, std::env::consts::ARCH)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_helpers::EnvGuard;
+    use crate::ENV_MUTEX;
+    use std::fs;
+    use tempfile::tempdir;
 
     #[test]
     fn test_find_pi_returns_option() {
-        // find_pi returns Option<String> - verify the interface works
-        // The actual result depends on whether pi is in PATH
         let result = find_pi();
-        // Should return Some(path) if pi is installed, None otherwise
-        // Just verify it doesn't panic and returns correct type
-        match result {
-            Some(path) => {
-                // If found, verify it's a non-empty string
-                assert!(!path.is_empty());
-            }
-            None => {
-                // If not found, that's also valid (pi not installed)
-            }
+        if let Some(path) = result {
+            assert!(!path.is_empty());
         }
     }
 
     #[test]
     fn test_platform_info_known_values() {
         let info = platform_info();
-        // Platform info should be non-empty and contain OS/arch format
         assert!(!info.is_empty());
         assert!(info.contains('/'));
     }
@@ -353,9 +366,165 @@ mod tests {
     #[test]
     fn test_detect_current_shell() {
         let shell = detect_current_shell();
-        // Should return a valid shell type
         match shell {
-            ShellType::Bash | ShellType::Zsh | ShellType::Fish | ShellType::PowerShell => {}
+            ShellType::Bash | ShellType::Zsh | ShellType::Fish | ShellType::Powershell => {}
         }
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_install_completion_for_shell_writes_generated_script() {
+        let _guard = ENV_MUTEX.lock().unwrap();
+        let temp = tempdir().unwrap();
+        let bin_dir = temp.path().join("bin");
+        fs::create_dir_all(&bin_dir).unwrap();
+
+        let fake_pyx = bin_dir.join("pyx");
+        let script = r#"#!/usr/bin/env bash
+printf '%s\n' '# bash completion for pyx'
+"#;
+        fs::write(&fake_pyx, script).unwrap();
+
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&fake_pyx, fs::Permissions::from_mode(0o755)).unwrap();
+
+        let home = temp.path().join("home");
+        fs::create_dir_all(&home).unwrap();
+
+        let mut path_guard = EnvGuard::set_var("HOME", &home);
+        let current_path = std::env::var("PATH").unwrap_or_default();
+        let new_path = if current_path.is_empty() {
+            bin_dir.display().to_string()
+        } else {
+            format!("{}:{}", bin_dir.display(), current_path)
+        };
+        path_guard.extend(EnvGuard::set_var("PATH", new_path));
+
+        install_completion_for_shell(ShellType::Bash).unwrap();
+
+        let installed = home.join(".bash_completions").join("pyx.bash");
+        assert!(installed.exists());
+        assert!(fs::read_to_string(installed)
+            .unwrap()
+            .contains("bash completion for pyx"));
+    }
+
+    #[test]
+    fn test_shell_type_from_str_valid() {
+        assert_eq!("bash".parse::<ShellType>().unwrap(), ShellType::Bash);
+        assert_eq!("zsh".parse::<ShellType>().unwrap(), ShellType::Zsh);
+        assert_eq!("fish".parse::<ShellType>().unwrap(), ShellType::Fish);
+        assert_eq!(
+            "powershell".parse::<ShellType>().unwrap(),
+            ShellType::Powershell
+        );
+        assert_eq!("pwsh".parse::<ShellType>().unwrap(), ShellType::Powershell);
+    }
+
+    #[test]
+    fn test_shell_type_from_str_case_insensitive() {
+        assert_eq!("BASH".parse::<ShellType>().unwrap(), ShellType::Bash);
+        assert_eq!("Zsh".parse::<ShellType>().unwrap(), ShellType::Zsh);
+        assert_eq!("FISH".parse::<ShellType>().unwrap(), ShellType::Fish);
+    }
+
+    #[test]
+    fn test_shell_type_from_str_invalid() {
+        assert!("csh".parse::<ShellType>().is_err());
+        assert!("tcsh".parse::<ShellType>().is_err());
+        assert!("invalid".parse::<ShellType>().is_err());
+        assert!("".parse::<ShellType>().is_err());
+    }
+
+    #[test]
+    fn test_shell_type_display() {
+        assert_eq!(ShellType::Bash.to_string(), "bash");
+        assert_eq!(ShellType::Zsh.to_string(), "zsh");
+        assert_eq!(ShellType::Fish.to_string(), "fish");
+        assert_eq!(ShellType::Powershell.to_string(), "powershell");
+    }
+
+    #[test]
+    fn test_shell_type_to_clap_complete_shell() {
+        assert_eq!(
+            ShellType::Bash.to_clap_complete_shell(),
+            clap_complete::Shell::Bash
+        );
+        assert_eq!(
+            ShellType::Zsh.to_clap_complete_shell(),
+            clap_complete::Shell::Zsh
+        );
+        assert_eq!(
+            ShellType::Fish.to_clap_complete_shell(),
+            clap_complete::Shell::Fish
+        );
+        assert_eq!(
+            ShellType::Powershell.to_clap_complete_shell(),
+            clap_complete::Shell::PowerShell
+        );
+    }
+
+    #[test]
+    fn test_completion_script_install_path_bash() {
+        let _guard = ENV_MUTEX.lock().unwrap();
+        let temp = tempdir().unwrap();
+        let home = temp.path().join("home");
+        std::fs::create_dir_all(&home).unwrap();
+        let _env = EnvGuard::set_var("HOME", &home);
+        let path = completion_script_install_path(ShellType::Bash).unwrap();
+        assert!(path.to_str().unwrap().contains("bash_completions"));
+        assert!(path.to_str().unwrap().ends_with("pyx.bash"));
+    }
+
+    #[test]
+    fn test_completion_script_install_path_zsh() {
+        let _guard = ENV_MUTEX.lock().unwrap();
+        let temp = tempdir().unwrap();
+        let home = temp.path().join("home");
+        std::fs::create_dir_all(&home).unwrap();
+        let _env = EnvGuard::set_var("HOME", &home);
+        let path = completion_script_install_path(ShellType::Zsh).unwrap();
+        assert!(path.to_str().unwrap().contains(".zsh"));
+        assert!(path.to_str().unwrap().contains("completions"));
+        assert!(path.to_str().unwrap().ends_with("_pyx"));
+    }
+
+    #[test]
+    fn test_completion_script_install_path_fish() {
+        let _guard = ENV_MUTEX.lock().unwrap();
+        let temp = tempdir().unwrap();
+        let home = temp.path().join("home");
+        std::fs::create_dir_all(&home).unwrap();
+        let _env = EnvGuard::set_var("HOME", &home);
+        let path = completion_script_install_path(ShellType::Fish).unwrap();
+        assert!(path.to_str().unwrap().contains("fish"));
+        assert!(path.to_str().unwrap().ends_with("pyx.fish"));
+    }
+
+    #[test]
+    fn test_completion_script_install_path_powershell() {
+        let _guard = ENV_MUTEX.lock().unwrap();
+        let temp = tempdir().unwrap();
+        let home = temp.path().join("home");
+        std::fs::create_dir_all(&home).unwrap();
+        let _env = EnvGuard::set_var("HOME", &home);
+        let path = completion_script_install_path(ShellType::Powershell).unwrap();
+        assert!(path.to_str().unwrap().contains("PowerShell"));
+        assert!(path.to_str().unwrap().ends_with("pyx.ps1"));
+    }
+
+    #[test]
+    fn test_shell_type_clone_and_copy() {
+        let shell = ShellType::Bash;
+        let cloned = shell;
+        let _copied = shell;
+        assert_eq!(cloned, ShellType::Bash);
+    }
+
+    #[test]
+    fn test_shell_type_equality() {
+        assert_eq!(ShellType::Bash, ShellType::Bash);
+        assert_ne!(ShellType::Bash, ShellType::Zsh);
+        assert_ne!(ShellType::Fish, ShellType::Powershell);
     }
 }

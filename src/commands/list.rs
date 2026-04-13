@@ -13,8 +13,8 @@ pub fn execute() -> Result<()> {
     }
 
     println!("Configured providers:");
-    for entry in &db.providers {
-        println!("  - {}", entry.provider);
+    for provider in db.get_provider_names() {
+        println!("  - {provider}");
     }
     println!();
     println!("Total: {} provider(s)", db.len());
@@ -26,7 +26,7 @@ pub fn execute() -> Result<()> {
 pub fn execute_json() -> Result<()> {
     let db = Database::load_or_error()?;
 
-    let providers: Vec<&str> = db.get_provider_names().iter().map(|s| s.as_str()).collect();
+    let providers = db.get_provider_names();
     let output = serde_json::json!({
         "providers": providers,
         "count": db.len(),
@@ -41,17 +41,6 @@ mod tests {
     use super::*;
     use crate::storage::database::ProviderEntry;
     use tempfile::tempdir;
-
-    #[test]
-    fn test_execute_returns_error_when_not_initialized() {
-        // When database doesn't exist, should return Config error
-        // (This is difficult to test without path override, so we verify
-        // the error handling path exists by checking the function signature)
-        let result = execute();
-        // Either Ok(empty) or Err - both are valid behaviors
-        // The important thing is it doesn't panic
-        let _ = result;
-    }
 
     #[test]
     fn test_list_with_providers() {
@@ -76,7 +65,7 @@ mod tests {
         assert!(!db.has_provider("nonexistent"));
 
         // Test provider names are retrievable
-        let names: Vec<&str> = db.get_provider_names().iter().map(|s| s.as_str()).collect();
+        let names = db.get_provider_names();
         assert!(names.contains(&"openai"));
         assert!(names.contains(&"anthropic"));
     }
@@ -87,5 +76,62 @@ mod tests {
         assert!(db.is_empty());
         assert_eq!(db.len(), 0);
         assert!(!db.has_provider("anything"));
+    }
+
+    #[test]
+    fn test_database_roundtrip() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("database.json");
+
+        let mut db = Database::default();
+        db.upsert(ProviderEntry::new("test".to_string(), "cipher".to_string()));
+        db.save_to_path(&db_path).unwrap();
+
+        let loaded = Database::load_from_path(&db_path).unwrap();
+        assert_eq!(loaded.len(), 1);
+        assert!(loaded.has_provider("test"));
+    }
+
+    #[test]
+    fn test_database_upsert_updates_existing() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("database.json");
+
+        let mut db = Database::default();
+        db.upsert(ProviderEntry::new(
+            "test".to_string(),
+            "cipher1".to_string(),
+        ));
+        db.save_to_path(&db_path).unwrap();
+
+        db.upsert(ProviderEntry::new(
+            "test".to_string(),
+            "cipher2".to_string(),
+        ));
+        db.save_to_path(&db_path).unwrap();
+
+        let loaded = Database::load_from_path(&db_path).unwrap();
+        assert_eq!(loaded.len(), 1);
+    }
+
+    #[test]
+    fn test_database_get_provider_names_sorted() {
+        let mut db = Database::default();
+        db.upsert(ProviderEntry::new("zebra".to_string(), "c".to_string()));
+        db.upsert(ProviderEntry::new("apple".to_string(), "a".to_string()));
+        db.upsert(ProviderEntry::new("mango".to_string(), "b".to_string()));
+
+        let names = db.get_provider_names();
+        assert_eq!(names, vec!["apple", "mango", "zebra"]);
+    }
+
+    #[test]
+    fn test_database_len_after_multiple_upserts() {
+        let mut db = Database::default();
+        db.upsert(ProviderEntry::new("a".to_string(), "1".to_string()));
+        db.upsert(ProviderEntry::new("b".to_string(), "2".to_string()));
+
+        assert_eq!(db.len(), 2);
+        assert_eq!(db.get_provider_names().len(), 2);
     }
 }

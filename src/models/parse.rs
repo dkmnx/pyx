@@ -2,22 +2,55 @@
 
 use crate::error::{PyxError, Result};
 use regex::Regex;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::sync::LazyLock;
 
-static PROVIDER_FIELD_PATTERN: once_cell::sync::Lazy<Regex> = once_cell::sync::Lazy::new(|| {
-    Regex::new(r#"provider:\s*\"([^\"]+)\""#).expect("valid provider regex")
-});
-static MODEL_ID_PATTERN: once_cell::sync::Lazy<Regex> = once_cell::sync::Lazy::new(|| {
-    Regex::new(r#"id:\s*\"([^\"]+)\""#).expect("valid model id regex")
-});
-static PROVIDER_SECTION_PATTERN: once_cell::sync::Lazy<Regex> = once_cell::sync::Lazy::new(|| {
+static PROVIDER_FIELD_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"provider:\s*\"([^\"]+)\""#).expect("valid provider regex"));
+static MODEL_ID_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"id:\s*\"([^\"]+)\""#).expect("valid model id regex"));
+static PROVIDER_SECTION_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"^\"([a-z][a-z0-9-]*)\":\s*\{\s*$"#).expect("valid provider section regex")
 });
 
+#[derive(Default)]
+struct ProviderModels {
+    models: Vec<String>,
+    seen: HashSet<String>,
+}
+
+impl ProviderModels {
+    fn push(&mut self, model_id: String) {
+        if self.seen.insert(model_id.clone()) {
+            self.models.push(model_id);
+        }
+    }
+}
+
+fn provider_name(line: &str) -> Option<&str> {
+    PROVIDER_SECTION_PATTERN
+        .captures(line)
+        .and_then(|captures| captures.get(1))
+        .map(|provider| provider.as_str())
+        .or_else(|| {
+            PROVIDER_FIELD_PATTERN
+                .captures(line)
+                .and_then(|captures| captures.get(1))
+                .map(|provider| provider.as_str())
+        })
+}
+
+fn model_id(line: &str) -> Option<&str> {
+    MODEL_ID_PATTERN
+        .captures(line)
+        .and_then(|captures| captures.get(1))
+        .map(|model| model.as_str())
+}
+
 /// Parse models from pi-mono models.generated.ts content.
 pub fn parse_models(content: &str) -> Result<HashMap<String, Vec<String>>> {
-    let mut result: HashMap<String, Vec<String>> = HashMap::new();
-    let mut current_provider = String::new();
+    let mut result: HashMap<String, ProviderModels> = HashMap::new();
+    let mut current_provider: Option<String> = None;
 
     for line in content.lines() {
         let trimmed = line.trim();
@@ -29,54 +62,54 @@ pub fn parse_models(content: &str) -> Result<HashMap<String, Vec<String>>> {
             continue;
         }
 
-        if let Some(section_match) = PROVIDER_SECTION_PATTERN.captures(trimmed) {
-            if let Some(provider_match) = section_match.get(1) {
-                current_provider = provider_match.as_str().to_string();
-                result.entry(current_provider.clone()).or_default();
-            }
+        if let Some(provider) = provider_name(trimmed) {
+            current_provider = Some(provider.to_owned());
+            result.entry(provider.to_owned()).or_default();
             continue;
         }
 
-        if let Some(provider_match) = PROVIDER_FIELD_PATTERN.captures(trimmed) {
-            if let Some(provider) = provider_match.get(1) {
-                current_provider = provider.as_str().to_string();
-                result.entry(current_provider.clone()).or_default();
-            }
+        let Some(provider) = current_provider.as_deref() else {
             continue;
-        }
+        };
 
-        if current_provider.is_empty() {
+        let Some(model_id) = model_id(trimmed) else {
             continue;
-        }
+        };
 
-        if let Some(model_match) = MODEL_ID_PATTERN.captures(trimmed) {
-            if let Some(model_id_match) = model_match.get(1) {
-                let model_id = model_id_match.as_str().to_string();
-                let models = result.entry(current_provider.clone()).or_default();
-                if !models.iter().any(|existing| existing == &model_id) {
-                    models.push(model_id);
-                }
-            }
+        if let Some(models) = result.get_mut(provider) {
+            models.push(model_id.to_owned());
         }
     }
 
-    result.retain(|_, models| !models.is_empty());
+    let parsed: HashMap<String, Vec<String>> = result
+        .into_iter()
+        .filter_map(|(provider, models)| {
+            if models.models.is_empty() {
+                None
+            } else {
+                Some((provider, models.models))
+            }
+        })
+        .collect();
 
-    if result.is_empty() {
+    if parsed.is_empty() {
         return Err(PyxError::Validation(
             "No models found in content".to_string(),
         ));
     }
 
-    Ok(result)
+    Ok(parsed)
 }
 
 /// Legacy parser helper that flattens all parsed model IDs.
 pub fn parse_model_data(data: &str) -> Result<Vec<String>> {
     let parsed = parse_models(data)?;
+    let mut providers: Vec<_> = parsed.into_iter().collect();
+    providers.sort_by(|(left, _), (right, _)| left.cmp(right));
+
     let mut flattened = Vec::new();
-    for models in parsed.values() {
-        flattened.extend(models.iter().cloned());
+    for (_, models) in providers {
+        flattened.extend(models);
     }
     Ok(flattened)
 }
@@ -152,6 +185,29 @@ export const models = {
             parsed.get("anthropic"),
             Some(&vec!["anthropic/claude-3".to_string()])
         );
+    }
+
+    #[test]
+    fn parse_model_data_returns_models_in_deterministic_order() {
+        let content = r#"
+"openai": {
+  id: "openai/gpt-4.1"
+}
+"anthropic": {
+  id: "anthropic/claude-3-7-sonnet"
+}
+"#;
+
+        for _ in 0..32 {
+            let parsed = parse_model_data(content).expect("should flatten parsed models");
+            assert_eq!(
+                parsed,
+                vec![
+                    "anthropic/claude-3-7-sonnet".to_string(),
+                    "openai/gpt-4.1".to_string()
+                ]
+            );
+        }
     }
 
     #[test]

@@ -113,22 +113,24 @@ fn fetch_models_file(config: &SourceConfig, git_ref: &str) -> Result<String> {
 }
 
 fn request_get(url: &str) -> std::result::Result<String, String> {
-    let agent = ureq::AgentBuilder::new()
-        .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECONDS))
+    let config = ureq::Agent::config_builder()
+        .timeout_global(Some(Duration::from_secs(REQUEST_TIMEOUT_SECONDS)))
         .build();
+    let agent: ureq::Agent = config.into();
 
-    let response = agent
+    let mut response = agent
         .get(url)
-        .set("Accept", "application/vnd.github+json")
-        .set("User-Agent", "pyx-cli")
+        .header("Accept", "application/vnd.github+json")
+        .header("User-Agent", "pyx-cli")
         .call()
         .map_err(|err| match err {
-            ureq::Error::Status(code, _) => format!("unexpected status code {code}"),
-            ureq::Error::Transport(transport) => transport.to_string(),
+            ureq::Error::StatusCode(code) => format!("unexpected status code {code}"),
+            other => other.to_string(),
         })?;
 
     response
-        .into_string()
+        .body_mut()
+        .read_to_string()
         .map_err(|err| format!("failed to read response body: {err}"))
 }
 

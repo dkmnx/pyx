@@ -1,5 +1,6 @@
 //! Root command argument parsing helpers.
 
+use crate::cli::get_subcommand_names;
 use crate::error::{PyxError, Result};
 
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -9,25 +10,37 @@ pub struct RootInvocation {
     pub pi_args: Vec<String>,
 }
 
-const ROOT_SUBCOMMANDS: [&str; 9] = [
-    "setup",
-    "list",
-    "delete",
-    "models",
-    "pi",
-    "reset",
-    "completion",
-    "version",
-    "help",
-];
-
 pub fn should_use_clap(args: &[String]) -> bool {
     if args.is_empty() {
         return false;
     }
 
     let first = args[0].as_str();
-    matches!(first, "-h" | "--help" | "-V" | "--version") || ROOT_SUBCOMMANDS.contains(&first)
+    if matches!(first, "-h" | "--help" | "-V" | "--version") {
+        return true;
+    }
+
+    // Check if any positional-like argument (before --) is a known subcommand.
+    // This handles cases like: pyx -s abc version -> version is a subcommand
+    for arg in args.iter().take_while(|a| *a != "--") {
+        // Skip flags and their values
+        if arg.starts_with('-') && !arg.starts_with("--") {
+            continue;
+        }
+        if arg.starts_with("--") && !arg.contains('=') {
+            continue;
+        }
+        if arg.starts_with("--") && arg.contains('=') {
+            continue;
+        }
+
+        // This looks like a positional argument
+        if get_subcommand_names().contains(&arg.as_str()) {
+            return true;
+        }
+    }
+
+    false
 }
 
 /// Parse root invocation arguments with Go-compatible behavior.
@@ -160,5 +173,16 @@ mod tests {
 
         // "add" is not a subcommand - it should be treated as provider name
         assert!(!should_use_clap(&vecs(&["add"])));
+    }
+
+    #[test]
+    fn should_route_subcommand_after_global_flags() {
+        // version after -s flag should route to clap
+        assert!(should_use_clap(&vecs(&["-s", "abc", "version"])));
+        assert!(should_use_clap(&vecs(&["--session", "abc", "list"])));
+        assert!(should_use_clap(&vecs(&["--session=abc", "delete"])));
+
+        // After --, args are pi args, not subcommands
+        assert!(!should_use_clap(&vecs(&["-s", "abc", "--", "list"])));
     }
 }

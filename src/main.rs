@@ -41,19 +41,19 @@ fn run() -> Result<()> {
 fn run_subcommand_mode() -> Result<()> {
     let cli = Cli::parse();
 
-    match cli.command {
+    match cli.parsed_command() {
         Some(Commands::Setup) => {
             pyx_rs::commands::setup::execute()?;
         }
         Some(Commands::List { json }) => {
-            if json {
+            if *json {
                 pyx_rs::commands::list::execute_json()?;
             } else {
                 pyx_rs::commands::list::execute()?;
             }
         }
-        Some(Commands::Delete { provider }) => {
-            pyx_rs::commands::delete::execute(&provider)?;
+        Some(Commands::Delete { provider, yes }) => {
+            pyx_rs::commands::delete::execute(provider.as_deref(), *yes)?;
         }
         Some(Commands::Models {
             provider,
@@ -65,36 +65,36 @@ fn run_subcommand_mode() -> Result<()> {
                 pyx_rs::commands::models::execute_update()?;
             }
             None => {
-                pyx_rs::commands::models::execute(json, refresh, provider.as_deref())?;
+                pyx_rs::commands::models::execute(*json, *refresh, provider.as_deref())?;
             }
         },
         Some(Commands::Pi { action }) => match action {
-            Some(PiCommands::Install { auto }) => {
-                pyx_rs::commands::pi::execute_install(auto)?;
+            Some(PiCommands::Install { force }) => {
+                pyx_rs::commands::pi::execute_install(*force)?;
             }
             None => {
                 pyx_rs::commands::pi::execute_status()?;
             }
         },
-        Some(Commands::Reset) => {
-            pyx_rs::commands::reset::execute()?;
+        Some(Commands::Reset { yes }) => {
+            pyx_rs::commands::reset::execute(*yes)?;
         }
         Some(Commands::Completion { shell, install }) => {
-            if install {
-                pyx_rs::commands::completion::install_completion(&shell)?;
+            if *install {
+                pyx_rs::commands::completion::install_completion(*shell)?;
             } else {
-                pyx_rs::commands::completion::generate_completion(&shell)?;
+                pyx_rs::commands::completion::generate_completion(*shell)?;
             }
         }
-        Some(Commands::Version) => {
-            pyx_rs::commands::version::execute()?;
+        Some(Commands::Version { json }) => {
+            if *json {
+                pyx_rs::commands::version::execute_json()?;
+            } else {
+                pyx_rs::commands::version::execute()?;
+            }
         }
         None => {
-            let exit_code = pyx_rs::commands::root::execute(
-                cli.provider.as_deref(),
-                cli.session.as_deref(),
-                &[],
-            )?;
+            let exit_code = pyx_rs::commands::root::execute(cli.provider(), cli.session(), &[])?;
 
             if exit_code != 0 {
                 std::process::exit(exit_code);

@@ -22,6 +22,7 @@ go.work
 # IDE and editor files
 .idea/
 .vscode/
+.factory/
 *.swp
 *.swo
 *~
@@ -63,3 +64,7 @@ temp/
 
 # Rust
 /target
+
+# Local agent state
+.pi/
+.codex

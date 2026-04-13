@@ -1,9 +1,11 @@
 # Getting Started
 
+Installation and initial setup guide for pyx.
+
 ## Prerequisites
 
 - Rust 1.75+ and Cargo
-- OS keyring support (libsecret on Linux, Keychain on macOS, Credential Manager on Windows)
+- Native secret store (libsecret-tools on Linux, Keychain on macOS, Credential Manager on Windows)
 - API key for your chosen provider
 
 ## Installation
@@ -13,6 +15,7 @@
 Download the appropriate binary for your platform from [GitHub Releases](https://github.com/dkmnx/pyx/releases/latest):
 
 **Linux (x86_64):**
+
 ```bash
 curl -L -o pyx.tar.gz "https://github.com/dkmnx/pyx/releases/latest/download/pyx-$(curl -s https://api.github.com/repos/dkmnx/pyx/releases/latest | grep -oP 'tag_name": "v\K[^"]+')-x86_64-unknown-linux-gnu.tar.gz"
 tar -xzf pyx.tar.gz
@@ -20,6 +23,7 @@ sudo mv pyx /usr/local/bin/
 ```
 
 **macOS (Apple Silicon - M1/M2/M3):**
+
 ```bash
 curl -L -o pyx.tar.gz "https://github.com/dkmnx/pyx/releases/latest/download/pyx-$(curl -s https://api.github.com/repos/dkmnx/pyx/releases/latest | grep -oP 'tag_name": "v\K[^"]+')-aarch64-apple-darwin.tar.gz"
 tar -xzf pyx.tar.gz
@@ -27,6 +31,7 @@ sudo mv pyx /usr/local/bin/
 ```
 
 **macOS (Intel):**
+
 ```bash
 curl -L -o pyx.tar.gz "https://github.com/dkmnx/pyx/releases/latest/download/pyx-$(curl -s https://api.github.com/repos/dkmnx/pyx/releases/latest | grep -oP 'tag_name": "v\K[^"]+')-x86_64-apple-darwin.tar.gz"
 tar -xzf pyx.tar.gz
@@ -59,35 +64,23 @@ This will:
 
 Run `pyx setup` again to add or edit providers.
 
+## Quick Start Workflow
+
+```mermaid
+graph LR
+    A[Install] --> B[pyx setup]
+    B --> C[Add Provider]
+    C --> D[pyx]
+    D --> E[pi runs]
+```
+
 ## Supported Providers
 
-**Core:** openai, anthropic, google, google-vertex, azure, azure-openai
-
-**Chinese:** minimax, minimax-cn, zhipu, baichuan, moonshot
-
-**Other:** groq, mistral, cohere, together, anyscale, replicate, perplexity, friendli, vercel-ai
-
-## Custom Providers
-
-Add to `~/.local/share/pyx/providers.json`:
-
-```json
-{
-  "my-provider": "MY_PROVIDER_API_KEY"
-}
-```
-
-## Directory Structure
-
-```text
-~/.local/share/pyx/
-├── master.key      # Encrypted master key (0600)
-├── database.json   # Encrypted provider credentials
-├── models.json     # Cached model list
-└── providers.json  # Custom provider mappings (optional)
-```
+See [Providers Reference](../reference/providers.md) for complete list of built-in providers.
 
 ## Next Steps
 
 - [Usage Guide](usage.md) - Complete command reference
 - [Troubleshooting](troubleshooting.md) - Common issues
+- [Security](../reference/security.md) - Encryption and best practices
+- [Architecture](../reference/architecture.md) - System design

@@ -14,11 +14,6 @@ use crate::providers::mapping::ProviderEnvResolver;
 use crate::storage::database::Database;
 use std::collections::BTreeMap;
 
-/// Load key manager with passphrase fallback
-fn load_key_manager() -> Result<KeyManager> {
-    passphrase::load_key_manager_with_fallback()
-}
-
 /// Execute the root command (run pi with providers)
 pub fn execute(provider: Option<&str>, session: Option<&str>, pi_args: &[String]) -> Result<i32> {
     if !KeyManager::master_key_exists() {
@@ -51,13 +46,20 @@ pub fn execute(provider: Option<&str>, session: Option<&str>, pi_args: &[String]
     }
 
     let exit_code = spawn_pi(&env_vars, &args)?;
-    display_session_hint();
+
+    let is_non_interactive = pi_args
+        .windows(2)
+        .any(|w| w[0] == "-p" || w[0] == "--prompt")
+        || pi_args
+            .iter()
+            .any(|a| a.starts_with("-p=") || a.starts_with("--prompt="));
+    if !is_non_interactive {
+        display_session_hint();
+    }
 
     Ok(exit_code)
 }
 
-/// Ensure pi is installed, attempting auto-install if missing.
-/// Returns true if pi was just installed.
 fn ensure_pi_installed() -> Result<bool> {
     if find_pi().is_some() {
         return Ok(false);
@@ -75,7 +77,6 @@ fn ensure_pi_installed() -> Result<bool> {
     Ok(true)
 }
 
-/// Display platform info and install completions after pi installation.
 fn display_installation_info() {
     eprintln!("Platform: {}", platform_info());
     if let Ok(version) = get_pi_version() {
@@ -88,10 +89,9 @@ fn display_installation_info() {
     }
 }
 
-/// Build environment variables for the specified providers.
 fn build_provider_env_vars(db: &Database, providers: &[String]) -> Result<Vec<(String, String)>> {
-    let manager = load_key_manager()?;
-    let mut master_key = manager.get_key_bytes()?;
+    let manager = passphrase::load_key_manager_with_fallback()?;
+    let master_key = manager.get_key_bytes()?;
     let resolver = ProviderEnvResolver::new()?;
 
     let mut env_map: BTreeMap<String, String> = BTreeMap::new();
@@ -101,7 +101,7 @@ fn build_provider_env_vars(db: &Database, providers: &[String]) -> Result<Vec<(S
             PyxError::ProviderNotFound(format!("Provider '{provider_name}' not found"))
         })?;
 
-        let api_key = decrypt_api_key(&entry.cipher, &master_key)?;
+        let api_key = decrypt_api_key(&entry.cipher, master_key.as_slice())?;
         let env_var = resolver.get_env_var(provider_name)?;
 
         if let Some(existing) = env_map.get(&env_var) {
@@ -115,7 +115,6 @@ fn build_provider_env_vars(db: &Database, providers: &[String]) -> Result<Vec<(S
         }
     }
 
-    master_key.fill(0);
     Ok(env_map.into_iter().collect())
 }
 
@@ -138,10 +137,10 @@ fn decrypt_api_key(cipher: &str, master_key: &[u8]) -> Result<String> {
         }
     };
 
-    Ok(String::from_utf8_lossy(&api_key_bytes).to_string())
+    String::from_utf8(api_key_bytes)
+        .map_err(|e| PyxError::Crypto(format!("Decrypted API key is not valid UTF-8: {e}")))
 }
 
-/// Determine which providers to use based on CLI args and database
 fn determine_providers(provider_arg: Option<&str>, db: &Database) -> Result<Vec<String>> {
     if let Some(provider_name) = provider_arg {
         // Single provider specified
@@ -155,8 +154,8 @@ fn determine_providers(provider_arg: Option<&str>, db: &Database) -> Result<Vec<
         // Use all configured providers
         Ok(db
             .get_provider_names()
-            .iter()
-            .map(|s| s.to_string())
+            .into_iter()
+            .map(str::to_owned)
             .collect())
     }
 }
@@ -190,6 +189,7 @@ fn display_session_hint() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::crypto::age::encrypt_with_key;
     use crate::storage::database::ProviderEntry;
 
     #[test]
@@ -230,5 +230,49 @@ mod tests {
         let db = Database::default();
         let result = determine_providers(Some("nonexistent"), &db);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_decrypt_api_key_master_key_success() {
+        let key = [7u8; 32];
+        let plaintext = b"sk-test-api-key";
+        let cipher = encrypt_with_key(plaintext, &key).unwrap();
+
+        let result = decrypt_api_key(&cipher, &key).unwrap();
+        assert_eq!(result, "sk-test-api-key");
+    }
+
+    #[test]
+    fn test_decrypt_api_key_both_paths_fail() {
+        let _guard = crate::ENV_MUTEX.lock().unwrap();
+
+        // PYX_PASSPHRASE ensures get_passphrase() returns immediately without
+        // hitting the OS keyring (which would hang on systems without secret-tool).
+        // This dependency relies on get_passphrase()'s env-var-first priority.
+        let _scrypt_guard = crate::test_helpers::EnvGuard::set_var("PYX_SCRYPT_WORK_FACTOR", "14");
+        let _pass_guard =
+            crate::test_helpers::EnvGuard::set_var("PYX_PASSPHRASE", "wrong-passphrase");
+
+        let master_key = [0u8; 32];
+        let wrong_key = [1u8; 32];
+        let plaintext = b"secret";
+
+        // Encrypt with wrong key so master key decryption fails
+        let cipher = encrypt_with_key(plaintext, &wrong_key).unwrap();
+
+        // Passphrase is wrong too, so fallback also fails
+        let result = decrypt_api_key(&cipher, &master_key);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, PyxError::Crypto(_)));
+    }
+
+    #[test]
+    fn test_decrypt_api_key_rejects_invalid_utf8() {
+        let key = [7u8; 32];
+        let cipher = encrypt_with_key(&[0xff, 0xfe, 0xfd], &key).unwrap();
+
+        let err = decrypt_api_key(&cipher, &key).expect_err("invalid utf-8 should fail");
+        assert!(matches!(err, PyxError::Crypto(_)));
     }
 }
