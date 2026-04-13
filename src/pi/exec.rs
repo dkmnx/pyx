@@ -7,6 +7,9 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
+const PACKAGE_MANAGERS: &[&str] = &["npm", "pnpm", "yarn", "bun"];
+const PI_PACKAGE_NAME: &str = "@mariozechner/pi-coding-agent";
+
 /// Shell type for completion installation
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum ShellType {
@@ -92,17 +95,14 @@ pub fn install_pi_with_prompt(force: bool) -> Result<()> {
         return Ok(());
     }
 
-    let available: Vec<String> = ["npm", "pnpm", "yarn", "bun"]
+    let available: Vec<String> = PACKAGE_MANAGERS
         .iter()
         .filter(|pm| which::which(pm).is_ok())
         .map(|pm| pm.to_string())
         .collect();
 
     if available.is_empty() {
-        return Err(PyxError::CommandExecution(
-            "No package manager found (npm, pnpm, yarn, bun). Please install one first."
-                .to_string(),
-        ));
+        return Err(no_package_manager_error());
     }
 
     let pm = if available.len() == 1 {
@@ -127,43 +127,44 @@ fn install_pi_impl(pm_override: Option<&str>, force: bool) -> Result<()> {
         return Ok(());
     }
 
-    let pm = if let Some(pm) = pm_override {
-        pm.to_string()
-    } else {
-        detect_package_manager()?
+    let pm = match pm_override {
+        Some(pm) => pm.to_string(),
+        None => detect_package_manager()?,
     };
 
     println!("Installing pi using {pm}...");
 
     let status = Command::new(&pm)
-        .args(["install", "-g", "@mariozechner/pi-coding-agent"])
+        .args(["install", "-g", PI_PACKAGE_NAME])
         .status()
         .map_err(|e| PyxError::CommandExecution(format!("Failed to run {pm}: {e}")))?;
 
-    if status.success() {
-        println!("✓ Installation complete");
-        if let Ok(version) = get_pi_version() {
-            println!("pi version: {version}");
-        }
-        Ok(())
-    } else {
-        Err(PyxError::CommandExecution(format!(
+    if !status.success() {
+        return Err(PyxError::CommandExecution(format!(
             "Failed to install pi. Exit code: {:?}",
             status.code()
-        )))
+        )));
     }
+
+    println!("✓ Installation complete");
+    if let Ok(version) = get_pi_version() {
+        println!("pi version: {version}");
+    }
+    Ok(())
 }
 
 fn detect_package_manager() -> Result<String> {
-    let package_managers = ["npm", "pnpm", "yarn", "bun"];
-    let detected = package_managers.iter().find(|&pm| which::which(pm).is_ok());
+    PACKAGE_MANAGERS
+        .iter()
+        .find(|pm| which::which(pm).is_ok())
+        .map(|s| s.to_string())
+        .ok_or_else(no_package_manager_error)
+}
 
-    detected.map(|s| s.to_string()).ok_or_else(|| {
-        PyxError::CommandExecution(
-            "No package manager found (npm, pnpm, yarn, bun). Please install one first."
-                .to_string(),
-        )
-    })
+fn no_package_manager_error() -> PyxError {
+    PyxError::CommandExecution(
+        "No package manager found (npm, pnpm, yarn, bun). Please install one first.".to_string(),
+    )
 }
 
 /// Install pi if not already installed (auto-detect package manager)
