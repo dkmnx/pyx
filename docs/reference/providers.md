@@ -108,11 +108,17 @@ pyx my-provider  # Sets MY_CUSTOM_API_KEY env var
 
 ### Pyx Configuration
 
-| Variable                 | Description       | Default   |
-| ------------------------ | ----------------- | --------- |
-| `PYX_PASSPHRASE`         | Master passphrase | Keyring   |
-| `PYX_SCRYPT_WORK_FACTOR` | KDF iterations    | 18        |
-| `PYX_SCRYPT_SALT_LEN`    | Salt length       | 16        |
+| Variable                      | Description                          | Default |
+| ----------------------------- | ------------------------------------ | ------- |
+| `PYX_PASSPHRASE`              | Master passphrase                    | Keyring |
+| `PYX_SCRYPT_WORK_FACTOR`      | Scrypt work factor (log₂)            | 18      |
+| `PYX_SCRYPT_SALT_LEN`         | Salt length (bytes)                  | 16      |
+| `PYX_ALLOW_FILE_FALLBACK`     | Enable file fallback (1/0)           | 0       |
+| `PYX_ALLOW_LEGACY_PASSPHRASE` | Enable Go "default" passphrase (1/0) | 0       |
+
+### File Fallback
+
+When `PYX_ALLOW_FILE_FALLBACK=1`, the passphrase is stored in `~/.local/share/pyx/.passphrase` encrypted with a machine-derived key. This is **disabled by default** as it provides limited protection. See [Security Reference](security.md#file-fallback-security) for details.
 
 ## Verification
 

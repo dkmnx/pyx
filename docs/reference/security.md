@@ -98,8 +98,12 @@ graph LR
 ### Precedence
 
 1. **`PYX_PASSPHRASE`** - Environment variable (highest priority, for automation)
-2. **Native Keyring** - secret-tool/SecretService (Linux), security CLI/Keychain (macOS), WinCred API (Windows)
+2. **Native Keyring** - secret-tool/SecretService (Linux), security CLI/Keychain (macos), WinCred API (Windows)
 3. **File Fallback** - Only when `PYX_ALLOW_FILE_FALLBACK=1` is set
+
+### Legacy Passphrase Migration
+
+For users migrating from the Go implementation that used a hardcoded "default" passphrase, set `PYX_ALLOW_LEGACY_PASSPHRASE=1` to enable the deprecated fallback. This will be removed in a future version.
 
 ### File Fallback Security
 

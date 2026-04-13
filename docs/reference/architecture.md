@@ -71,13 +71,22 @@ src/
 │   ├── models_cache.rs  # Model cache
 │   └── atomic_write.rs  # Safe writes
 ├── keys/                # Master key management
-│   └── mod.rs
+│   ├── mod.rs
+│   ├── manager.rs       # Key lifecycle
+│   └── keyring/         # Passphrase storage
+│       ├── mod.rs       # Backend abstraction
+│       ├── backend.rs   # KeyringBackend trait
+│       ├── file_fallback.rs
+│       ├── linux.rs
+│       ├── macos.rs
+│       ├── windows.rs
+│       └── tests.rs
 ├── crypto/              # Age encryption
 │   └── mod.rs
 ├── providers/           # Provider handling
 │   ├── mod.rs
 │   ├── mapping.rs       # Provider->env mapping
-│   └── validation.rs    # API key validation
+│   └── validation.rs    # Provider name/env var validation
 ├── models/              # Model fetching
 │   ├── mod.rs
 │   ├── fetch.rs         # Remote fetch

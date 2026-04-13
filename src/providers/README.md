@@ -16,11 +16,11 @@ Maps provider names to environment variables with support for built-in and custo
 
 ## Built-in Providers
 
-The module includes mappings for 50+ providers including:
+The module includes mappings for 25+ providers including:
 
-- Core: openai, anthropic, google, azure
-- Chinese: minimax, zhipu, baichuan, moonshot
-- Other: groq, mistral, cohere, together
+- Core: openai, anthropic, google, groq, mistral
+- Chinese: deepseek, minimax, minimax-cn, qwen
+- Cloud: amazon-bedrock, azure-openai-responses, google-vertex
 
 ## Custom Providers
 

@@ -49,16 +49,17 @@ Encrypted provider API keys.
 **Structure (before encryption):**
 
 ```json
-{
-  "providers": [
-    {
-      "name": "openai",
-      "api_key": "sk-...",
-      "env_var": "OPENAI_API_KEY"
-    }
-  ]
-}
+[
+  {
+    "provider": "openai",
+    "cipher": "age-encrypted-base64-ciphertext...",
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-01-01T00:00:00Z"
+  }
+]
 ```
+
+The `cipher` field contains a base64-encoded age ciphertext (ChaCha20-Poly1305 encrypted with the master key).
 
 ### models.json
 
@@ -109,7 +110,7 @@ Encrypted passphrase (fallback storage).
 
 ### Atomic Writes
 
-All sensitive files (`master.key`, `database.json`, `.passphrase`) are written atomically using a backup file with `.bak` extension (e.g., `database.json.bak`). The backup is created before overwriting and removed after successful write.
+All sensitive files (`master.key`, `database.json`, `.passphrase`) are written atomically using a temporary file and rename. A `.bak` backup of the existing file is created before writing and **removed after the rename succeeds**. This order ensures the original file always survives a crash, but backups are not kept on disk afterward since they contain sensitive data.
 
 ## Directory Permissions
 
