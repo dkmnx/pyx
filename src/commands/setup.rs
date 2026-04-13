@@ -64,32 +64,33 @@ pub fn execute() -> Result<()> {
 }
 
 fn load_or_create_master_key() -> Result<KeyManager> {
-    if KeyManager::master_key_exists() {
-        println!("Using existing master key");
-        println!();
-
-        match keyring::get_passphrase()? {
-            Some(_) => {
-                return KeyManager::load();
-            }
-            None => {
-                // OS keyring unavailable or wasn't persisted
-                println!("Passphrase not found in OS keyring.");
-                println!("Enter the passphrase you used during initial setup:");
-                println!();
-
-                let passphrase = passphrase::prompt_existing_passphrase(Some("Passphrase"))?;
-
-                return passphrase::load_key_manager_with_passphrase(&passphrase).map_err(|e| {
-                    PyxError::Crypto(format!(
-                        "Failed to decrypt master key: {e}. \
-                         If you forgot your passphrase, run 'pyx reset' to start fresh."
-                    ))
-                });
-            }
-        }
+    if !KeyManager::master_key_exists() {
+        return create_new_master_key();
     }
 
+    println!("Using existing master key");
+    println!();
+
+    if keyring::get_passphrase()?.is_some() {
+        return KeyManager::load();
+    }
+
+    // OS keyring unavailable or wasn't persisted
+    println!("Passphrase not found in OS keyring.");
+    println!("Enter the passphrase you used during initial setup:");
+    println!();
+
+    let passphrase = passphrase::prompt_existing_passphrase(Some("Passphrase"))?;
+
+    passphrase::load_key_manager_with_passphrase(&passphrase).map_err(|e| {
+        PyxError::Crypto(format!(
+            "Failed to decrypt master key: {e}. \
+             If you forgot your passphrase, run 'pyx reset' to start fresh."
+        ))
+    })
+}
+
+fn create_new_master_key() -> Result<KeyManager> {
     println!("This will initialize pyx with secure encrypted storage.");
     println!();
 
