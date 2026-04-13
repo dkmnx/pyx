@@ -33,6 +33,8 @@ Remove a provider.
 
 ```bash
 pyx delete <provider>
+pyx delete              # Interactive selection
+pyx delete -y           # Skip confirmation
 ```
 
 ### models
@@ -54,15 +56,16 @@ Manage pi installation.
 ```bash
 pyx pi              # Show pi status
 pyx pi install      # Install pi
-pyx pi install --auto
+pyx pi install --force
 ```
 
 ### reset
 
-Delete all pyx data (keys, providers, cache).
+Reset all pyx data (keys, providers, cache).
 
 ```bash
 pyx reset
+pyx reset -y            # Skip confirmation
 ```
 
 Requires confirmation. Cannot be undone.
