@@ -25,29 +25,14 @@ integration with pi by setting appropriate environment variables.
 
 ## How
 
-**Build/Install**:
+Run `just --list` to see all available targets.
 
-- `just build` - Build (debug)
-- `just build-prod` - Production build (release mode)
-- `just install` - Install to `$HOME/.cargo/bin/pyx`
+**Key targets**:
 
-**Test**:
-
-- `just test` - Run unit tests
-- `just test-integration` - Run integration tests
+- `just check` - All checks (fmt, lint, test-all). Run before committing.
+- `just build` / `just build-prod` - Build debug/release
 - `just test-all` - Run all tests
-- `just test-run TestName` - Specific test
-
-**Lint/Format**:
-
-- `just fmt` - Format code
-- `just lint` - Run clippy
-- `just check` - All checks (fmt, lint, test-all)
-
-**Maintenance**:
-
-- `just clean` - Remove build artifacts
-- `just hooks` - Install git pre-commit hooks
+- `just install` - Install to `$HOME/.cargo/bin/pyx`
 
 ## Rules
 
