@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `-c`/`--continue` flag to continue the previous pi session (maps to `pi --continue`)
+- `-r`/`--resume` flag to interactively select a session to resume (maps to `pi --resume`)
 - Provider name validation against pi's model list (prevents typos)
 - `pyx models` command to list available providers/models with `update` subcommand
 - `pyx list` command showing configured providers with their models
@@ -22,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Session hint now suggests `pyx -c` instead of `pyx -s <uuid>` — delegates to pi's built-in `--continue` for race-free session resumption
+- Removed filesystem scanning for most-recent session (`parse_session_filename`, `find_most_recent_session`)
 - **[BREAKING]:** Replaced `ply config` hierarchy with direct commands:
   - `pyx config list` → `pyx list`
   - `pyx config delete <provider>` → `pyx delete`
