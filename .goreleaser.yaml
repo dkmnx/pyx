@@ -8,16 +8,25 @@ before:
   hooks:
     - rustup default stable
     - cargo install --locked cargo-zigbuild
+    - cargo install --locked cargo-xwin
+    - sh -c 'ln -sf "$HOME/.cargo/bin/cargo-xwin" "$HOME/.cargo/bin/xwin"'
     - cargo fetch --locked
 
 builds:
-  - builder: rust
+  - id: default
+    builder: rust
     targets:
       - x86_64-unknown-linux-gnu
       - aarch64-unknown-linux-gnu
       - x86_64-apple-darwin
       - aarch64-apple-darwin
-      - x86_64-pc-windows-gnu
+
+  - id: windows
+    builder: rust
+    tool: xwin
+    command: build
+    targets:
+      - x86_64-pc-windows-msvc
 
 archives:
   - formats:
@@ -50,5 +59,3 @@ release:
     ---
 
     Released by [GoReleaser](https://github.com/goreleaser/goreleaser).
-
-
