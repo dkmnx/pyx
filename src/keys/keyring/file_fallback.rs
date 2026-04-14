@@ -6,9 +6,18 @@ use secrecy::{ExposeSecret, SecretString};
 const FILE_FALLBACK_KEY_PREFIX: &str = "pyx-passphrase";
 const FILE_FALLBACK_KDF_SALT: &[u8] = b"pyx-file-fallback-v2";
 const FILE_FALLBACK_KEY_LEN: usize = 32;
-const FILE_FALLBACK_KDF_LOG_N: u8 = 15;
+const FILE_FALLBACK_KDF_LOG_N_DEFAULT: u8 = 15;
 const FILE_FALLBACK_KDF_R: u32 = 8;
 const FILE_FALLBACK_KDF_P: u32 = 1;
+
+/// Get scrypt work factor from environment or use default (same as age.rs)
+fn get_kdf_log_n() -> u8 {
+    std::env::var("PYX_SCRYPT_WORK_FACTOR")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .filter(|&n| (10..=30).contains(&n))
+        .unwrap_or(FILE_FALLBACK_KDF_LOG_N_DEFAULT)
+}
 
 pub(super) fn file_fallback_enabled() -> bool {
     std::env::var("PYX_ALLOW_FILE_FALLBACK")
@@ -91,7 +100,7 @@ fn derive_machine_key() -> SecretString {
 fn derive_machine_key_v2(machine_id: &str, user: &str) -> Option<SecretString> {
     let material = format!("{FILE_FALLBACK_KEY_PREFIX}:{machine_id}:{user}");
     let params = ScryptParams::new(
-        FILE_FALLBACK_KDF_LOG_N,
+        get_kdf_log_n(),
         FILE_FALLBACK_KDF_R,
         FILE_FALLBACK_KDF_P,
         FILE_FALLBACK_KEY_LEN,
