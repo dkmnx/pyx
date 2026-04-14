@@ -97,14 +97,20 @@ release-notes:
 # Dry-run release to verify goreleaser config and changelog extraction
 pre-release: check release-notes
     @echo "Running goreleaser dry-run..."
-    goreleaser release --clean --snapshot --release-notes /tmp/pyx-release-notes.txt
+    goreleaser release --clean --snapshot --skip=validate --release-notes /tmp/pyx-release-notes.txt
     @echo "Dry-run complete!"
 
 # Build release with goreleaser (snapshot, no publish)
 goreleaser: release-notes
-    @echo "Running goreleaser release..."
-    goreleaser release --clean --snapshot --release-notes /tmp/pyx-release-notes.txt
-    @echo "Release complete!"
+    @echo "Running goreleaser snapshot..."
+    goreleaser release --clean --snapshot --skip=validate --release-notes /tmp/pyx-release-notes.txt
+    @echo "Snapshot complete!"
+
+# Build and publish release to GitHub (requires a git tag)
+release: check release-notes
+    @echo "Publishing release..."
+    goreleaser release --clean --release-notes /tmp/pyx-release-notes.txt
+    @echo "Release published!"
 
 # Install git hooks
 hooks:
