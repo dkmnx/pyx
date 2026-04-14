@@ -6,7 +6,6 @@ project_name: pyx
 
 before:
   hooks:
-    - rustup default stable
     - cargo install --locked cargo-zigbuild
     - cargo install --locked cargo-xwin
     - sh -c 'ln -sf "$HOME/.cargo/bin/cargo-xwin" "$HOME/.cargo/bin/xwin"'
@@ -33,7 +32,8 @@ archives:
       - tar.gz
     name_template: >-
       {{ .ProjectName }}_
-      {{- title .Os }}_
+      {{- .Version }}_
+      {{- tolower .Os }}_
       {{- if eq .Arch "amd64" }}x86_64
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}

@@ -75,6 +75,7 @@ lint:
 clean:
     @echo "Cleaning..."
     cargo clean
+    rm -rf dist/
 
 # Install binary
 install:
@@ -92,13 +93,15 @@ check-ci: fmt-check lint test-all
 # Dry-run release to verify goreleaser config and changelog extraction
 pre-release: check
     @echo "Running goreleaser dry-run..."
-    goreleaser release --clean --snapshot --release-notes "$(awk '/^## \\[/{c++; if(c>1)exit; if(c==1){next}} c>0' CHANGELOG.md | tail -c +2)"
+    awk '/^## \[/{c++; if(c>1)exit; if(c==1){next}} c>0' CHANGELOG.md | tail -c +2 > /tmp/pyx-release-notes.txt
+    goreleaser release --clean --snapshot --release-notes /tmp/pyx-release-notes.txt
     @echo "Dry-run complete!"
 
 # Build release with goreleaser (snapshot, no publish)
 goreleaser:
     @echo "Running goreleaser release..."
-    goreleaser release --clean --snapshot --release-notes "$(awk '/^## \\[{c++; if(c>1)exit; if(c==1){next}} c>0' CHANGELOG.md | tail -c +2)"
+    awk '/^## \[/{c++; if(c>1)exit; if(c==1){next}} c>0' CHANGELOG.md | tail -c +2 > /tmp/pyx-release-notes.txt
+    goreleaser release --clean --snapshot --release-notes /tmp/pyx-release-notes.txt
     @echo "Release complete!"
 
 # Install git hooks
