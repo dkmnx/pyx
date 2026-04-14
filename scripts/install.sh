@@ -74,8 +74,9 @@ get_latest_version() {
     local version
 
     # Try gh CLI first (authenticated)
+    # Filter out pre-releases to match /releases/latest behavior
     if command -v gh &> /dev/null; then
-        version=$(gh release list --repo "${REPO}" --limit 1 2>/dev/null | awk '{print $1}' | sed 's/^v//')
+        version=$(gh release list --repo "${REPO}" --limit 10 2>/dev/null | grep -v 'Pre-release' | head -1 | awk '{print $1}' | sed 's/^v//')
     fi
 
     # Fallback to API
