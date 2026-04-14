@@ -24,7 +24,8 @@ thiserror = "2.0"
 #   Linux: Secret Service (gnome-keyring/kwallet) via D-Bus + kernel keyutils fallback
 #   macOS: Keychain via Security.framework
 #   Windows: Credential Manager via WinCred API
-keyring = { version = "3", features = ["sync-secret-service", "linux-native", "crypto-rust"] }
+# Build dependency on Linux: libdbus-1-dev, pkg-config (or use vendored feature to static-link)
+keyring = { version = "3", features = ["sync-secret-service", "linux-native", "crypto-rust", "vendored"] }
 # Secret handling
 secrecy = { version = "0.10", features = ["serde"] }
 zeroize = { version = "1.8", features = ["zeroize_derive"] }

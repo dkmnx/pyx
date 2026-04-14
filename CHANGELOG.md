@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replaced AES-GCM with age encryption for all credential storage
 - Models fetched from GitHub on first use (no longer embedded, enables updates)
 - Recovery mode automatically triggered when database exists without master key
+- Replaced `secret-tool`/`security` CLI subprocess backends with `keyring` crate for native OS keyring access (supports gnome-keyring, kwallet, and kernel keyutils on Linux; Keychain on macOS; Credential Manager on Windows) (removes `libsecret-tools` runtime dependency on Linux, adds `libdbus-1-dev`/`pkg-config` build dependency on Linux)
 
 ### Fixed
 

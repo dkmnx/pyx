@@ -21,20 +21,38 @@ export PATH="$HOME/.cargo/bin:$PATH"
 
 ### Build fails on Linux
 
-Install libsecret for keyring support:
+The default build uses the `vendored` Cargo feature to statically link libdbus, so no system packages are needed. If building without `vendored`:
+
+| Distro        | Command                                          |
+| ------------- | ------------------------------------------------ |
+| Debian/Ubuntu | `sudo apt install libdbus-1-dev pkg-config`      |
+| Fedora/RHEL   | `sudo dnf install dbus-devel pkgconf-pkg-config` |
+| Arch Linux    | `sudo pacman -S dbus pkgconf`                    |
+
+### Keyring issues on Linux
+
+pyx uses your system's Secret Service daemon for secure passphrase storage. If you see "OS keyring unavailable":
+
+**Install a Secret Service daemon:**
+
+| Distro        | Command                          |
+| ------------- | -------------------------------- |
+| Debian/Ubuntu | `sudo apt install gnome-keyring` |
+| Fedora/RHEL   | `sudo dnf install gnome-keyring` |
+| Arch Linux    | `sudo pacman -S gnome-keyring`   |
+
+For headless/CI environments, `pass-secret-service` provides a lightweight alternative.
+
+**Failing that**, set the passphrase via environment variable:
 
 ```bash
-# Debian/Ubuntu
-sudo apt install libsecret-tools
+export PYX_PASSPHRASE="your-passphrase"
+```
 
-# Arch Linux
-sudo pacman -S libsecret
+Or enable the encrypted file fallback:
 
-# Fedora/RHEL
-sudo dnf install libsecret-tools
-
-# Alpine
-sudo apk add libsecret
+```bash
+export PYX_ALLOW_FILE_FALLBACK=1
 ```
 
 ## Configuration Issues

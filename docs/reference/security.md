@@ -98,7 +98,7 @@ graph LR
 ### Precedence
 
 1. **`PYX_PASSPHRASE`** - Environment variable (highest priority, for automation)
-2. **Native Keyring** - secret-tool/SecretService (Linux), security CLI/Keychain (macos), WinCred API (Windows)
+2. **Native Keyring** - keyring crate: Secret Service/gnome-keyring/kwallet + kernel keyutils (Linux), Keychain (macOS), Credential Manager (Windows)
 3. **File Fallback** - Only when `PYX_ALLOW_FILE_FALLBACK=1` is set
 
 ### Legacy Passphrase Migration

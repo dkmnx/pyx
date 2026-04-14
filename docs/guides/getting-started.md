@@ -5,8 +5,18 @@ Installation and initial setup guide for pyx.
 ## Prerequisites
 
 - Rust 1.75+ and Cargo
-- Native secret store (libsecret-tools on Linux, Keychain on macOS, Credential Manager on Windows)
+- On Linux: D-Bus session bus and a Secret Service daemon (gnome-keyring, kwallet, or pass-secret-service) for persistent passphrase storage
 - API key for your chosen provider
+
+### Build Dependencies (Linux only)
+
+The default build uses the `vendored` Cargo feature to statically link libdbus, so no system packages are needed. If building without `vendored`, install:
+
+| Distro        | Command                                          |
+| ------------- | ------------------------------------------------ |
+| Debian/Ubuntu | `sudo apt install libdbus-1-dev pkg-config`      |
+| Fedora/RHEL   | `sudo dnf install dbus-devel pkgconf-pkg-config` |
+| Arch Linux    | `sudo pacman -S dbus pkgconf`                    |
 
 ## Installation
 
