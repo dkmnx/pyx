@@ -6,9 +6,9 @@ project_name: pyx
 
 before:
   hooks:
-    - cargo install --locked cargo-zigbuild
-    - cargo install --locked cargo-xwin
-    - sh -c 'ln -sf "$HOME/.cargo/bin/cargo-xwin" "$HOME/.cargo/bin/xwin"'
+    - sh -c 'command -v cargo-zigbuild >/dev/null 2>&1 || cargo install --locked cargo-zigbuild'
+    - sh -c 'command -v cargo-xwin >/dev/null 2>&1 || cargo install --locked cargo-xwin'
+    - sh -c 'command -v xwin >/dev/null 2>&1 || ln -sf "$HOME/.cargo/bin/cargo-xwin" "$HOME/.cargo/bin/xwin"'
     - cargo fetch --locked
 
 builds:

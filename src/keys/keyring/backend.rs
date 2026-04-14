@@ -86,11 +86,14 @@ impl KeyringBackend for NativeKeyring {
     }
 
     fn delete_password(&self, service: &str, username: &str) -> Result<()> {
+        // service and username are hardcoded constants ("pyx", "master-key"),
+        // never user input, so no injection concerns. The keyring crate's
+        // Entry::new handles platform-specific validation. The Ok(()) on
+        // entry creation failure is intentional: delete is idempotent, and
+        // a backend that can't create entries has nothing to delete.
         let entry = match entry_new(service, username) {
             Ok(e) => e,
             Err(e) => {
-                // Log but don't fail — nothing to delete if the backend is unreachable,
-                // and idempotent delete should not error on unavailable backends.
                 eprintln!("Warning: keyring entry creation failed during delete: {e}");
                 return Ok(());
             }
