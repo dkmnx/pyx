@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- File-based key fallback scrypt work factor is now configurable via `PYX_SCRYPT_WORK_FACTOR` environment variable
 - Session hint now suggests `pyx -c` instead of `pyx -s <uuid>` — delegates to pi's built-in `--continue` for race-free session resumption
 - Removed filesystem scanning for most-recent session (`parse_session_filename`, `find_most_recent_session`)
 - **[BREAKING]:** Replaced `ply config` hierarchy with direct commands:
@@ -43,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documentation corrections for provider environment variable mappings
 - Quickstart URL in README now uses correct GitHub releases pattern
 - Added missing validation rules documentation for provider names and environment variables
+- Session hint no longer appears when `--continue` or `--resume` is active
 
 ### Security
 
