@@ -25,7 +25,7 @@ case "$ARCH" in
     *)            die "unsupported architecture: $ARCH" ;;
 esac
 
-VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
+VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases" \
     | grep -m1 '"tag_name"' \
     | sed 's/.*"v\(.*\)".*/\1/')
 

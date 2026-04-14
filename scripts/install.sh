@@ -78,9 +78,9 @@ get_latest_version() {
         version=$(gh release list --repo "${REPO}" --limit 1 2>/dev/null | awk '{print $2}' | sed 's/^v//')
     fi
 
-    # Fallback to API
+    # Fallback to API (use /releases, not /releases/latest, to include pre-releases)
     if [[ -z "$version" ]]; then
-        version=$(curl -sSL "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null | grep '"tag_name"' | sed -E 's/.*"v?([^"]+)".*/\1/' | head -1)
+        version=$(curl -sSL "https://api.github.com/repos/${REPO}/releases" 2>/dev/null | grep '"tag_name"' | head -1 | sed -E 's/.*"v?([^"]+)".*/\1/')
     fi
 
     if [[ -z "$version" ]]; then
@@ -158,13 +158,24 @@ download_binary() {
         exit 1
     fi
 
-    # Download binary
-    local filename="pyx-${version}-${target}.${ext}"
+    # Build goreleaser-style archive name: pyx_<version>_<os>_<arch>.tar.gz
+    local gos garch
+    case "$target" in
+        *linux*)   gos="linux" ;;
+        *apple*|*darwin*) gos="darwin" ;;
+        *)         gos="linux" ;;
+    esac
+    case "$target" in
+        *x86_64*|*amd64*) garch="x86_64" ;;
+        *aarch64*|*arm64*) garch="arm64" ;;
+        *)                 garch="x86_64" ;;
+    esac
+    local filename="pyx_${version}_${gos}_${garch}.${ext}"
     local archive="${tmp_dir}/${filename}"
 
     log_info "Downloading binary..."
     if command -v gh &> /dev/null; then
-        gh release download "v${version}" --repo "${REPO}" --pattern "pyx-${version}-${target}.${ext}" --dir "$tmp_dir" 2>/dev/null || \
+        gh release download "v${version}" --repo "${REPO}" --pattern "${filename}" --dir "$tmp_dir" 2>/dev/null || \
         curl -sSL "${base_url}/${filename}" -o "$archive"
     else
         curl -sSL "${base_url}/${filename}" -o "$archive"
@@ -186,7 +197,7 @@ download_binary() {
         file=$(echo "$line" | awk '{print $2}' | tr -d '*')
         file=$(basename "$file")
 
-        if [[ "$file" == "pyx-${version}-${target}.${ext}" ]]; then
+        if [[ "$file" == "${filename}" ]]; then
             found=true
             if [[ "$checksum" == "$computed" ]]; then
                 log_info "Checksum verified!"
@@ -203,7 +214,7 @@ download_binary() {
 
     if [[ "$found" == "false" ]]; then
         log_error "Archive not found in checksums file"
-        log_error "Looking for: pyx-${version}-${target}.${ext}"
+        log_error "Looking for: ${filename}"
         rm -rf "$tmp_dir"
         exit 1
     fi

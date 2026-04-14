@@ -170,88 +170,6 @@ fn test_file_fallback_enabled_env_var() {
     assert!(!file_fallback_enabled());
 }
 
-#[cfg(target_os = "linux")]
-#[test]
-fn test_system_keyring_uses_secret_tool_when_available() {
-    use std::fs;
-
-    let _guard = ENV_MUTEX.lock().unwrap();
-    let temp = tempdir().unwrap();
-    let bin_dir = temp.path().join("bin");
-    let store_dir = temp.path().join("store");
-    fs::create_dir_all(&bin_dir).unwrap();
-    fs::create_dir_all(&store_dir).unwrap();
-
-    let script_path = bin_dir.join("secret-tool");
-    let script = r##"#!/usr/bin/env python3
-import os
-import pathlib
-import sys
-
-store_dir = pathlib.Path(os.environ["PYX_SECRET_TOOL_STORE_DIR"])
-log_path = store_dir / "log.txt"
-log_path.parent.mkdir(parents=True, exist_ok=True)
-
-args = sys.argv[1:]
-cmd = args[0]
-attrs = args[1:]
-if cmd == "store" and attrs[:2] == ["--label", "pyx passphrase"]:
-    attrs = attrs[2:]
-key = "__".join(attrs).replace("/", "_")
-entry = store_dir / key
-
-with log_path.open("a", encoding="utf-8") as fh:
-    fh.write(cmd + "\n")
-
-if cmd == "store":
-    value = sys.stdin.read()
-    entry.write_text(value, encoding="utf-8")
-    sys.exit(0)
-elif cmd == "lookup":
-    if entry.exists():
-        sys.stdout.write(entry.read_text(encoding="utf-8"))
-        sys.exit(0)
-    sys.exit(1)
-elif cmd == "clear":
-    if entry.exists():
-        entry.unlink()
-    sys.exit(0)
-else:
-    sys.exit(2)
-"##;
-    fs::write(&script_path, script).unwrap();
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&script_path, fs::Permissions::from_mode(0o755)).unwrap();
-    }
-
-    let original_path = std::env::var("PATH").unwrap_or_default();
-    let mut env = EnvGuard::set_var("PATH", format!("{}:{}", bin_dir.display(), original_path));
-    env.extend(EnvGuard::set_var("PYX_SECRET_TOOL_STORE_DIR", &store_dir));
-    env.extend(EnvGuard::remove_var("PYX_PASSPHRASE"));
-    env.extend(EnvGuard::remove_var("PYX_ALLOW_FILE_FALLBACK"));
-    reset_backend();
-
-    let passphrase = SecretString::new("secret-tool-pass".to_string().into_boxed_str());
-    set_passphrase(&passphrase).unwrap();
-
-    let log = fs::read_to_string(store_dir.join("log.txt")).unwrap();
-    assert!(log.contains("store"));
-
-    let retrieved = get_passphrase().unwrap().unwrap();
-    assert_eq!(retrieved.expose_secret(), "secret-tool-pass");
-
-    let log = fs::read_to_string(store_dir.join("log.txt")).unwrap();
-    assert!(log.contains("lookup"));
-
-    clear_passphrase().unwrap();
-
-    let log = fs::read_to_string(store_dir.join("log.txt")).unwrap();
-    assert!(log.contains("clear"));
-}
-
 #[test]
 fn test_get_password_returns_none_for_missing_entry() {
     set_backend(Box::new(MockKeyring::new()));
@@ -406,4 +324,61 @@ fn test_set_passphrase_succeeds_when_backend_available() {
 
     clear_passphrase().unwrap();
     reset_backend();
+}
+
+/// Test that NativeKeyring::is_available() returns a valid result
+/// (true on platforms with a working keyring, false in CI/headless environments).
+/// This test validates the keyring crate integration.
+#[test]
+fn test_native_keyring_is_available_returns_valid_result() {
+    // This test simply verifies the keyring crate integration works
+    // and doesn't panic. The result depends on the runtime environment.
+    let _ = backend::NativeKeyring::is_available();
+}
+
+/// Test that the NativeKeyring backend can perform get/set/delete operations
+/// or gracefully report that it's unavailable. This test is expected to
+/// be skipped on CI where no keyring daemon is available.
+#[test]
+fn test_native_keyring_roundtrip_when_available() {
+    use backend::NativeKeyring;
+
+    if !NativeKeyring::is_available() {
+        // Keyring daemon not available in this environment (e.g., CI/headless)
+        // This is expected and not a failure.
+        eprintln!("Skipping native keyring test: no keyring backend available");
+        return;
+    }
+
+    let backend = NativeKeyring;
+    let service = "pyx-test-roundtrip";
+    let username = "test-user";
+    let password = "test-password-123";
+
+    // Set
+    backend
+        .set_password(service, username, password)
+        .expect("set_password should succeed with available backend");
+
+    // Get
+    let result = backend
+        .get_password(service, username)
+        .expect("get_password should succeed with available backend");
+    assert_eq!(result, Some(password.to_string()));
+
+    // Delete (idempotent)
+    backend
+        .delete_password(service, username)
+        .expect("delete_password should succeed with available backend");
+
+    // Verify deleted
+    let result = backend
+        .get_password(service, username)
+        .expect("get_password should succeed with available backend");
+    assert_eq!(result, None, "password should be deleted");
+
+    // Delete again (idempotent)
+    backend
+        .delete_password(service, username)
+        .expect("delete_password should be idempotent");
 }

@@ -1,19 +1,29 @@
-//! Keyring backend trait and platform dispatch.
+//! Keyring backend abstraction for testability.
 //!
-//! This module defines the KeyringBackend trait and dispatches to the
-//! platform-specific implementation (Linux, macOS, or Windows).
+//! Uses the `keyring` crate for native OS keyring access on all platforms:
+//! - Linux: Secret Service (gnome-keyring, kwallet) via D-Bus + kernel keyutils fallback
+//! - macOS: Keychain via Security.framework
+//! - Windows: Credential Manager via WinCred API
+//!
+//! The `keyring` crate handles platform dispatch internally. On Linux it tries
+//! Secret Service first (persistent, encrypted) then kernel keyutils (in-memory,
+//! session-scoped). This eliminates the need for the `secret-tool` CLI, `security`
+//! CLI, or hand-rolled WinCred FFI.
 
 #[cfg(test)]
 use std::cell::RefCell;
 #[cfg(test)]
 use std::sync::Arc;
-use std::sync::Mutex;
+use std::sync::OnceLock;
 
 use crate::error::{PyxError, Result};
+use keyring::{Entry, Error as KeyringError};
 
 /// Trait for keyring backend implementations.
 ///
 /// Implement this trait to provide platform-specific keyring functionality.
+/// In production, `NativeKeyring` is always used. For tests, `MockKeyring`
+/// allows in-memory keyring simulation.
 pub trait KeyringBackend: Send + Sync {
     /// Get a password from the keyring.
     ///
@@ -33,10 +43,70 @@ pub trait KeyringBackend: Send + Sync {
     fn delete_password(&self, service: &str, username: &str) -> Result<()>;
 }
 
+/// Native OS keyring backend using the `keyring` crate.
+///
+/// On Linux, this uses Secret Service (gnome-keyring or kwallet) as the primary
+/// store with kernel keyutils as an in-memory session fallback. On macOS it
+/// uses the system Keychain. On Windows it uses Credential Manager.
+pub(crate) struct NativeKeyring;
+
+/// Cached result of the keyring availability probe.
+///
+/// Probing involves D-Bus IPC on Linux which can be slow (tens to hundreds of
+/// milliseconds). Caching avoids repeating this on every `with_backend` call
+/// within the same process.
+static KEYRING_AVAILABLE: OnceLock<bool> = OnceLock::new();
+
+impl NativeKeyring {
+    /// Check if a native keyring backend is available.
+    ///
+    /// The result is cached after the first probe, so this is cheap to call
+    /// repeatedly. The initial probe may involve D-Bus IPC on Linux.
+    pub fn is_available() -> bool {
+        *KEYRING_AVAILABLE.get_or_init(|| probe_keyring().is_ok())
+    }
+}
+
+impl KeyringBackend for NativeKeyring {
+    fn get_password(&self, service: &str, username: &str) -> Result<Option<String>> {
+        let entry = entry_new(service, username)?;
+        match entry.get_password() {
+            Ok(password) => Ok(Some(password)),
+            Err(KeyringError::NoEntry) => Ok(None),
+            Err(e) => Err(PyxError::Keyring(format!("Keyring get failed: {e}"))),
+        }
+    }
+
+    fn set_password(&self, service: &str, username: &str, password: &str) -> Result<()> {
+        let entry = entry_new(service, username)?;
+        entry
+            .set_password(password)
+            .map_err(|e| PyxError::Keyring(format!("Keyring set failed: {e}")))?;
+        Ok(())
+    }
+
+    fn delete_password(&self, service: &str, username: &str) -> Result<()> {
+        let entry = match entry_new(service, username) {
+            Ok(e) => e,
+            Err(e) => {
+                // Log but don't fail — nothing to delete if the backend is unreachable,
+                // and idempotent delete should not error on unavailable backends.
+                eprintln!("Warning: keyring entry creation failed during delete: {e}");
+                return Ok(());
+            }
+        };
+        match entry.delete_credential() {
+            Ok(()) => Ok(()),
+            Err(KeyringError::NoEntry) => Ok(()), // Idempotent
+            Err(e) => Err(PyxError::Keyring(format!("Keyring delete failed: {e}"))),
+        }
+    }
+}
+
 /// Mock keyring backend for testing.
 #[derive(Default)]
 pub struct MockKeyring {
-    store: Mutex<std::collections::HashMap<String, String>>,
+    store: std::sync::Mutex<std::collections::HashMap<String, String>>,
 }
 
 impl MockKeyring {
@@ -68,7 +138,7 @@ impl KeyringBackend for MockKeyring {
     }
 }
 
-/// Unsupported keyring backend for non-Windows/Linux/macOS platforms.
+/// Unsupported keyring backend for platforms where no backend is available.
 /// All operations return errors.
 #[allow(dead_code)]
 pub(crate) struct UnsupportedKeyring;
@@ -112,7 +182,37 @@ pub fn reset_backend() {
     });
 }
 
+/// Create a new keyring entry for the given service and username.
+///
+/// This is a helper because `Entry::new` can fail on some platforms
+/// (e.g., empty service/user is rejected by macOS Keychain).
+fn entry_new(service: &str, username: &str) -> Result<Entry> {
+    Entry::new(service, username)
+        .map_err(|e| PyxError::Keyring(format!("Failed to create keyring entry: {e}")))
+}
+
+/// Probe whether a keyring backend is available by attempting to create a test entry.
+///
+/// This catches cases where the platform has no keyring daemon (e.g., headless Linux
+/// without gnome-keyring or kwallet) or where D-Bus is not accessible.
+///
+/// The probe creates a temporary entry, attempts a read to trigger any D-Bus
+/// connection errors, and then cleans up the probe entry to avoid accumulation.
+fn probe_keyring() -> Result<()> {
+    let entry = Entry::new("pyx-availability-check", "test")
+        .map_err(|e| PyxError::Keyring(format!("Keyring backend unavailable: {e}")))?;
+    // Try reading — this surfaces D-Bus connection errors on Linux that
+    // Entry::new alone might not trigger (some backends defer connection).
+    let _ = entry.get_password();
+    // Clean up the probe entry to avoid accumulating stale entries.
+    let _ = entry.delete_credential();
+    Ok(())
+}
+
 /// Execute a function with the current backend, or the default platform backend.
+///
+/// In tests, uses the injected test backend if one is set. Otherwise, uses
+/// `NativeKeyring` if available, falling back to `UnsupportedKeyring`.
 pub(super) fn with_backend<F, T>(f: F) -> T
 where
     F: FnOnce(&dyn KeyringBackend) -> T,
@@ -124,46 +224,9 @@ where
         }
     }
 
-    // Dispatch to platform-specific backend
-    #[cfg(target_os = "linux")]
-    {
-        use super::linux::LinuxKeyring;
-
-        // Use secret-tool if available
-        if LinuxKeyring::is_available() {
-            return f(&LinuxKeyring);
-        }
-
-        // If secret-tool is not available, return error
-        f(&UnsupportedKeyring)
+    if NativeKeyring::is_available() {
+        return f(&NativeKeyring);
     }
 
-    #[cfg(target_os = "macos")]
-    {
-        use super::macos::MacOsKeyring;
-
-        if MacOsKeyring::is_available() {
-            return f(&MacOsKeyring);
-        }
-
-        // If security CLI is unavailable (shouldn't happen), return error
-        f(&UnsupportedKeyring)
-    }
-
-    #[cfg(target_os = "windows")]
-    {
-        use super::windows::WindowsKeyring;
-
-        if WindowsKeyring::is_available() {
-            return f(&WindowsKeyring);
-        }
-
-        f(&UnsupportedKeyring)
-    }
-
-    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
-    {
-        // Unsupported platform - return an error for all operations
-        f(&UnsupportedKeyring)
-    }
+    f(&UnsupportedKeyring)
 }

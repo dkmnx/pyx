@@ -19,10 +19,12 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 # Error handling
 thiserror = "2.0"
-# Native OS keyring backends (see src/keys/keyring/)
-# Linux: secret-tool CLI (libsecret-tools package)
-# macOS: security CLI (built-in)
-# Windows: WinCred API (built-in)
+# Native OS keyring access
+# Uses keyring crate which provides:
+#   Linux: Secret Service (gnome-keyring/kwallet) via D-Bus + kernel keyutils fallback
+#   macOS: Keychain via Security.framework
+#   Windows: Credential Manager via WinCred API
+keyring = { version = "3", features = ["sync-secret-service", "linux-native", "crypto-rust"] }
 # Secret handling
 secrecy = { version = "0.10", features = ["serde"] }
 zeroize = { version = "1.8", features = ["zeroize_derive"] }

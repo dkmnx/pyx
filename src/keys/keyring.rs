@@ -1,18 +1,13 @@
-//! Keyring backend abstraction for testability
+//! Keyring backend abstraction for testability.
 //!
-//! On Linux with KDE/kwallet, the OS keyring may not persist credentials
-//! across Entry instances. We use a file-based fallback for reliability.
+//! Uses the `keyring` crate for native OS keyring access on all platforms.
+//! On Linux, Secret Service (gnome-keyring/kwallet) is tried first via D-Bus,
+//! with kernel keyutils as an in-memory session fallback.
+//! On macOS, the system Keychain is used natively.
+//! On Windows, Credential Manager is used natively.
 
 mod backend;
 mod file_fallback;
-
-// OS-specific keyring implementations
-#[cfg(target_os = "linux")]
-mod linux;
-#[cfg(target_os = "macos")]
-mod macos;
-#[cfg(target_os = "windows")]
-mod windows;
 
 use self::backend::with_backend;
 #[cfg(test)]
