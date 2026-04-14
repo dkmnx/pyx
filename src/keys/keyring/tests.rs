@@ -337,15 +337,22 @@ fn test_native_keyring_is_available_returns_valid_result() {
 }
 
 /// Test that the NativeKeyring backend can perform get/set/delete operations
-/// or gracefully report that it's unavailable. This test is expected to
-/// be skipped on CI where no keyring daemon is available.
+/// or gracefully report that it's unavailable.
+///
+/// Skipped when `CI=true` is set in the environment because macOS and Windows
+/// CI runners expose a native keyring that responds to availability probes but
+/// silently fails to persist credentials across operations.
 #[test]
 fn test_native_keyring_roundtrip_when_available() {
     use backend::NativeKeyring;
 
+    if std::env::var("CI").is_ok() {
+        eprintln!("Skipping native keyring roundtrip test in CI environment");
+        return;
+    }
+
     if !NativeKeyring::is_available() {
-        // Keyring daemon not available in this environment (e.g., CI/headless)
-        // This is expected and not a failure.
+        // Keyring daemon not available in this environment (e.g., headless Linux)
         eprintln!("Skipping native keyring test: no keyring backend available");
         return;
     }
