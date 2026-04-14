@@ -91,6 +91,12 @@ pre-release: check
     goreleaser release --clean --snapshot --release-notes "$(awk '/^## \\[/{c++; if(c>1)exit; if(c==1){next}} c>0' CHANGELOG.md | tail -c +2)"
     @echo "Dry-run complete!"
 
+# Build release with goreleaser (snapshot, no publish)
+goreleaser:
+    @echo "Running goreleaser release..."
+    goreleaser release --clean --snapshot --release-notes "$(awk '/^## \\[{c++; if(c>1)exit; if(c==1){next}} c>0' CHANGELOG.md | tail -c +2)"
+    @echo "Release complete!"
+
 # Install git hooks
 hooks:
     @echo "Installing git hooks..."
