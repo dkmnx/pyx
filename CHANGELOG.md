@@ -7,49 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+Initial release of pyx — a CLI for securely managing AI provider API keys for the pi coding agent.
 
-- `-c`/`--continue` flag to continue the previous pi session (maps to `pi --continue`)
-- `-r`/`--resume` flag to interactively select a session to resume (maps to `pi --resume`)
-- Provider name validation against pi's model list (prevents typos)
-- `pyx models` command to list available providers/models with `update` subcommand
-- `pyx list` command showing configured providers with their models
-- `pyx delete` command with interactive provider selection
-- `pyx reset` command to clear all encrypted data
-- `-s`/`--session` flag for pi session support
-- DeepSeek and Qwen provider support (via extensions)
-- Auto-install pi if missing (with package manager selection)
-- Added note about pi extensions for custom providers in documentation
-- JSON output support for `pyx version --json` command
+Credentials are encrypted at rest with age, decrypted at runtime, and injected as environment variables into the pi process. No config files or plaintext keys on disk.
 
-### Changed
-
-- File-based key fallback scrypt work factor is now configurable via `PYX_SCRYPT_WORK_FACTOR` environment variable
-- Session hint now suggests `pyx -c` instead of `pyx -s <uuid>` — delegates to pi's built-in `--continue` for race-free session resumption
-- Removed filesystem scanning for most-recent session (`parse_session_filename`, `find_most_recent_session`)
-- **[BREAKING]:** Replaced `ply config` hierarchy with direct commands:
-  - `pyx config list` → `pyx list`
-  - `pyx config delete <provider>` → `pyx delete`
-  - `pyx config edit <provider>` → `pyx edit <provider>`
-- **[BREAKING]:** Removed default provider concept - now runs all configured providers by default
-- **[BREAKING]:** Removed `pyx init` command - use `pyx setup` instead
-- Replaced AES-GCM with age encryption for all credential storage
-- Models fetched from GitHub on first use (no longer embedded, enables updates)
-- Recovery mode automatically triggered when database exists without master key
-- Replaced `secret-tool`/`security` CLI subprocess backends with `keyring` crate for native OS keyring access (supports gnome-keyring, kwallet, and kernel keyutils on Linux; Keychain on macOS; Credential Manager on Windows) (removes `libsecret-tools` runtime dependency on Linux, adds `libdbus-1-dev`/`pkg-config` build dependency on Linux)
-
-### Fixed
-
-- Cross-platform compatibility (Windows paths, executables, PowerShell)
-- Provider validation error messages now suggest `pyx models update`
-- Documentation corrections for provider environment variable mappings
-- Quickstart URL in README now uses correct GitHub releases pattern
-- Added missing validation rules documentation for provider names and environment variables
-- Session hint no longer appears when `--continue` or `--resume` is active
-
-### Security
-
-- Master key stored in OS keyring with password fallback
-- Added SecureString type to prevent plaintext credential exposure in memory
-- Provider name validation prevents path traversal attacks
-- Zeroed master key and API keys after use
+- Add, edit, and delete provider API keys (`pyx setup`, `pyx edit`, `pyx delete`)
+- Master key stored in OS keyring (Keychain, Credential Manager, gnome-keyring/kwallet) with encrypted file fallback
+- `pyx models` to browse available providers and models from pi's catalog
+- `pyx list` to show configured providers and their models
+- `pyx` runs pi with all provider credentials injected as environment variables
+- `-c`/`--continue` and `-r`/`--resume` for pi session management
+- `pyx pi install` to install pi with auto-detected package manager
+- Shell completion for bash, zsh, fish, and PowerShell
+- Cross-platform: Linux, macOS, Windows
