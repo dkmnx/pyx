@@ -54,6 +54,8 @@ changelog:
   disable: true
 
 release:
+  replace_existing_draft: true
+  mode: replace
   footer: |
 
     ---
