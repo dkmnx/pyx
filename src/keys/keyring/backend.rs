@@ -194,23 +194,58 @@ fn entry_new(service: &str, username: &str) -> Result<Entry> {
         .map_err(|e| PyxError::Keyring(format!("Failed to create keyring entry: {e}")))
 }
 
-/// Probe whether a keyring backend is available by attempting to create a test entry.
+/// Probe whether a keyring backend is available by performing a write-read-delete
+/// roundtrip on a temporary entry.
 ///
-/// This catches cases where the platform has no keyring daemon (e.g., headless Linux
-/// without gnome-keyring or kwallet) or where D-Bus is not accessible.
+/// This catches cases where:
+/// - The platform has no keyring daemon (e.g., headless Linux without gnome-keyring
+///   or kwallet) or D-Bus is not accessible.
+/// - The backend appears available for reads but silently fails to persist writes
+///   (e.g., macOS/Windows CI runners where the keyring daemon responds to reads
+///   but credentials don't actually persist after set_password).
 ///
-/// The probe creates a temporary entry, attempts a read to trigger any D-Bus
-/// connection errors, and then cleans up the probe entry to avoid accumulation.
+/// The probe creates a temporary entry, writes a test password, reads it back to
+/// verify persistence, and then cleans up to avoid accumulating stale entries.
+/// Note: if the process crashes between `set_password` and `delete_credential`,
+/// a stale probe entry (service "pyx-availability-check") may remain in the OS
+/// keyring. It is harmless — the next run overwrites it — but not automatically
+/// removed.
 fn probe_keyring() -> Result<()> {
-    let entry = Entry::new("pyx-availability-check", "test")
+    let entry = Entry::new("pyx-availability-check", "probe")
         .map_err(|e| PyxError::Keyring(format!("Keyring backend unavailable: {e}")))?;
-    // A read that returns NoEntry means the backend is connected and functional
-    // — the entry simply doesn't exist yet. Any other error means the backend
-    // is not operational (e.g., no D-Bus session on headless Linux).
+
+    // Write a test password to verify the backend can actually persist credentials.
+    let test_password = "pyx-probe-check";
+    entry
+        .set_password(test_password)
+        .map_err(|e| PyxError::Keyring(format!("Keyring probe write failed: {e}")))?;
+
+    // Read it back to confirm the write was actually persisted.
     match entry.get_password() {
-        Ok(_) | Err(KeyringError::NoEntry) => {}
-        Err(e) => return Err(PyxError::Keyring(format!("Keyring probe failed: {e}"))),
+        Ok(pw) if pw == test_password => {}
+        Ok(pw) => {
+            // Unexpected password — clean up and report failure.
+            let _ = entry.delete_credential();
+            return Err(PyxError::Keyring(format!(
+                "Keyring probe read mismatch: expected '{test_password}', got '{pw}'"
+            )));
+        }
+        Err(KeyringError::NoEntry) => {
+            // set_password returned Ok but the credential wasn't persisted.
+            // This happens on macOS/Windows CI runners where the keyring
+            // daemon appears available but writes silently fail.
+            let _ = entry.delete_credential();
+            return Err(PyxError::Keyring(
+                "Keyring probe write did not persist: credential missing after set_password"
+                    .to_string(),
+            ));
+        }
+        Err(e) => {
+            let _ = entry.delete_credential();
+            return Err(PyxError::Keyring(format!("Keyring probe read failed: {e}")));
+        }
     }
+
     // Clean up the probe entry to avoid accumulating stale entries.
     let _ = entry.delete_credential();
     Ok(())
