@@ -254,8 +254,6 @@ else:
 
 #[test]
 fn test_get_password_returns_none_for_missing_entry() {
-    let _guard = ENV_MUTEX.lock().unwrap();
-
     set_backend(Box::new(MockKeyring::new()));
 
     let result = with_backend(|b| b.get_password("nonexistent-service", "nonexistent-user"));
@@ -273,8 +271,6 @@ fn test_get_password_returns_none_for_missing_entry() {
 
 #[test]
 fn test_set_password_overwrites_existing() {
-    let _guard = ENV_MUTEX.lock().unwrap();
-
     set_backend(Box::new(MockKeyring::new()));
 
     let service = "test-service";
@@ -299,8 +295,6 @@ fn test_set_password_overwrites_existing() {
 
 #[test]
 fn test_delete_password_is_idempotent() {
-    let _guard = ENV_MUTEX.lock().unwrap();
-
     set_backend(Box::new(MockKeyring::new()));
 
     let service = "test-service";

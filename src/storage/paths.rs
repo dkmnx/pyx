@@ -105,10 +105,12 @@ pub fn ensure_data_dir() -> Result<PathBuf> {
 mod tests {
     use super::*;
     use crate::test_helpers::EnvGuard;
+    use crate::ENV_MUTEX;
 
     #[test]
     fn test_get_data_dir_with_xdg() {
-        let _guard = EnvGuard::set_var("XDG_DATA_HOME", "/test/xdg");
+        let _guard = ENV_MUTEX.lock().unwrap();
+        let _guard2 = EnvGuard::set_var("XDG_DATA_HOME", "/test/xdg");
         let path = get_data_dir().unwrap();
         assert_eq!(path, PathBuf::from("/test/xdg/pyx"));
     }
@@ -117,8 +119,9 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn test_get_data_dir_with_home() {
-        let _guard = EnvGuard::remove_var("XDG_DATA_HOME");
-        let _guard = EnvGuard::set_var("HOME", "/test/home");
+        let _guard = ENV_MUTEX.lock().unwrap();
+        let _xdg_guard = EnvGuard::remove_var("XDG_DATA_HOME");
+        let _home_guard = EnvGuard::set_var("HOME", "/test/home");
         let path = get_data_dir().unwrap();
         // macOS resolves dirs::data_local_dir() to ~/Library/Application Support before HOME fallback
         let expected_macos = PathBuf::from("/test/home/Library/Application Support/pyx");

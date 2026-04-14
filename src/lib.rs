@@ -23,7 +23,10 @@ pub use keys::manager::KeyManager;
 pub use storage::database::{Database, ProviderEntry};
 pub use storage::models_cache::ModelsCache;
 
-/// Global mutex for tests that modify environment variables
+/// Global mutex for tests that modify environment variables.
+/// `std::env::set_var`/`std::env::remove_var` are NOT thread-safe on glibc even
+/// for different keys (concurrent modifications to the process environ array can
+/// corrupt reads), so all env mutations must be serialized through this lock.
 #[cfg(test)]
 pub static ENV_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
@@ -54,7 +57,10 @@ mod tests {
     }
 
     fn is_env_mutation(line: &str) -> bool {
-        (line.contains("std::env::set_var(") || line.contains("std::env::remove_var("))
+        (line.contains("std::env::set_var(")
+            || line.contains("std::env::remove_var(")
+            || line.contains("env::set_var(")
+            || line.contains("env::remove_var("))
             && !line.contains("EnvGuard")
     }
 

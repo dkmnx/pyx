@@ -54,9 +54,11 @@ impl Drop for EnvGuard {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ENV_MUTEX;
 
     #[test]
     fn set_var_restores_original_on_drop() {
+        let _guard = ENV_MUTEX.lock().unwrap();
         // Start clean
         env::remove_var("TEST_GUARD_VAR");
 
@@ -71,6 +73,7 @@ mod tests {
 
     #[test]
     fn set_var_restores_existing_value_on_drop() {
+        let _guard = ENV_MUTEX.lock().unwrap();
         env::set_var("TEST_GUARD_VAR", "original");
 
         {
@@ -85,6 +88,7 @@ mod tests {
 
     #[test]
     fn remove_var_restores_original_on_drop() {
+        let _guard = ENV_MUTEX.lock().unwrap();
         env::set_var("TEST_GUARD_VAR", "will_be_removed");
 
         {
@@ -99,6 +103,7 @@ mod tests {
 
     #[test]
     fn remove_var_restores_nonexistent_on_drop() {
+        let _guard = ENV_MUTEX.lock().unwrap();
         env::remove_var("TEST_GUARD_VAR_NONEXISTENT");
 
         {
@@ -112,6 +117,7 @@ mod tests {
 
     #[test]
     fn extend_combines_guards() {
+        let _guard = ENV_MUTEX.lock().unwrap();
         env::remove_var("TEST_VAR_A");
         env::remove_var("TEST_VAR_B");
 
