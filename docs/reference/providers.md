@@ -108,13 +108,13 @@ pyx my-provider  # Sets MY_CUSTOM_API_KEY env var
 
 ### Pyx Configuration
 
-| Variable                      | Description                          | Default |
-| ----------------------------- | ------------------------------------ | ------- |
-| `PYX_PASSPHRASE`              | Master passphrase                    | Keyring |
-| `PYX_SCRYPT_WORK_FACTOR`      | Scrypt work factor (log₂)            | 18      |
-| `PYX_SCRYPT_SALT_LEN`         | Salt length (bytes)                  | 16      |
-| `PYX_ALLOW_FILE_FALLBACK`     | Enable file fallback (1/0)           | 0       |
-| `PYX_ALLOW_LEGACY_PASSPHRASE` | Enable Go "default" passphrase (1/0) | 0       |
+| Variable                      | Description                          | Default                |
+| ----------------------------- | ------------------------------------ | ---------------------- |
+| `PYX_PASSPHRASE`              | Master passphrase                    | Keyring                |
+| `PYX_SCRYPT_WORK_FACTOR`      | Scrypt work factor (log₂)            | 18 (file fallback: 15) |
+| `PYX_SCRYPT_SALT_LEN`         | Salt length (bytes)                  | 16                     |
+| `PYX_ALLOW_FILE_FALLBACK`     | Enable file fallback (1/0)           | 0                      |
+| `PYX_ALLOW_LEGACY_PASSPHRASE` | Enable Go "default" passphrase (1/0) | 0                      |
 
 ### File Fallback
 

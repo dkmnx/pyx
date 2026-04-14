@@ -15,7 +15,7 @@ fn get_kdf_log_n() -> u8 {
     std::env::var("PYX_SCRYPT_WORK_FACTOR")
         .ok()
         .and_then(|v| v.parse().ok())
-        .filter(|&n| (10..=30).contains(&n))
+        .filter(|&n| (14..=30).contains(&n))
         .unwrap_or(FILE_FALLBACK_KDF_LOG_N_DEFAULT)
 }
 
