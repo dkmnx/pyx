@@ -51,7 +51,7 @@ pub fn execute(args: RootCommandArgs) -> Result<i32> {
 
     let exit_code = spawn_pi(&env_vars, &spawn_args)?;
 
-    if !is_non_interactive(args.pi_args) {
+    if !is_non_interactive(args.pi_args) && !args.continue_session && !args.resume_session {
         display_session_hint();
     }
 
