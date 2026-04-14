@@ -16,7 +16,11 @@ version := `git describe --tags --always 2>&1`
 commit := `git rev-parse --short HEAD 2>&1`
 date := `git log -1 --format=%aI 2>&1`
 
-# Build the application
+# Install all dependencies (Rust toolchain + crate dependencies)
+deps:
+    @echo "Installing dependencies..."
+    cargo check
+    @echo "Dependencies installed!"
 build:
     @echo "Building {{ app_name }}..."
     cargo build
