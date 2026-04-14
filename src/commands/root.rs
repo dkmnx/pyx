@@ -254,7 +254,7 @@ mod tests {
         let _guard = crate::ENV_MUTEX.lock().unwrap();
 
         // PYX_PASSPHRASE ensures get_passphrase() returns immediately without
-        // hitting the OS keyring (which would hang on systems without secret-tool).
+        // hitting the OS keyring (which may be unavailable in test environments).
         // This dependency relies on get_passphrase()'s env-var-first priority.
         let _scrypt_guard = crate::test_helpers::EnvGuard::set_var("PYX_SCRYPT_WORK_FACTOR", "14");
         let _pass_guard =
