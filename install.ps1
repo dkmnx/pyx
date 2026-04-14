@@ -8,10 +8,13 @@ $InstallDir = if ($env:INSTALL_DIR) { $env:INSTALL_DIR } else { "$env:LOCALAPPDA
 $Arch = if ([Environment]::Is64BitOperatingSystem) { 'x86_64' } else { 'i386' }
 
 $Releases = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases"
-$Version = ($Releases[0].tag_name -replace '^v', '')
+# Filter out pre-releases
+$StableReleases = $Releases | Where-Object { -not $_.prerelease }
+$ReleaseToUse = if ($StableReleases) { $StableReleases[0] } else { $Releases[0] }
+$Version = ($ReleaseToUse.tag_name -replace '^v', '')
 
 $Filename = "pyx_${Version}_windows_${Arch}.zip"
-$Asset = $Releases[0].assets | Where-Object { $_.name -eq $Filename } | Select-Object -First 1
+$Asset = $ReleaseToUse.assets | Where-Object { $_.name -eq $Filename } | Select-Object -First 1
 
 if (-not $Asset) { throw "Asset not found: $Filename" }
 

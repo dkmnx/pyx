@@ -78,9 +78,17 @@ get_latest_version() {
         version=$(gh release list --repo "${REPO}" --limit 1 2>/dev/null | awk '{print $2}' | sed 's/^v//')
     fi
 
-    # Fallback to API (use /releases, not /releases/latest, to include pre-releases)
+    # Fallback to API
     if [[ -z "$version" ]]; then
-        version=$(curl -sSL "https://api.github.com/repos/${REPO}/releases" 2>/dev/null | grep '"tag_name"' | head -1 | sed -E 's/.*"v?([^"]+)".*/\1/')
+        # Use /releases/latest to avoid pre-releases
+        version=$(curl -sSL "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null | grep '"tag_name"' | head -1 | sed -E 's/.*"v?([^"]+)".*/\1/')
+    fi
+
+    # If /latest fails (no stable release), fall back to /releases and filter pre-releases
+    if [[ -z "$version" ]]; then
+        version=$(curl -sSL "https://api.github.com/repos/${REPO}/releases" 2>/dev/null \
+            | grep -v '"prerelease": true' \
+            | grep '"tag_name"' | head -1 | sed -E 's/.*"v?([^"]+)".*/\1/')
     fi
 
     if [[ -z "$version" ]]; then

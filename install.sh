@@ -25,9 +25,11 @@ case "$ARCH" in
     *)            die "unsupported architecture: $ARCH" ;;
 esac
 
-VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases" \
-    | grep -m1 '"tag_name"' \
+VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
+    | grep '"tag_name"' \
     | sed 's/.*"v\(.*\)".*/\1/')
+
+[ -z "$VERSION" ] && die "failed to fetch latest version from GitHub"
 
 FILENAME="${BINARY}_${VERSION}_${os}_${arch}.tar.gz"
 URL="https://github.com/${REPO}/releases/download/v${VERSION}/${FILENAME}"
