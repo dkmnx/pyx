@@ -46,6 +46,8 @@ Run `just --list` to see all available targets.
 - Use `Path`/`PathBuf` and filesystem APIs instead of manual path string building for cross-platform safety
 - Minimize dependencies and startup work - favor small, well-maintained crates and avoid unnecessary global state
 - Never log, print, or persist secrets outside the encrypted storage flow
+- **Use `bun` instead of `npm`** for any JS/TS package management
+- **Use `uv` instead of `pip`** for any Python package management
 - Follow the project's established patterns and conventions
 
 ## Docs
