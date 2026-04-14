@@ -204,9 +204,13 @@ fn entry_new(service: &str, username: &str) -> Result<Entry> {
 fn probe_keyring() -> Result<()> {
     let entry = Entry::new("pyx-availability-check", "test")
         .map_err(|e| PyxError::Keyring(format!("Keyring backend unavailable: {e}")))?;
-    // Try reading — this surfaces D-Bus connection errors on Linux that
-    // Entry::new alone might not trigger (some backends defer connection).
-    let _ = entry.get_password();
+    // A read that returns NoEntry means the backend is connected and functional
+    // — the entry simply doesn't exist yet. Any other error means the backend
+    // is not operational (e.g., no D-Bus session on headless Linux).
+    match entry.get_password() {
+        Ok(_) | Err(KeyringError::NoEntry) => {}
+        Err(e) => return Err(PyxError::Keyring(format!("Keyring probe failed: {e}"))),
+    }
     // Clean up the probe entry to avoid accumulating stale entries.
     let _ = entry.delete_credential();
     Ok(())
