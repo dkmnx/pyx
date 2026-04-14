@@ -47,7 +47,7 @@ archives:
       - LICENSE
 
 checksum:
-  name_template: '{{ .ProjectName }}_{{ .Version }}_checksums.txt'
+  name_template: 'SHA256SUMS.txt'
   algorithm: sha256
 
 changelog:

@@ -75,7 +75,7 @@ get_latest_version() {
 
     # Try gh CLI first (authenticated)
     if command -v gh &> /dev/null; then
-        version=$(gh release list --repo "${REPO}" --limit 1 2>/dev/null | awk '{print $2}' | sed 's/^v//')
+        version=$(gh release list --repo "${REPO}" --limit 1 2>/dev/null | awk '{print $1}' | sed 's/^v//')
     fi
 
     # Fallback to API
