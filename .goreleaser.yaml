@@ -54,10 +54,3 @@ changelog:
   disable: true
 
 release:
-  replace_existing_draft: true
-  mode: replace
-  footer: |
-
-    ---
-
-    Released by [GoReleaser](https://github.com/goreleaser/goreleaser).

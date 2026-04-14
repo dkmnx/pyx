@@ -31,19 +31,18 @@ jobs:
       - name: Install LLVM for Windows cross-compilation
         run: sudo apt-get update && sudo apt-get install -y llvm
 
-      - name: Generate release notes
-        run: |
-          awk '/^## \[/{c++; if(c>1)exit; if(c==1){next}} c>0' CHANGELOG.md | tail -c +2 > /tmp/release-notes.txt
-          echo "--- Release notes content ---"
-          cat /tmp/release-notes.txt
-          echo "--- End release notes ---"
-          echo "Size: $(wc -c < /tmp/release-notes.txt) bytes"
-
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: latest
-          args: release --clean --release-notes /tmp/release-notes.txt
+          args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update release notes
+        run: |
+          awk '/^## \[/{c++; if(c>1)exit; if(c==1){next}} c>0' CHANGELOG.md | tail -c +2 > /tmp/release-notes.txt
+          gh release edit ${GITHUB_REF_NAME} --notes-file /tmp/release-notes.txt
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
