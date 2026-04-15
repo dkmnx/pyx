@@ -54,8 +54,7 @@ pub fn get_passphrase() -> Result<Option<SecretString>> {
         Ok(Some(pw)) => Some(pw),
         Ok(None) => None,
         Err(e) => {
-            // Log the error but don't fail - treat unavailable backend as "not found"
-            eprintln!("Warning: OS keyring unavailable: {e}");
+            eprintln!("Warning: OS keyring unavailable, falling back to alternative storage: {e}");
             None
         }
     };
@@ -111,11 +110,14 @@ pub fn set_passphrase(passphrase: &SecretString) -> Result<()> {
 /// whether fallback is currently enabled. This prevents orphaned passphrase
 /// files when fallback was previously used but is now disabled.
 pub fn clear_passphrase() -> Result<()> {
-    // Always try to delete the passphrase file - even if fallback is disabled,
-    // an orphaned file from a previous session could still exist
     delete_passphrase_file()?;
 
-    let _ = with_backend(|b| b.delete_password(SERVICE_NAME, USER_NAME));
+    // Keyring delete failures are downgraded to warnings because reset should
+    // succeed even when the keyring backend is unavailable (e.g., no D-Bus
+    // session on a headless server). If there's nothing to delete, that's fine.
+    if let Err(e) = with_backend(|b| b.delete_password(SERVICE_NAME, USER_NAME)) {
+        eprintln!("Warning: failed to clear keyring entry: {e}");
+    }
 
     Ok(())
 }

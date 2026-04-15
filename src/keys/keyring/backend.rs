@@ -86,21 +86,10 @@ impl KeyringBackend for NativeKeyring {
     }
 
     fn delete_password(&self, service: &str, username: &str) -> Result<()> {
-        // service and username are hardcoded constants ("pyx", "master-key"),
-        // never user input, so no injection concerns. The keyring crate's
-        // Entry::new handles platform-specific validation. The Ok(()) on
-        // entry creation failure is intentional: delete is idempotent, and
-        // a backend that can't create entries has nothing to delete.
-        let entry = match entry_new(service, username) {
-            Ok(e) => e,
-            Err(e) => {
-                eprintln!("Warning: keyring entry creation failed during delete: {e}");
-                return Ok(());
-            }
-        };
+        let entry = entry_new(service, username)?;
         match entry.delete_credential() {
             Ok(()) => Ok(()),
-            Err(KeyringError::NoEntry) => Ok(()), // Idempotent
+            Err(KeyringError::NoEntry) => Ok(()),
             Err(e) => Err(PyxError::Keyring(format!("Keyring delete failed: {e}"))),
         }
     }
