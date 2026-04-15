@@ -92,7 +92,7 @@ check-ci: fmt-check lint test-all
 
 # Extract latest changelog entry to a temp file
 release-notes:
-    awk '/^## \[/{c++; if(c>1)exit; if(c==1){next}} c>0' CHANGELOG.md | tail -c +2 > /tmp/pyx-release-notes.txt
+    awk '/^## \[/{c++; if(c>1)exit; if(c==1){next}} c>0' CHANGELOG.md | sed '/./,$!d' > /tmp/pyx-release-notes.txt
 
 # Dry-run release to verify goreleaser config and changelog extraction
 pre-release: check release-notes
