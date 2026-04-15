@@ -15,6 +15,7 @@ pub mod providers;
 pub mod root_args;
 pub mod session;
 pub mod storage;
+#[cfg(test)]
 pub mod test_helpers;
 
 // Re-export commonly used types
