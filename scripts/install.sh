@@ -168,17 +168,21 @@ download_binary() {
     fi
 
     # Build goreleaser-style archive name: pyx_<version>_<os>_<arch>.tar.gz
+    # Only targets published by goreleaser are supported (see .goreleaser.yaml).
     local gos garch
     case "$target" in
-        *linux*)   gos="linux" ;;
-        *apple*|*darwin*) gos="darwin" ;;
-        *)         gos="linux" ;;
+        *linux*)           gos="linux" ;;
+        *apple*|*darwin*)  gos="darwin" ;;
     esac
     case "$target" in
         *x86_64*|*amd64*) garch="x86_64" ;;
         *aarch64*|*arm64*) garch="arm64" ;;
-        *)                 garch="x86_64" ;;
     esac
+    if [[ -z "$gos" || -z "$garch" ]]; then
+        log_error "Unsupported platform: ${target}"
+        rm -rf "$tmp_dir"
+        exit 1
+    fi
     local filename="pyx_${version}_${gos}_${garch}.${ext}"
     local archive="${tmp_dir}/${filename}"
 
