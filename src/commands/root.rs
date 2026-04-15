@@ -51,7 +51,10 @@ pub fn execute(args: RootCommandArgs) -> Result<i32> {
 
     let exit_code = spawn_pi(&env_vars, &spawn_args)?;
 
-    if !is_non_interactive(args.pi_args) && !args.continue_session && !args.resume_session {
+    if !is_non_interactive(&stdin_is_piped(), args.pi_args)
+        && !args.continue_session
+        && !args.resume_session
+    {
         display_session_hint();
     }
 
@@ -173,8 +176,21 @@ fn build_pi_args(args: &RootCommandArgs) -> Vec<String> {
     result
 }
 
-/// Detect if pi is being invoked in non-interactive mode (piped prompt).
-fn is_non_interactive(pi_args: &[String]) -> bool {
+/// Returns a closure that returns true when stdin is not a terminal (i.e., piped).
+/// Extracted for testability — in production, uses `std::io::stdin().is_terminal()`.
+fn stdin_is_piped() -> Box<dyn Fn() -> bool> {
+    use std::io::IsTerminal;
+    Box::new(|| !std::io::stdin().is_terminal())
+}
+
+/// Detect if pi is being invoked in non-interactive mode.
+/// `is_piped` returns true when stdin is not a TTY,
+/// allowing both paths to be tested independently.
+fn is_non_interactive(is_piped: &dyn Fn() -> bool, pi_args: &[String]) -> bool {
+    if is_piped() {
+        return true;
+    }
+
     pi_args
         .windows(2)
         .any(|w| w[0] == "-p" || w[0] == "--prompt")
@@ -354,10 +370,31 @@ mod tests {
 
     #[test]
     fn test_is_non_interactive_detects_prompt_flag() {
-        assert!(is_non_interactive(&[s("-p"), s("hello")]));
-        assert!(is_non_interactive(&[s("--prompt"), s("hello")]));
-        assert!(is_non_interactive(&[s("-p=hello")]));
-        assert!(is_non_interactive(&[s("--prompt=hello")]));
-        assert!(!is_non_interactive(&[s("--model"), s("gpt-4")]));
+        let interactive = || false;
+        assert!(is_non_interactive(&interactive, &[s("-p"), s("hello")]));
+        assert!(is_non_interactive(
+            &interactive,
+            &[s("--prompt"), s("hello")]
+        ));
+        assert!(is_non_interactive(&interactive, &[s("-p=hello")]));
+        assert!(is_non_interactive(&interactive, &[s("--prompt=hello")]));
+        assert!(!is_non_interactive(
+            &interactive,
+            &[s("--model"), s("gpt-4")]
+        ));
+    }
+
+    #[test]
+    fn test_is_non_interactive_piped_stdin() {
+        let piped = || true;
+        assert!(is_non_interactive(&piped, &[s("--model"), s("gpt-4")]));
+        assert!(is_non_interactive(&piped, &[]));
+    }
+
+    #[test]
+    fn test_is_non_interactive_terminal_no_prompt_flags() {
+        let terminal = || false;
+        assert!(!is_non_interactive(&terminal, &[s("--model"), s("gpt-4")]));
+        assert!(!is_non_interactive(&terminal, &[]));
     }
 }
