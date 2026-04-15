@@ -43,7 +43,7 @@ jobs:
           tool: just
 
       - name: Install Linux dependencies
-        run: sudo apt-get update && sudo apt-get install -y libsecret-tools
+        run: sudo apt-get update && sudo apt-get install -y libsecret-1-dev
 
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
