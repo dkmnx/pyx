@@ -4,6 +4,13 @@
 //! 1. Creating backup of existing file
 //! 2. Writing to temp file
 //! 3. Atomically renaming temp file to target
+//! 4. Truncating backup (kept as empty file for crash-recovery detection)
+//!
+//! The .bak file is truncated (not deleted) after a successful write. This gives
+//! a crash-recovery window: if the process dies between the backup copy and the
+//! persist, the .bak contains the previous data and can be used for recovery. Once
+//! the write succeeds, the .bak is truncated to zero bytes so it no longer holds
+//! sensitive data, but its presence signals that a previous version existed.
 
 use crate::error::{PyxError, Result};
 use std::fs;
@@ -18,14 +25,14 @@ pub fn atomic_write_with_backup<P: AsRef<Path>>(
     permissions: u32,
 ) -> Result<()> {
     let path = path.as_ref();
+    let mut backup_path = path.as_os_str().to_owned();
+    backup_path.push(".bak");
 
-    let backup_name: Option<std::ffi::OsString> = if path.exists() {
-        let mut backup_name = path.as_os_str().to_owned();
-        backup_name.push(".bak");
-        fs::copy(path, &backup_name)?;
-        Some(backup_name)
+    let had_backup = if path.exists() {
+        fs::copy(path, &backup_path)?;
+        true
     } else {
-        None
+        false
     };
 
     let mut temp_file = NamedTempFile::new_in(path.parent().unwrap_or_else(|| Path::new(".")))?;
@@ -46,10 +53,15 @@ pub fn atomic_write_with_backup<P: AsRef<Path>>(
         .persist(path)
         .map_err(|e| PyxError::TempFilePersist(format!("Failed to persist temp file: {e}")))?;
 
-    // Remove backup after successful write - backups of secret-bearing files
-    // should not persist as they contain sensitive data
-    if let Some(backup_name) = backup_name {
-        let _ = fs::remove_file(&backup_name);
+    // Truncate backup after successful write — removes sensitive data but keeps
+    // the file indicator. Only truncate if we actually created a backup.
+    if had_backup {
+        if let Err(e) = fs::File::create(&backup_path) {
+            eprintln!(
+                "Warning: failed to truncate backup {}: {e}",
+                Path::new(&backup_path).display()
+            );
+        }
     }
 
     Ok(())
@@ -73,41 +85,39 @@ mod tests {
     }
 
     #[test]
-    fn test_atomic_write_removes_backup_after_success() {
+    fn test_atomic_write_truncates_backup_after_success() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("test.json");
-
-        // Create initial file
-        fs::write(&path, "original").unwrap();
-
-        // Write new data
-        atomic_write_with_backup(&path, b"new data", 0o600).unwrap();
-
-        // Backup should be removed after successful write
         let backup = dir.path().join("test.json.bak");
-        assert!(
-            !backup.exists(),
-            "backup should be removed after successful write"
-        );
 
-        // Check new data
-        assert_eq!(fs::read_to_string(&path).unwrap(), "new data");
+        // First write: no prior file, no backup
+        atomic_write_with_backup(&path, b"first", 0o600).unwrap();
+        assert_eq!(fs::read_to_string(&path).unwrap(), "first");
+        assert!(!backup.exists());
+
+        // Second write: backup created then truncated
+        atomic_write_with_backup(&path, b"second", 0o600).unwrap();
+        assert_eq!(fs::read_to_string(&path).unwrap(), "second");
+        assert!(backup.exists(), "truncated .bak should exist after write");
+        assert_eq!(
+            fs::read_to_string(&backup).unwrap(),
+            "",
+            ".bak should be truncated (empty) after successful write"
+        );
     }
 
     #[test]
-    fn test_atomic_write_creates_backup_during_write_only() {
+    fn test_atomic_write_backup_exists_during_write() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("test.json");
-
-        // Create initial file
-        fs::write(&path, "original").unwrap();
-
-        // Backup should not exist before we call atomic_write
         let backup = dir.path().join("test.json.bak");
+
+        fs::write(&path, "original").unwrap();
         assert!(!backup.exists());
 
-        // After atomic_write, backup should be removed
+        // After atomic_write, .bak exists but is empty
         atomic_write_with_backup(&path, b"new data", 0o600).unwrap();
-        assert!(!backup.exists());
+        assert!(backup.exists());
+        assert_eq!(fs::read_to_string(&backup).unwrap(), "");
     }
 }
