@@ -8,11 +8,11 @@ pub use crate::pi::exec::ShellType;
 /// Used by routing logic in `should_use_clap` to determine when to delegate to clap.
 /// This is generated dynamically so adding a new subcommand variant automatically
 /// includes it — no manual sync required.
-pub fn get_subcommand_names() -> &'static [&'static str] {
+pub fn get_subcommand_names() -> Vec<String> {
     use clap::CommandFactory;
     use std::sync::LazyLock;
 
-    static NAMES: LazyLock<Vec<&'static str>> = LazyLock::new(|| {
+    static NAMES: LazyLock<Vec<String>> = LazyLock::new(|| {
         let cmd = Cli::command();
         let mut names: Vec<String> = cmd
             .get_subcommands()
@@ -20,12 +20,9 @@ pub fn get_subcommand_names() -> &'static [&'static str] {
             .collect();
         names.sort();
         names
-            .into_iter()
-            .map(|s| &*Box::leak(s.into_boxed_str()))
-            .collect()
     });
 
-    &NAMES
+    NAMES.clone()
 }
 
 #[derive(Parser)]
@@ -177,15 +174,15 @@ mod tests {
     #[test]
     fn subcommand_names_includes_all_variants() {
         let names = get_subcommand_names();
-        let expected = [
-            "completion",
-            "delete",
-            "list",
-            "models",
-            "pi",
-            "reset",
-            "setup",
-            "version",
+        let expected = vec![
+            "completion".to_string(),
+            "delete".to_string(),
+            "list".to_string(),
+            "models".to_string(),
+            "pi".to_string(),
+            "reset".to_string(),
+            "setup".to_string(),
+            "version".to_string(),
         ];
         assert_eq!(names, expected);
     }

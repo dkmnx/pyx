@@ -28,7 +28,7 @@ pub fn should_use_clap(args: &[String]) -> bool {
             continue;
         }
 
-        if get_subcommand_names().contains(&arg.as_str()) {
+        if get_subcommand_names().iter().any(|name| name == arg) {
             return true;
         }
     }
