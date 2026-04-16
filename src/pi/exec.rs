@@ -172,6 +172,49 @@ pub fn install_pi() -> Result<()> {
     install_pi_with_prompt(false)
 }
 
+/// Extract the first version-like string (digits.digits[.digits...] ) from `input`.
+///
+/// Matches the same pattern as `\d+\.\d+(?:\.\d+)*` without requiring the
+/// regex crate or a static compiled regex.
+fn extract_version_string(input: &str) -> Option<String> {
+    let bytes = input.as_bytes();
+    let len = bytes.len();
+    let mut start = None;
+    let mut end = 0;
+    let mut i = 0;
+
+    // Scan for a sequence of digits followed by a dot and more digits
+    while i < len {
+        if bytes[i].is_ascii_digit() {
+            // Found a digit — collect the full numeric run
+            let num_start = i;
+            while i < len && bytes[i].is_ascii_digit() {
+                i += 1;
+            }
+
+            // Must be followed by '.' and another digit sequence
+            if i < len && bytes[i] == b'.' && i + 1 < len && bytes[i + 1].is_ascii_digit() {
+                // This is the start of a version string
+                start = Some(num_start);
+                // Walk remaining "(.digits)*" groups
+                while i < len && bytes[i] == b'.' && i + 1 < len && bytes[i + 1].is_ascii_digit() {
+                    i += 1; // skip '.'
+                    while i < len && bytes[i].is_ascii_digit() {
+                        i += 1;
+                    }
+                }
+                end = i;
+                break;
+            }
+            // Not a version start — continue scanning (i already advanced past digits)
+        } else {
+            i += 1;
+        }
+    }
+
+    start.map(|s| input[s..end].to_string())
+}
+
 /// Check pi version
 pub fn get_pi_version() -> Result<String> {
     let pi_path =
@@ -182,13 +225,30 @@ pub fn get_pi_version() -> Result<String> {
         .output()
         .map_err(|e| PyxError::CommandExecution(format!("Failed to get pi version: {e}")))?;
 
-    let version = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        return Err(PyxError::CommandExecution(format!(
+            "pi --version exited with {}: stderr={:?} stdout={:?}",
+            output
+                .status
+                .code()
+                .map_or("unknown signal".to_string(), |c| c.to_string()),
+            stderr.trim(),
+            stdout.trim()
+        )));
+    }
 
-    let version = if version.is_empty() {
-        String::from_utf8_lossy(&output.stdout).trim().to_string()
-    } else {
-        version
-    };
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+
+    let version = extract_version_string(&stderr)
+        .or_else(|| extract_version_string(&stdout))
+        .ok_or_else(|| {
+            PyxError::CommandExecution(format!(
+                "Failed to parse pi version from output (stderr: {stderr:?}, stdout: {stdout:?})"
+            ))
+        })?;
 
     Ok(version)
 }
@@ -527,5 +587,42 @@ printf '%s\n' '# bash completion for pyx'
         assert_eq!(ShellType::Bash, ShellType::Bash);
         assert_ne!(ShellType::Bash, ShellType::Zsh);
         assert_ne!(ShellType::Fish, ShellType::Powershell);
+    }
+
+    #[test]
+    fn test_extract_version_string() {
+        // Basic version
+        assert_eq!(extract_version_string("pi 1.2"), Some("1.2".to_string()));
+        // Semver
+        assert_eq!(
+            extract_version_string("pi 1.2.3"),
+            Some("1.2.3".to_string())
+        );
+        // Four-part version
+        assert_eq!(
+            extract_version_string("1.2.3.4"),
+            Some("1.2.3.4".to_string())
+        );
+        // Version embedded in text
+        assert_eq!(
+            extract_version_string("pi version 2.18.1 (build abc123)"),
+            Some("2.18.1".to_string())
+        );
+        // No version present
+        assert_eq!(extract_version_string("no version here"), None);
+        // Just digits (no dot) — should NOT match
+        assert_eq!(extract_version_string("42"), None);
+        // Digit-dot but no second digit group
+        assert_eq!(extract_version_string("1."), None);
+        // Multiple version-like strings — returns first
+        assert_eq!(
+            extract_version_string("v1.0 and v2.3.4"),
+            Some("1.0".to_string())
+        );
+        // Version at start
+        assert_eq!(
+            extract_version_string("3.14 is pi"),
+            Some("3.14".to_string())
+        );
     }
 }
