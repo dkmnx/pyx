@@ -20,7 +20,7 @@ pub fn execute(args: ModelsCommandArgs) -> Result<()> {
         return handle_refresh(&cache, &args);
     }
 
-    print_models(&cache, &args)
+    print_models(&cache, &args, false)
 }
 
 fn load_cache_or_error(args: &ModelsCommandArgs) -> Result<ModelsCache> {
@@ -55,23 +55,31 @@ fn handle_refresh(stale_cache: &ModelsCache, args: &ModelsCommandArgs) -> Result
             if !args.json {
                 eprintln!("Models cache updated.");
             }
-            print_models(&new_cache, args)
+            print_models(&new_cache, args, false)
         }
         Err(e) => {
             if args.refresh {
                 return Err(e);
             }
-            eprintln!("Warning: Failed to fetch updated models: {e}");
-            eprintln!(
-                "Using cached models (last updated: {})",
-                stale_cache.updated_at
-            );
-            print_models(stale_cache, args)
+            if !args.json {
+                eprintln!("Warning: Failed to fetch updated models: {e}");
+                eprintln!(
+                    "Using cached models (last updated: {})",
+                    stale_cache.updated_at
+                );
+            } else {
+                eprintln!("Warning: Failed to fetch updated models: {e}");
+                eprintln!(
+                    "Using cached models (last updated: {}). Output contains stale=true.",
+                    stale_cache.updated_at
+                );
+            }
+            print_models(stale_cache, args, true)
         }
     }
 }
 
-fn print_models(cache: &ModelsCache, args: &ModelsCommandArgs) -> Result<()> {
+fn print_models(cache: &ModelsCache, args: &ModelsCommandArgs, stale: bool) -> Result<()> {
     if let Some(provider) = args.provider {
         if !cache.models.contains_key(provider) {
             return Err(PyxError::Config(format!("Provider '{provider}' not found")));
@@ -79,7 +87,7 @@ fn print_models(cache: &ModelsCache, args: &ModelsCommandArgs) -> Result<()> {
     }
 
     if args.json {
-        return print_models_json(cache, args.provider);
+        return print_models_json(cache, args.provider, stale);
     }
 
     print_models_text(cache, args.provider)
@@ -100,12 +108,19 @@ fn filtered_models<'a>(
         .collect()
 }
 
-fn print_models_json(cache: &ModelsCache, provider_filter: Option<&str>) -> Result<()> {
-    let output = serde_json::json!({
+fn print_models_json(
+    cache: &ModelsCache,
+    provider_filter: Option<&str>,
+    stale: bool,
+) -> Result<()> {
+    let mut output = serde_json::json!({
         "version": cache.version,
         "updated_at": cache.updated_at,
         "models": filtered_models(cache, provider_filter),
     });
+    if stale {
+        output["stale"] = serde_json::json!(true);
+    }
     println!("{output}");
     Ok(())
 }
