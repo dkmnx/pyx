@@ -67,11 +67,28 @@ impl ModelsCache {
         Ok(())
     }
 
-    /// Check if cache is stale (older than TTL)
+    /// Check if cache is stale (older than or exactly at TTL)
+    ///
+    /// A cache is considered stale when `age >= TTL`. This differs from the
+    /// previous `age.whole_seconds() > ttl_seconds` in two ways:
+    ///
+    /// 1. **Boundary flip:** A cache whose age equals the TTL is now stale.
+    ///    Previously it was fresh (the `>` operator excluded the boundary).
+    ///
+    /// 2. **Sub-second precision:** The old `whole_seconds()` truncated
+    ///    fractional seconds, so a cache aged 86400.9 s was *not* stale at
+    ///    TTL=86400 (since 86400 > 86400 is false). Now it *is* stale.
+    ///    This is the more impactful change: caches that previously stayed
+    ///    fresh for nearly one extra second (up to 0.999 s) after crossing
+    ///    the TTL boundary are now immediately stale. This affects cache
+    ///    hit rates and may surprise callers that relied on the old window.
+    ///
+    /// Both changes are intentional corrections — the old behavior was
+    /// arguably a bug — but they constitute a semantic change.
     pub fn is_stale(&self, ttl_seconds: i64) -> bool {
         let now = OffsetDateTime::now_utc();
         let age = now - self.updated_at;
-        age.whole_seconds() > ttl_seconds
+        age >= time::Duration::seconds(ttl_seconds)
     }
 
     /// Check if cache is stale using default TTL
@@ -161,5 +178,38 @@ mod tests {
             vec!["gpt-4".to_string(), "gpt-5".to_string()],
         );
         assert_eq!(cache.get_models("openai").unwrap().len(), 2);
+    }
+
+    #[test]
+    fn test_stale_exactly_at_ttl() {
+        let mut cache = ModelsCache::new("v1.0.0");
+        cache.updated_at = OffsetDateTime::now_utc() - time::Duration::seconds(86400);
+        assert!(
+            cache.is_stale(86400),
+            "cache should be stale at exactly TTL"
+        );
+    }
+
+    #[test]
+    fn test_stale_sub_second_precision() {
+        // A cache aged TTL + 0.5s should be stale (the old whole_seconds()
+        // truncation would have made it fresh: 86400 > 86400 == false).
+        let mut cache = ModelsCache::new("v1.0.0");
+        cache.updated_at = OffsetDateTime::now_utc()
+            - time::Duration::seconds(86400)
+            - time::Duration::milliseconds(500);
+        assert!(
+            cache.is_stale(86400),
+            "cache aged TTL + 0.5s should be stale (sub-second precision)"
+        );
+
+        // A cache aged TTL - 0.5s should still be fresh.
+        let mut cache2 = ModelsCache::new("v1.0.0");
+        cache2.updated_at = OffsetDateTime::now_utc() - time::Duration::seconds(86400)
+            + time::Duration::milliseconds(500);
+        assert!(
+            !cache2.is_stale(86400),
+            "cache aged TTL - 0.5s should still be fresh"
+        );
     }
 }
