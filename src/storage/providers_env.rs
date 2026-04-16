@@ -33,6 +33,14 @@ pub struct ProviderEnvMapping {
     pub env_var: String,
 }
 
+/// Serialization-only struct (no simple_map leakage)
+#[derive(Debug, Serialize)]
+struct ProvidersEnvOutput {
+    #[serde(rename = "schemaVersion")]
+    schema_version: u32,
+    providers: Vec<ProviderEnvMapping>,
+}
+
 /// Providers.json structure (schema format)
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ProvidersEnvConfig {
@@ -40,7 +48,7 @@ pub struct ProvidersEnvConfig {
     pub schema_version: u32,
     #[serde(default)]
     pub providers: Vec<ProviderEnvMapping>,
-    /// Internal map for simple format
+    /// Internal map for simple format (never written to disk)
     #[serde(flatten, default)]
     simple_map: HashMap<String, String>,
 }
@@ -108,23 +116,15 @@ impl ProvidersEnvConfig {
             }
         }
 
-        // Sort for deterministic output
         all_providers.sort_by(|a, b| a.name.cmp(&b.name));
 
-        let config = Self {
+        let output = ProvidersEnvOutput {
             schema_version: 1,
             providers: all_providers,
-            simple_map: HashMap::new(),
         };
 
-        let content = serde_json::to_string_pretty(&config)?;
-        std::fs::write(&path, content)?;
-
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))?;
-        }
+        let content = serde_json::to_string_pretty(&output)?;
+        crate::storage::atomic_write::atomic_write_with_backup(&path, content.as_bytes(), 0o600)?;
 
         Ok(())
     }
