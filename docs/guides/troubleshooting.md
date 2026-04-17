@@ -59,10 +59,11 @@ export PYX_ALLOW_FILE_FALLBACK=1
 
 ### "Pyx not initialized"
 
-Run setup:
+Run initialization:
 
 ```bash
-pyx setup
+pyx init
+pyx add
 ```
 
 ### "No passphrase available"
@@ -98,7 +99,8 @@ See [Storage Reference](../reference/storage.md) for file details.
 
 ```bash
 pyx reset
-pyx setup
+pyx init
+pyx add
 ```
 
 ## Debug Information
@@ -122,3 +124,4 @@ pyx version --json
 - [Architecture](../reference/architecture.md) - System design
 - [Security](../reference/security.md) - Encryption details
 - [GitHub Issues](https://github.com/dkmnx/pyx/issues) - Report bugs
+

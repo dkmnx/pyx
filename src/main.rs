@@ -53,10 +53,6 @@ fn run_subcommand_mode() -> Result<()> {
         Some(Commands::Edit { provider, key }) => {
             pyx_rs::commands::edit::execute(provider.as_deref(), key.as_deref())?;
         }
-        #[allow(deprecated)]
-        Some(Commands::Setup) => {
-            pyx_rs::commands::setup::execute()?;
-        }
         Some(Commands::List { json }) => {
             if *json {
                 pyx_rs::commands::list::execute_json()?;

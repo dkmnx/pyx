@@ -53,7 +53,8 @@ src/
 ├── cli.rs               # Command definitions
 ├── commands/            # Command implementations
 │   ├── mod.rs
-│   ├── setup.rs         # Initialize & configure
+│   ├── init.rs          # Initialize encrypted store
+│   ├── add.rs           # Add provider credential
 │   ├── list.rs          # List providers
 │   ├── delete.rs        # Delete provider
 │   ├── models.rs        # Model listing
@@ -107,7 +108,7 @@ sequenceDiagram
     participant Keyring
     participant PI
 
-    User->>CLI: pyx setup
+    User->>CLI: pyx init && pyx add
     CLI->>Keyring: Store passphrase
     CLI->>Crypto: Generate master key
     CLI->>Storage: Save encrypted master key
@@ -130,3 +131,4 @@ See [Providers](providers.md) for resolution order.
 ## Storage
 
 See [Storage](storage.md) for data file details.
+

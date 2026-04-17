@@ -148,14 +148,15 @@ Use a **strong, unique passphrase**:
 
 1. **Revoke** all API keys in provider dashboards
 2. **Reset pyx**: `pyx reset`
-3. **Generate new API keys** and re-run `pyx setup`
+3. **Generate new API keys** and re-run `pyx init` + `pyx add`
 4. **Change passphrase** to a new, unique value
 
 ### If You Forget Your Passphrase
 
 ```bash
 pyx reset  # Deletes all encrypted data
-pyx setup  # Start fresh
+pyx init   # Start fresh
+pyx add    # Add provider keys
 ```
 
 ## References
@@ -163,3 +164,4 @@ pyx setup  # Start fresh
 - [age encryption](https://age-encryption.org/)
 - [scrypt paper (Colin Percival, 2009)](https://www.tarsnap.com/scrypt/scrypt.pdf)
 - [NIST Password Guidelines (SP 800-63B)](https://pages.nist.gov/800-63-3/sp800-63b.html)
+

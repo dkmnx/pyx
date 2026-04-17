@@ -86,8 +86,8 @@ To edit an existing provider, use `pyx edit`.
 
 ```mermaid
 graph LR
-    A[Install] --> B[pyx setup]
-    B --> C[Add Provider]
+    A[Install] --> B[pyx init]
+    B --> C[pyx add]
     C --> D[pyx]
     D --> E[pi runs]
 ```

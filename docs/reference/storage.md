@@ -34,7 +34,7 @@ Encrypted master key file.
 | ----------- | -------------------- |
 | Format      | age-encrypted binary |
 | Permissions | 0600                 |
-| Created     | During `pyx setup`   |
+| Created     | During `pyx init`    |
 
 ### database.json
 

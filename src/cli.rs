@@ -77,10 +77,6 @@ pub enum Commands {
         key: Option<String>,
     },
 
-    /// Setup pyx with a provider (deprecated, use init + add)
-    #[deprecated(since = "0.4.0", note = "Use 'pyx init' followed by 'pyx add' instead")]
-    Setup,
-
     /// List configured providers
     List {
         /// Output as JSON
@@ -210,7 +206,6 @@ mod tests {
             "models".to_string(),
             "pi".to_string(),
             "reset".to_string(),
-            "setup".to_string(),
             "version".to_string(),
         ];
         assert_eq!(names, expected);

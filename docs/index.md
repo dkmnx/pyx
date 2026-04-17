@@ -25,7 +25,8 @@ curl -L -o pyx.tar.gz "<release-url>" && tar -xzf pyx.tar.gz && sudo mv pyx /usr
 git clone https://github.com/dkmnx/pyx.git && cd pyx && just install
 
 # Setup
-pyx setup
+pyx init
+pyx add
 
 # Run with all configured providers
 pyx

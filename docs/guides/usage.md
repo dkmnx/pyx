@@ -32,10 +32,6 @@ pyx edit --provider openai                  # Semi-interactive: prompt for new k
 pyx edit --provider openai --key sk-xxx     # Non-interactive
 ```
 
-### setup (deprecated)
-
-The `setup` command is deprecated. Use `init` followed by `add` instead.
-
 ### list
 
 List configured providers.

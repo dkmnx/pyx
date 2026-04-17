@@ -11,5 +11,4 @@ pub mod models;
 pub mod pi;
 pub mod reset;
 pub mod root;
-pub mod setup;
 pub mod version;

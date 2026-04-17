@@ -29,7 +29,8 @@ irm https://raw.githubusercontent.com/dkmnx/pyx/main/install.ps1 | iex
 git clone https://github.com/dkmnx/pyx.git && cd pyx && just install
 
 # Setup
-pyx setup
+pyx init
+pyx add
 
 # Run pi with all configured providers
 pyx
@@ -47,7 +48,8 @@ pyx
 
 | Command                  | Description                        |
 | ------------------------ | ---------------------------------- |
-| `pyx setup`              | Initialize and configure providers |
+| `pyx init`               | Initialize encrypted store         |
+| `pyx add`                | Add a provider credential          |
 | `pyx list`               | List configured providers          |
 | `pyx delete <provider>`  | Delete a provider                  |
 | `pyx models`             | List supported AI models           |
@@ -103,3 +105,4 @@ just check
 ## License
 
 [MIT](LICENSE)
+
