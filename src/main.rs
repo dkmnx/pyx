@@ -44,6 +44,16 @@ fn run_subcommand_mode() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.parsed_command() {
+        Some(Commands::Init) => {
+            pyx_rs::commands::init::execute()?;
+        }
+        Some(Commands::Add { provider, key }) => {
+            pyx_rs::commands::add::execute(provider.as_deref(), key.as_deref())?;
+        }
+        Some(Commands::Edit { provider, key }) => {
+            pyx_rs::commands::edit::execute(provider.as_deref(), key.as_deref())?;
+        }
+        #[allow(deprecated)]
         Some(Commands::Setup) => {
             pyx_rs::commands::setup::execute()?;
         }

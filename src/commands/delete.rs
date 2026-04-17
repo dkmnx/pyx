@@ -9,7 +9,7 @@ pub fn execute(provider_name: Option<&str>, skip_confirm: bool) -> Result<()> {
 
     if db.is_empty() {
         return Err(PyxError::Config(
-            "No providers configured. Run 'pyx setup' to add a provider.".to_string(),
+            "No providers configured. Run 'pyx add' to add a provider.".to_string(),
         ));
     }
 

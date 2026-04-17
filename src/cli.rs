@@ -52,7 +52,33 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    /// Setup pyx with a provider (initializes or adds provider)
+    /// Initialize pyx (create master key and data directory)
+    Init,
+
+    /// Add a provider credential
+    Add {
+        /// Provider name (interactive selection if omitted)
+        #[arg(short = 'p', long = "provider")]
+        provider: Option<String>,
+
+        /// API key (prompted if omitted)
+        #[arg(short = 'k', long = "key")]
+        key: Option<String>,
+    },
+
+    /// Edit an existing provider credential
+    Edit {
+        /// Provider name (interactive selection if omitted)
+        #[arg(short = 'p', long = "provider")]
+        provider: Option<String>,
+
+        /// New API key (prompted if omitted)
+        #[arg(short = 'k', long = "key")]
+        key: Option<String>,
+    },
+
+    /// Setup pyx with a provider (deprecated, use init + add)
+    #[deprecated(since = "0.4.0", note = "Use 'pyx init' followed by 'pyx add' instead")]
     Setup,
 
     /// List configured providers
@@ -175,8 +201,11 @@ mod tests {
     fn subcommand_names_includes_all_variants() {
         let names = get_subcommand_names();
         let expected = vec![
+            "add".to_string(),
             "completion".to_string(),
             "delete".to_string(),
+            "edit".to_string(),
+            "init".to_string(),
             "list".to_string(),
             "models".to_string(),
             "pi".to_string(),

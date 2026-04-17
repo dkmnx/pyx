@@ -247,7 +247,7 @@ mod tests {
         assert!(should_use_clap(&vecs(&["--help"])));
         assert!(!should_use_clap(&vecs(&["openai", "--model"])));
 
-        assert!(!should_use_clap(&vecs(&["add"])));
+        assert!(should_use_clap(&vecs(&["add"])));
     }
 
     #[test]

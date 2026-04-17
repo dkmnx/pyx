@@ -111,7 +111,7 @@ impl KeyManager {
             .map_err(|e| {
                 record_failed_attempt(&path);
                 PyxError::Crypto(format!(
-                    "Failed to decrypt master key: {e}. Run 'pyx setup' to reconfigure."
+                    "Failed to decrypt master key: {e}. Run 'pyx init' to reconfigure."
                 ))
             })?;
 

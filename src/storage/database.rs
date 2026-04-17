@@ -75,7 +75,7 @@ impl Database {
     pub fn load_or_error() -> Result<Self> {
         Self::load().map_err(|e| match e {
             PyxError::Config(_) => {
-                PyxError::Config("No providers configured. Run 'pyx setup' first.".to_string())
+                PyxError::Config("No providers configured. Run 'pyx init' first.".to_string())
             }
             _ => e,
         })

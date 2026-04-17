@@ -8,7 +8,7 @@ pub fn execute() -> Result<()> {
     let db = Database::load_or_error()?;
 
     if db.is_empty() {
-        println!("No providers configured. Run 'pyx setup' to add providers.");
+        println!("No providers configured. Run 'pyx add' to add providers.");
         return Ok(());
     }
 

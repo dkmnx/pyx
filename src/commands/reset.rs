@@ -71,7 +71,7 @@ pub fn execute(skip_confirm: bool) -> Result<()> {
     println!("✓ Reset complete!");
     println!();
     println!("Pyx has been reset to initial state.");
-    println!("Run 'pyx setup' to initialize again.");
+    println!("Run 'pyx init' to initialize again.");
 
     Ok(())
 }

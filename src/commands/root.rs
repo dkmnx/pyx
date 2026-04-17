@@ -27,7 +27,7 @@ pub struct RootCommandArgs<'a> {
 pub fn execute(args: RootCommandArgs) -> Result<i32> {
     if !KeyManager::master_key_exists() {
         return Err(PyxError::Config(
-            "Pyx not initialized. Run 'pyx setup' first.".to_string(),
+            "Pyx not initialized. Run 'pyx init' first.".to_string(),
         ));
     }
 
