@@ -62,17 +62,25 @@ just install
 ## Setup
 
 ```bash
-pyx setup
+pyx init
+pyx add
 ```
 
-This will:
+**pyx init** initializes pyx:
 
 1. Create the data directory (`~/.local/share/pyx/`)
 2. Generate a master encryption key
 3. Store passphrase in OS keyring
-4. Prompt for provider and API key
 
-Run `pyx setup` again to add or edit providers.
+**pyx add** adds a provider credential:
+
+```bash
+pyx add                        # Interactive: select provider and enter key
+pyx add --provider openai      # Semi-interactive: prompt for key only
+pyx add --provider openai --key sk-xxx   # Non-interactive
+```
+
+To edit an existing provider, use `pyx edit`.
 
 ## Quick Start Workflow
 

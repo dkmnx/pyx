@@ -4,19 +4,37 @@ Complete command reference for pyx.
 
 ## Commands
 
-### setup
+### init
 
-Initialize pyx and manage providers (add or edit).
+Initialize pyx (create data directory and master key).
 
 ```bash
-pyx setup
+pyx init
 ```
 
-This command:
+### add
 
-- Initializes pyx on first run (creates master key, stores passphrase)
-- Adds new providers
-- Edits existing providers (prompts to confirm override)
+Add a new provider credential.
+
+```bash
+pyx add                                    # Interactive: select provider + enter key
+pyx add --provider openai                  # Semi-interactive: prompt for key only
+pyx add --provider openai --key sk-xxx     # Non-interactive
+```
+
+### edit
+
+Edit an existing provider credential.
+
+```bash
+pyx edit                                    # Interactive: select provider + enter new key
+pyx edit --provider openai                  # Semi-interactive: prompt for new key only
+pyx edit --provider openai --key sk-xxx     # Non-interactive
+```
+
+### setup (deprecated)
+
+The `setup` command is deprecated. Use `init` followed by `add` instead.
 
 ### list
 
