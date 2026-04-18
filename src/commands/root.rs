@@ -12,6 +12,7 @@ use crate::pi::exec::{
 };
 use crate::providers::mapping::ProviderEnvResolver;
 use crate::storage::database::Database;
+use secrecy::{ExposeSecret, SecretString};
 use std::collections::BTreeMap;
 
 /// Arguments for the root command (run pi with providers).
@@ -90,12 +91,15 @@ fn display_installation_info() {
     }
 }
 
-fn build_provider_env_vars(db: &Database, providers: &[String]) -> Result<Vec<(String, String)>> {
+fn build_provider_env_vars(
+    db: &Database,
+    providers: &[String],
+) -> Result<Vec<(String, SecretString)>> {
     let manager = passphrase::load_key_manager_with_fallback()?;
     let master_key = manager.get_key_bytes()?;
     let resolver = ProviderEnvResolver::new()?;
 
-    let mut env_map: BTreeMap<String, String> = BTreeMap::new();
+    let mut env_map: BTreeMap<String, SecretString> = BTreeMap::new();
 
     for provider_name in providers {
         let entry = db.get(provider_name).ok_or_else(|| {
@@ -106,7 +110,7 @@ fn build_provider_env_vars(db: &Database, providers: &[String]) -> Result<Vec<(S
         let env_var = resolver.get_env_var(provider_name)?;
 
         if let Some(existing) = env_map.get(&env_var) {
-            if existing != &api_key {
+            if existing.expose_secret() != api_key.expose_secret() {
                 return Err(PyxError::Validation(format!(
                     "Conflicting API keys for environment variable {env_var}"
                 )));
@@ -120,7 +124,7 @@ fn build_provider_env_vars(db: &Database, providers: &[String]) -> Result<Vec<(S
 }
 
 /// Decrypt an API key, with passphrase fallback for legacy entries.
-fn decrypt_api_key(cipher: &str, master_key: &[u8]) -> Result<String> {
+fn decrypt_api_key(cipher: &str, master_key: &[u8]) -> Result<SecretString> {
     let api_key_bytes = match decrypt_with_key(cipher, master_key) {
         Ok(bytes) => bytes,
         Err(primary_error) => {
@@ -138,8 +142,10 @@ fn decrypt_api_key(cipher: &str, master_key: &[u8]) -> Result<String> {
         }
     };
 
-    String::from_utf8(api_key_bytes)
-        .map_err(|e| PyxError::Crypto(format!("Decrypted API key is not valid UTF-8: {e}")))
+    let api_key_string = String::from_utf8(api_key_bytes)
+        .map_err(|e| PyxError::Crypto(format!("Decrypted API key is not valid UTF-8: {e}")))?;
+
+    Ok(SecretString::new(api_key_string.into_boxed_str()))
 }
 
 fn determine_providers(provider_arg: Option<&str>, db: &Database) -> Result<Vec<String>> {
@@ -262,7 +268,7 @@ mod tests {
         let cipher = encrypt_with_key(plaintext, &key).unwrap();
 
         let result = decrypt_api_key(&cipher, &key).unwrap();
-        assert_eq!(result, "sk-test-api-key");
+        assert_eq!(result.expose_secret(), "sk-test-api-key");
     }
 
     #[test]

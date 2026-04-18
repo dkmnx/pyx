@@ -10,7 +10,7 @@ use secrecy::SecretString;
 /// Prompt for a new passphrase with confirmation.
 /// Used during initial setup when creating a new passphrase.
 pub fn prompt_new_passphrase() -> Result<SecretString> {
-    let passphrase = prompt::prompt_secret(prompt::SecretPromptOptions {
+    prompt::prompt_secret(prompt::SecretPromptOptions {
         prompt: "Passphrase".to_string(),
         helper: Some("Choose a password to encrypt your API keys (input is hidden):".to_string()),
         confirmation: Some((
@@ -18,9 +18,7 @@ pub fn prompt_new_passphrase() -> Result<SecretString> {
             "Passphrases do not match".to_string(),
         )),
         empty_error: "Passphrase cannot be empty".to_string(),
-    })?;
-
-    Ok(SecretString::new(passphrase.into_boxed_str()))
+    })
 }
 
 /// Prompt for an existing passphrase without confirmation.
@@ -29,14 +27,12 @@ pub fn prompt_existing_passphrase(prompt_text: Option<&str>) -> Result<SecretStr
     let prompt_text = prompt_text.unwrap_or("Passphrase");
     let helper_text = "Enter your passphrase (input is hidden):".to_string();
 
-    let passphrase = prompt::prompt_secret(prompt::SecretPromptOptions {
+    prompt::prompt_secret(prompt::SecretPromptOptions {
         prompt: prompt_text.to_string(),
         helper: Some(helper_text),
         confirmation: None,
         empty_error: "Passphrase cannot be empty".to_string(),
-    })?;
-
-    Ok(SecretString::new(passphrase.into_boxed_str()))
+    })
 }
 
 /// Load a key manager from a user-provided passphrase and restore the keyring entry.

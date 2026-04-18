@@ -11,6 +11,7 @@ use crate::storage::database::{Database, ProviderEntry};
 use crate::storage::models_cache::ModelsCache;
 use crate::storage::paths::database_path;
 use crate::storage::providers_env::ProvidersEnvConfig;
+use secrecy::{ExposeSecret, SecretString};
 use std::collections::HashSet;
 use std::time::Instant;
 
@@ -34,25 +35,14 @@ pub fn load_or_create_master_key() -> Result<KeyManager> {
         return create_new_master_key();
     }
 
-    println!("Using existing master key");
-    println!();
+    eprintln!("Using existing master key");
+    eprintln!();
 
     if keyring::get_passphrase()?.is_some() {
         return KeyManager::load();
     }
 
-    println!("Passphrase not found in OS keyring.");
-    println!("Enter the passphrase you used during initial setup:");
-    println!();
-
-    let passphrase = passphrase::prompt_existing_passphrase(Some("Passphrase"))?;
-
-    passphrase::load_key_manager_with_passphrase(&passphrase).map_err(|e| {
-        PyxError::Crypto(format!(
-            "Failed to decrypt master key: {e}. \
-             If you forgot your passphrase, run 'pyx reset' to start fresh."
-        ))
-    })
+    prompt_for_passphrase()
 }
 
 pub fn load_existing_master_key() -> Result<KeyManager> {
@@ -60,9 +50,13 @@ pub fn load_existing_master_key() -> Result<KeyManager> {
         return KeyManager::load();
     }
 
-    println!("Passphrase not found in OS keyring.");
-    println!("Enter the passphrase you used during initial setup:");
-    println!();
+    prompt_for_passphrase()
+}
+
+fn prompt_for_passphrase() -> Result<KeyManager> {
+    eprintln!("Passphrase not found in OS keyring.");
+    eprintln!("Enter the passphrase you used during initial setup:");
+    eprintln!();
 
     let passphrase = passphrase::prompt_existing_passphrase(Some("Passphrase"))?;
 
@@ -75,23 +69,23 @@ pub fn load_existing_master_key() -> Result<KeyManager> {
 }
 
 pub fn create_new_master_key() -> Result<KeyManager> {
-    println!("This will initialize pyx with secure encrypted storage.");
-    println!();
+    eprintln!("This will initialize pyx with secure encrypted storage.");
+    eprintln!();
 
     let passphrase = passphrase::prompt_new_passphrase()?;
 
-    println!("Generating master key...");
+    eprintln!("Generating master key...");
     let manager = KeyManager::generate()?;
 
-    println!("Saving encrypted master key...");
+    eprintln!("Saving encrypted master key...");
     manager.save_with_passphrase(&passphrase)?;
 
-    println!("Storing passphrase in OS keyring...");
+    eprintln!("Storing passphrase in OS keyring...");
     keyring::set_passphrase(&passphrase)?;
 
-    println!();
-    println!("Master key initialized!");
-    println!();
+    eprintln!();
+    eprintln!("Master key initialized!");
+    eprintln!();
 
     Ok(manager)
 }
@@ -106,8 +100,8 @@ where
 {
     match ModelsCache::load() {
         Ok(cache) if !cache.is_stale_default() => {
-            println!("Using cached providers.");
-            println!();
+            eprintln!("Using cached providers.");
+            eprintln!();
             Ok(())
         }
         Ok(cache) => refresh_provider_cache(Some(cache), fetch_remote),
@@ -120,30 +114,30 @@ fn refresh_provider_cache<F>(cached: Option<ModelsCache>, fetch_remote: F) -> Re
 where
     F: FnOnce() -> Result<ModelsCache>,
 {
-    print!("Fetching providers... ");
+    eprint!("Fetching providers... ");
     let start = Instant::now();
 
     match fetch_remote() {
         Ok(cache) => {
-            println!("done ({}ms)", start.elapsed().as_millis());
+            eprintln!("done ({}ms)", start.elapsed().as_millis());
             cache.save()?;
-            println!();
+            eprintln!();
             Ok(())
         }
         Err(e) => {
             if cached.is_some() {
-                println!("using cache (offline mode)");
-                println!();
+                eprintln!("using cache (offline mode)");
+                eprintln!();
                 return Ok(());
             }
 
             if has_custom_providers()? {
-                println!("using custom providers");
-                println!();
+                eprintln!("using custom providers");
+                eprintln!();
                 return Ok(());
             }
 
-            println!("failed");
+            eprintln!("failed");
             Err(PyxError::Network(format!(
                 "Failed to fetch providers and no cache available: {e}"
             )))
@@ -177,7 +171,7 @@ pub fn get_provider_list() -> Result<Vec<String>> {
     Ok(list)
 }
 
-pub fn prompt_api_key(provider: &str) -> Result<String> {
+pub fn prompt_api_key(provider: &str) -> Result<SecretString> {
     let api_key = prompt::prompt_secret(prompt::SecretPromptOptions {
         prompt: "API key".to_string(),
         helper: Some(format!("Enter API key for {provider} (input is hidden):")),
@@ -192,11 +186,11 @@ pub fn store_provider_entry(
     manager: &KeyManager,
     db: &mut Database,
     provider: &str,
-    api_key: &str,
+    api_key: &SecretString,
 ) -> Result<bool> {
     let master_key = manager.get_key_bytes()?;
 
-    let cipher = encrypt_with_key(api_key.as_bytes(), master_key.as_slice())
+    let cipher = encrypt_with_key(api_key.expose_secret().as_bytes(), master_key.as_slice())
         .map_err(|e| PyxError::Crypto(format!("Failed to encrypt API key: {e}")))?;
 
     let is_update = db.has_provider(provider);

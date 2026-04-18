@@ -2,6 +2,7 @@
 
 use crate::error::{PyxError, Result};
 use inquire::{Autocomplete, Confirm, InquireError, Password, Text};
+use secrecy::SecretString;
 
 const MAX_AUTOCOMPLETE_SUGGESTIONS: usize = 7;
 
@@ -12,7 +13,7 @@ pub struct SecretPromptOptions {
     pub empty_error: String,
 }
 
-pub fn prompt_secret(options: SecretPromptOptions) -> Result<String> {
+pub fn prompt_secret(options: SecretPromptOptions) -> Result<SecretString> {
     let SecretPromptOptions {
         prompt,
         helper,
@@ -21,8 +22,8 @@ pub fn prompt_secret(options: SecretPromptOptions) -> Result<String> {
     } = options;
 
     if let Some(helper_text) = helper {
-        println!("{helper_text}");
-        println!();
+        eprintln!("{helper_text}");
+        eprintln!();
     }
 
     let mut password_prompt = Password::new(&prompt);
@@ -41,7 +42,7 @@ pub fn prompt_secret(options: SecretPromptOptions) -> Result<String> {
         return Err(PyxError::Validation(empty_error));
     }
 
-    Ok(value)
+    Ok(SecretString::new(value.into_boxed_str()))
 }
 
 fn inquire_error_to_pyx(err: InquireError) -> PyxError {

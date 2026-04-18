@@ -2,6 +2,7 @@
 
 use crate::error::{PyxError, Result};
 use clap::ValueEnum;
+use secrecy::{ExposeSecret, SecretString};
 use std::env;
 use std::fs;
 use std::path::PathBuf;
@@ -64,7 +65,7 @@ pub fn find_pi() -> Option<String> {
 }
 
 /// Spawn pi process with environment variables
-pub fn spawn_pi(env_vars: &[(String, String)], args: &[String]) -> Result<i32> {
+pub fn spawn_pi(env_vars: &[(String, SecretString)], args: &[String]) -> Result<i32> {
     let pi_path = find_pi().ok_or_else(|| {
         PyxError::CommandExecution(
             "pi not found in PATH. Run 'pyx pi install' to install.".to_string(),
@@ -74,15 +75,76 @@ pub fn spawn_pi(env_vars: &[(String, String)], args: &[String]) -> Result<i32> {
     let mut cmd = Command::new(&pi_path);
     cmd.args(args);
 
-    for (key, value) in env_vars {
-        cmd.env(key, value);
+    cmd.env_clear();
+
+    const SAFE_ENV_VARS: &[&str] = &[
+        "PATH",
+        "HOME",
+        "TERM",
+        "LANG",
+        "LOGNAME",
+        "USER",
+        "SHELL",
+        "TMPDIR",
+        "XDG_CONFIG_HOME",
+        "XDG_DATA_HOME",
+        "XDG_CACHE_HOME",
+        "XDG_RUNTIME_DIR",
+        "LC_ALL",
+        "LC_CTYPE",
+        "LC_MESSAGES",
+        "TZ",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "NO_PROXY",
+        "ALL_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "no_proxy",
+        "all_proxy",
+        "SSL_CERT_FILE",
+        "CURL_CA_BUNDLE",
+        "NODE_EXTRA_CA_CERTS",
+        "NODE_OPTIONS",
+        "DISPLAY",
+        "WAYLAND_DISPLAY",
+    ];
+    for &var in SAFE_ENV_VARS {
+        if let Ok(val) = std::env::var(var) {
+            cmd.env(var, val);
+        }
     }
 
-    let status = cmd
-        .status()
+    for (key, value) in env_vars {
+        cmd.env(key, value.expose_secret());
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
+    }
+
+    let mut child = cmd
+        .spawn()
         .map_err(|e| PyxError::CommandExecution(format!("Failed to execute pi: {e}")))?;
 
-    Ok(status.code().unwrap_or(1))
+    let status = child
+        .wait()
+        .map_err(|e| PyxError::CommandExecution(format!("Failed to wait for pi: {e}")))?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::ExitStatusExt;
+        Ok(status
+            .code()
+            .or_else(|| status.signal().map(|sig| 128 + sig))
+            .unwrap_or(1))
+    }
+    #[cfg(not(unix))]
+    {
+        Ok(status.code().unwrap_or(1))
+    }
 }
 
 /// Install pi with package manager prompt (auto-selects if only one PM found)

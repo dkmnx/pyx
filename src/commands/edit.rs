@@ -8,11 +8,12 @@ use crate::crypto::age::decrypt_with_key;
 use crate::error::{PyxError, Result};
 use crate::keys::manager::KeyManager;
 use crate::prompt;
+use secrecy::SecretString;
 use std::io::IsTerminal;
 
 pub fn execute(provider_name: Option<&str>, api_key: Option<&str>) -> Result<()> {
-    println!("Pyx Edit");
-    println!();
+    eprintln!("Pyx Edit");
+    eprintln!();
 
     if !KeyManager::master_key_exists() {
         return Err(PyxError::Config(
@@ -53,8 +54,8 @@ pub fn execute(provider_name: Option<&str>, api_key: Option<&str>) -> Result<()>
             .map_err(|e| PyxError::Crypto(format!("Current key is not valid UTF-8: {e}")))?;
         mask_key(&plain_str)
     };
-    println!("Current key: {masked}");
-    println!();
+    eprintln!("Current key: {masked}");
+    eprintln!();
 
     let stdin = std::io::stdin();
     if stdin.is_terminal() {
@@ -70,7 +71,7 @@ pub fn execute(provider_name: Option<&str>, api_key: Option<&str>) -> Result<()>
             if k.is_empty() {
                 return Err(PyxError::Validation("API key cannot be empty".to_string()));
             }
-            k.to_string()
+            SecretString::new(k.to_string().into_boxed_str())
         }
         None => {
             if !stdin.is_terminal() {
@@ -89,8 +90,8 @@ pub fn execute(provider_name: Option<&str>, api_key: Option<&str>) -> Result<()>
 
     store_provider_entry(&manager, &mut db, &provider, &key)?;
 
-    println!();
-    println!("  {provider}: Updated ({})", format_time_now());
+    eprintln!();
+    eprintln!("  {provider}: Updated ({})", format_time_now());
 
     Ok(())
 }
