@@ -5,7 +5,7 @@
 set windows-shell := ["pwsh", "-NoProfile", "-Command"]
 
 # Fast scrypt work factor for tests (production uses default 18)
-export PYX_SCRYPT_WORK_FACTOR := "14"
+export PYX_SCRYPT_WORK_FACTOR := "15"
 
 # Variables
 app_name := "pyx"

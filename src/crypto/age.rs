@@ -10,6 +10,7 @@
 //! This uses ChaCha20-Poly1305 directly (matching age_core internals) to avoid
 //! depending on age_core's internal AEAD primitives.
 
+use crate::crypto::get_scrypt_work_factor_with_warning;
 use crate::error::{PyxError, Result};
 use age::scrypt::{Identity, Recipient};
 use age::{DecryptError, Decryptor, EncryptError, Encryptor};
@@ -27,16 +28,18 @@ use std::io::{Read, Write};
 /// Default scrypt work factor (N = 2^18 = 262144 iterations)
 /// This provides strong protection against brute-force attacks while maintaining
 /// acceptable performance for interactive use.
-/// Can be overridden via PYX_SCRYPT_WORK_FACTOR environment variable (value 14-30).
+/// Can be overridden via PYX_SCRYPT_WORK_FACTOR environment variable (value 15-30).
 const DEFAULT_SCRYPT_WORK_FACTOR: u8 = 18;
+const MIN_SCRYPT_WORK_FACTOR: u8 = 15;
 
 /// Get scrypt work factor from environment or use default
 fn get_scrypt_work_factor() -> u8 {
-    std::env::var("PYX_SCRYPT_WORK_FACTOR")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .filter(|&n| (14..=30).contains(&n))
-        .unwrap_or(DEFAULT_SCRYPT_WORK_FACTOR)
+    get_scrypt_work_factor_with_warning(
+        "PYX_SCRYPT_WORK_FACTOR",
+        DEFAULT_SCRYPT_WORK_FACTOR,
+        MIN_SCRYPT_WORK_FACTOR,
+        30,
+    )
 }
 /// Maximum accepted scrypt work factor for decryption (age library limit of 2^63)
 const MAX_ACCEPTED_SCRYPT_WORK_FACTOR: u8 = 63;

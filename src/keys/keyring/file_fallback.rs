@@ -1,3 +1,4 @@
+use crate::crypto::get_scrypt_work_factor_with_warning;
 use crate::error::{PyxError, Result};
 use crate::storage::atomic_write::atomic_write_with_backup;
 use crate::storage::paths::passphrase_path;
@@ -10,14 +11,16 @@ const FILE_FALLBACK_KEY_LEN: usize = 32;
 const FILE_FALLBACK_KDF_LOG_N_DEFAULT: u8 = 15;
 const FILE_FALLBACK_KDF_R: u32 = 8;
 const FILE_FALLBACK_KDF_P: u32 = 1;
+const FILE_FALLBACK_KDF_LOG_N_MIN: u8 = 15;
 
 /// Get scrypt work factor from environment or use default (same as age.rs)
 fn get_kdf_log_n() -> u8 {
-    std::env::var("PYX_SCRYPT_WORK_FACTOR")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .filter(|&n| (14..=30).contains(&n))
-        .unwrap_or(FILE_FALLBACK_KDF_LOG_N_DEFAULT)
+    get_scrypt_work_factor_with_warning(
+        "PYX_SCRYPT_WORK_FACTOR",
+        FILE_FALLBACK_KDF_LOG_N_DEFAULT,
+        FILE_FALLBACK_KDF_LOG_N_MIN,
+        30,
+    )
 }
 
 pub(super) fn file_fallback_enabled() -> bool {
