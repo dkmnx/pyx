@@ -8,16 +8,16 @@ pub fn execute() -> Result<()> {
     let db = Database::load_or_error()?;
 
     if db.is_empty() {
-        println!("No providers configured. Run 'pyx add' to add providers.");
+        eprintln!("No providers configured. Run 'pyx add' to add providers.");
         return Ok(());
     }
 
-    println!("Configured providers:");
+    eprintln!("Configured providers:");
     for provider in db.get_provider_names() {
-        println!("  - {provider}");
+        eprintln!("  - {provider}");
     }
-    println!();
-    println!("Total: {} provider(s)", db.len());
+    eprintln!();
+    eprintln!("Total: {} provider(s)", db.len());
 
     Ok(())
 }

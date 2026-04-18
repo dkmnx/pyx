@@ -25,7 +25,7 @@ pub fn execute(provider_name: Option<&str>, skip_confirm: bool) -> Result<()> {
     }
 
     if !skip_confirm && !confirm_delete(&provider_name)? {
-        println!("Delete cancelled.");
+        eprintln!("Delete cancelled.");
         return Ok(());
     }
 
@@ -37,7 +37,7 @@ pub fn execute(provider_name: Option<&str>, skip_confirm: bool) -> Result<()> {
 
     db.save()?;
 
-    println!("✓ Removed provider: {}", removed.provider);
+    eprintln!("✓ Removed provider: {}", removed.provider);
 
     Ok(())
 }
@@ -45,7 +45,7 @@ pub fn execute(provider_name: Option<&str>, skip_confirm: bool) -> Result<()> {
 fn prompt_provider_selection(db: &Database) -> Result<String> {
     use std::io::IsTerminal;
 
-    if !stdin().is_terminal() {
+    if !std::io::stdin().is_terminal() {
         return Err(PyxError::Validation(
             "No provider specified. Pass a provider name or run in an interactive terminal.".into(),
         ));
@@ -64,7 +64,7 @@ fn confirm_delete(provider_name: &str) -> Result<bool> {
     use inquire::Confirm;
     use std::io::IsTerminal;
 
-    if !stdin().is_terminal() {
+    if !std::io::stdin().is_terminal() {
         return Err(PyxError::Validation(
             "Confirmation requires an interactive terminal. Use --yes to skip.".into(),
         ));
@@ -78,10 +78,6 @@ fn confirm_delete(provider_name: &str) -> Result<bool> {
     .map_err(|e| PyxError::Validation(format!("Failed to read confirmation: {e}")))?;
 
     Ok(confirmed)
-}
-
-fn stdin() -> std::io::Stdin {
-    std::io::stdin()
 }
 
 #[cfg(test)]

@@ -34,7 +34,7 @@ fn list_subcommand_shows_configured_providers() {
 
     cmd.assert()
         .success()
-        .stdout(predicates::str::contains("openai"));
+        .stderr(predicates::str::contains("openai"));
 }
 
 #[test]
@@ -78,7 +78,7 @@ fn list_subcommand_empty_database() {
 
     cmd.assert()
         .success()
-        .stdout(predicates::str::contains("No providers configured"));
+        .stderr(predicates::str::contains("No providers configured"));
 }
 
 #[test]
@@ -102,7 +102,7 @@ fn delete_subcommand_removes_provider() {
         .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
     cmd.assert()
         .success()
-        .stdout(predicates::str::contains("openai"));
+        .stderr(predicates::str::contains("openai"));
 
     let mut cmd = Command::cargo_bin("pyx").unwrap();
     cmd.arg("delete")
@@ -112,7 +112,7 @@ fn delete_subcommand_removes_provider() {
         .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
     cmd.assert()
         .success()
-        .stdout(predicates::str::contains("Removed provider: openai"));
+        .stderr(predicates::str::contains("Removed provider: openai"));
 
     let mut cmd = Command::cargo_bin("pyx").unwrap();
     cmd.arg("list")
@@ -120,7 +120,7 @@ fn delete_subcommand_removes_provider() {
         .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
     cmd.assert()
         .success()
-        .stdout(predicates::str::contains("No providers configured"));
+        .stderr(predicates::str::contains("No providers configured"));
 }
 
 #[test]
@@ -244,7 +244,7 @@ fn reset_subcommand_with_yes_flag_succeeds() {
         .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
     cmd.assert()
         .success()
-        .stdout(predicates::str::contains("Reset complete"));
+        .stderr(predicates::str::contains("Reset complete"));
 
     // Verify data was actually deleted
     assert!(!env.data_dir.join("database.json").exists());

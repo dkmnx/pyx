@@ -19,23 +19,23 @@ fn backup_path(path: &Path) -> PathBuf {
 
 /// Execute the reset command
 pub fn execute(skip_confirm: bool) -> Result<()> {
-    println!("=== Pyx Reset ===");
-    println!();
-    println!("WARNING: This will permanently delete all pyx data:");
-    println!("  - Master key");
-    println!("  - All stored API keys");
-    println!("  - Models cache");
-    println!("  - Settings");
-    println!();
+    eprintln!("=== Pyx Reset ===");
+    eprintln!();
+    eprintln!("WARNING: This will permanently delete all pyx data:");
+    eprintln!("  - Master key");
+    eprintln!("  - All stored API keys");
+    eprintln!("  - Models cache");
+    eprintln!("  - Settings");
+    eprintln!();
 
     // Confirm deletion
     if !skip_confirm && !confirm_reset()? {
-        println!("Reset cancelled.");
+        eprintln!("Reset cancelled.");
         return Err(PyxError::Cancelled);
     }
 
-    println!();
-    println!("Deleting pyx data...");
+    eprintln!();
+    eprintln!("Deleting pyx data...");
 
     // Delete master key
     delete_file("Master key", &master_key_path()?)?;
@@ -61,17 +61,17 @@ pub fn execute(skip_confirm: bool) -> Result<()> {
 
     // Clear keyring
     if KeyManager::master_key_exists() || keyring_has_entry() {
-        println!("Clearing keyring entry...");
+        eprintln!("Clearing keyring entry...");
         KeyManager::clear_passphrase().unwrap_or_else(|e| {
             eprintln!("Warning: Failed to clear keyring: {e}");
         });
     }
 
-    println!();
-    println!("✓ Reset complete!");
-    println!();
-    println!("Pyx has been reset to initial state.");
-    println!("Run 'pyx init' to initialize again.");
+    eprintln!();
+    eprintln!("✓ Reset complete!");
+    eprintln!();
+    eprintln!("Pyx has been reset to initial state.");
+    eprintln!("Run 'pyx init' to initialize again.");
 
     Ok(())
 }
@@ -99,9 +99,9 @@ fn delete_file(description: &str, path: &Path) -> Result<()> {
     if path.exists() {
         fs::remove_file(path)
             .map_err(|e| PyxError::Config(format!("Failed to delete {description}: {e}")))?;
-        println!("  ✓ Deleted: {description}");
+        eprintln!("  ✓ Deleted: {description}");
     } else {
-        println!("  - Not found: {description}");
+        eprintln!("  - Not found: {description}");
     }
     Ok(())
 }
