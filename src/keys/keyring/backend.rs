@@ -14,10 +14,13 @@
 use std::cell::RefCell;
 #[cfg(test)]
 use std::sync::Arc;
-use std::sync::OnceLock;
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 use crate::error::{PyxError, Result};
 use keyring::{Entry, Error as KeyringError};
+
+const KEYRING_CACHE_TTL_SECS: u64 = 300; // 5 minutes
 
 /// Trait for keyring backend implementations.
 ///
@@ -55,15 +58,28 @@ pub(crate) struct NativeKeyring;
 /// Probing involves D-Bus IPC on Linux which can be slow (tens to hundreds of
 /// milliseconds). Caching avoids repeating this on every `with_backend` call
 /// within the same process.
-static KEYRING_AVAILABLE: OnceLock<bool> = OnceLock::new();
+/// Uses a TTL-based cache (5 minutes) to allow recovery if keyring becomes
+/// unavailable mid-session.
+static KEYRING_AVAILABLE: Mutex<Option<(bool, Instant)>> = Mutex::new(None);
 
 impl NativeKeyring {
     /// Check if a native keyring backend is available.
     ///
-    /// The result is cached after the first probe, so this is cheap to call
+    /// The result is cached for 5 minutes, so this is cheap to call
     /// repeatedly. The initial probe may involve D-Bus IPC on Linux.
     pub fn is_available() -> bool {
-        *KEYRING_AVAILABLE.get_or_init(|| probe_keyring().is_ok())
+        let mut cache = KEYRING_AVAILABLE.lock().unwrap_or_else(|e| e.into_inner());
+
+        if let Some((available, cached_at)) = *cache {
+            if cached_at.elapsed() < Duration::from_secs(KEYRING_CACHE_TTL_SECS) {
+                return available;
+            }
+        }
+
+        let now = Instant::now();
+        let result = probe_keyring().is_ok();
+        *cache = Some((result, now));
+        result
     }
 }
 
