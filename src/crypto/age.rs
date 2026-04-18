@@ -5,15 +5,18 @@
 //!
 //! # Key-Based Encryption
 //!
-//! For key-based encryption (`encrypt_with_key`/`decrypt_with_key`), we implement
-//! custom scrypt-based key wrapping that is compatible with the Go age implementation.
-//! This uses ChaCha20-Poly1305 directly (matching age_core internals) to avoid
-//! depending on age_core's internal AEAD primitives.
+//! For key-based encryption (`encrypt_with_key`/`decrypt_with_key`), the current
+//! format uses direct ChaCha20-Poly1305 with a random nonce (v2). Legacy entries
+//! encrypted with scrypt-based key wrapping are transparently decrypted via the
+//! `pyx2:` format prefix.
 
 use crate::crypto::get_scrypt_work_factor_with_warning;
 use crate::error::{PyxError, Result};
 use age::scrypt::{Identity, Recipient};
-use age::{DecryptError, Decryptor, EncryptError, Encryptor};
+use age::{DecryptError, Decryptor, Encryptor};
+
+#[cfg(test)]
+use age::EncryptError;
 use age_core::format::{FileKey, Stanza};
 use base64::Engine;
 use chacha20poly1305::{
@@ -21,9 +24,14 @@ use chacha20poly1305::{
     ChaCha20Poly1305,
 };
 use scrypt::{scrypt, Params as ScryptParams};
-use secrecy::{ExposeSecret, SecretString};
-use std::collections::HashSet;
+use secrecy::SecretString;
+
+#[cfg(test)]
+use secrecy::ExposeSecret;
 use std::io::{Read, Write};
+
+#[cfg(test)]
+use std::collections::HashSet;
 
 /// Default scrypt work factor (N = 2^18 = 262144 iterations)
 /// This provides strong protection against brute-force attacks while maintaining
@@ -45,10 +53,12 @@ fn get_scrypt_work_factor() -> u8 {
 const MAX_ACCEPTED_SCRYPT_WORK_FACTOR: u8 = 63;
 const SCRYPT_TAG: &str = "scrypt";
 const SCRYPT_SALT_LABEL: &[u8] = b"age-encryption.org/v1/scrypt";
+#[cfg(test)]
 /// 16-byte salt for scrypt key derivation
 /// Can be overridden via PYX_SCRYPT_SALT_LEN environment variable (value 8-32).
 const DEFAULT_SCRYPT_SALT_LEN: usize = 16;
 
+#[cfg(test)]
 /// Get scrypt salt length from environment or use default
 fn get_scrypt_salt_len() -> usize {
     std::env::var("PYX_SCRYPT_SALT_LEN")
@@ -68,20 +78,14 @@ const ENCRYPTED_FILE_KEY_BYTES: usize = FILE_KEY_BYTES + CHACHA_TAG_BYTES;
 const SCRYPT_R: u32 = 8;
 /// Scrypt parallelization parameter
 const SCRYPT_P: u32 = 1;
+#[cfg(test)]
 const RAW_SCRYPT_LABEL: &str = "raw-scrypt";
+
+const V2_PREFIX: &str = "pyx2:";
+const V2_NONCE_BYTES: usize = 12;
 
 /// Zero nonce for ChaCha20-Poly1305 (matching age_core internal implementation)
 const ZERO_NONCE: &[u8; 12] = &[0; 12];
-
-/// AEAD encryption using ChaCha20-Poly1305 with zero nonce.
-/// Matches age_core::primitives::aead_encrypt behavior.
-/// Format: ciphertext_with_tag (no nonce prepended, since it's always zero)
-fn aead_encrypt(key: &[u8; 32], plaintext: &[u8]) -> Result<Vec<u8>> {
-    let cipher = ChaCha20Poly1305::new(key.into());
-    cipher
-        .encrypt(ZERO_NONCE.into(), plaintext)
-        .map_err(|e| PyxError::Crypto(format!("AEAD encryption failed: {e}")))
-}
 
 /// AEAD decryption using ChaCha20-Poly1305 with zero nonce.
 /// Matches age_core::primitives::aead_decrypt behavior.
@@ -89,6 +93,73 @@ fn aead_decrypt(key: &[u8; 32], ciphertext: &[u8]) -> Result<Vec<u8>> {
     let cipher = ChaCha20Poly1305::new(key.into());
     cipher
         .decrypt(ZERO_NONCE.into(), ciphertext)
+        .map_err(|_| PyxError::Crypto("Decryption failed (wrong key?)".to_string()))
+}
+
+#[cfg(test)]
+fn aead_encrypt(key: &[u8; 32], plaintext: &[u8]) -> Result<Vec<u8>> {
+    let cipher = ChaCha20Poly1305::new(key.into());
+    cipher
+        .encrypt(ZERO_NONCE.into(), plaintext)
+        .map_err(|e| PyxError::Crypto(format!("AEAD encryption failed: {e}")))
+}
+
+/// Direct ChaCha20-Poly1305 encryption with random nonce (v2 format).
+/// Format: `pyx2:` + base64(nonce || ciphertext_with_tag)
+fn encrypt_direct(plaintext: &[u8], key: &[u8]) -> Result<String> {
+    if key.len() != 32 {
+        return Err(PyxError::Crypto(
+            "Key must be 32 bytes for direct encryption".to_string(),
+        ));
+    }
+
+    let mut nonce = [0u8; V2_NONCE_BYTES];
+    getrandom::fill(&mut nonce)
+        .map_err(|e| PyxError::Crypto(format!("Random generation failed: {e}")))?;
+
+    let key_array: &[u8; 32] = key.try_into().unwrap();
+    let cipher = ChaCha20Poly1305::new(key_array.into());
+    let ciphertext = cipher
+        .encrypt((&nonce).into(), plaintext)
+        .map_err(|e| PyxError::Crypto(format!("Encryption failed: {e}")))?;
+
+    let mut payload = Vec::with_capacity(V2_NONCE_BYTES + ciphertext.len());
+    payload.extend_from_slice(&nonce);
+    payload.extend_from_slice(&ciphertext);
+
+    Ok(format!(
+        "{V2_PREFIX}{}",
+        base64::engine::general_purpose::STANDARD.encode(&payload)
+    ))
+}
+
+/// Direct ChaCha20-Poly1305 decryption (v2 format).
+fn decrypt_direct(ciphertext: &str, key: &[u8]) -> Result<Vec<u8>> {
+    if key.len() != 32 {
+        return Err(PyxError::Crypto(
+            "Key must be 32 bytes for direct decryption".to_string(),
+        ));
+    }
+
+    let encoded = ciphertext
+        .strip_prefix(V2_PREFIX)
+        .ok_or_else(|| PyxError::Crypto("Invalid v2 ciphertext format".to_string()))?;
+
+    let payload = base64::engine::general_purpose::STANDARD
+        .decode(encoded)
+        .map_err(|e| PyxError::Crypto(format!("Base64 decode failed: {e}")))?;
+
+    if payload.len() < V2_NONCE_BYTES + CHACHA_TAG_BYTES {
+        return Err(PyxError::Crypto("Ciphertext too short".to_string()));
+    }
+
+    let (nonce, encrypted) = payload.split_at(V2_NONCE_BYTES);
+
+    let key_array: &[u8; 32] = key.try_into().unwrap();
+    let cipher = ChaCha20Poly1305::new(key_array.into());
+
+    cipher
+        .decrypt(nonce.into(), encrypted)
         .map_err(|_| PyxError::Crypto("Decryption failed (wrong key?)".to_string()))
 }
 
@@ -150,21 +221,20 @@ pub fn decrypt_with_passphrase(ciphertext: &str, passphrase: &SecretString) -> R
     Ok(decrypted)
 }
 
-/// Custom scrypt-based recipient for key-based encryption.
-/// Uses ChaCha20-Poly1305 for encryption operations, avoiding age_core internals.
-/// Required for Go compatibility when using raw binary keys (not passphrases).
-#[derive(Clone)]
+#[cfg(test)]
 struct RawScryptRecipient {
     passphrase: Vec<u8>,
     log_n: u8,
 }
 
+#[cfg(test)]
 impl RawScryptRecipient {
     fn new(passphrase: Vec<u8>, log_n: u8) -> Self {
         Self { passphrase, log_n }
     }
 }
 
+#[cfg(test)]
 impl age::Recipient for RawScryptRecipient {
     fn wrap_file_key(
         &self,
@@ -202,9 +272,32 @@ impl age::Recipient for RawScryptRecipient {
     }
 }
 
-/// Custom scrypt-based identity for key-based decryption.
-/// Uses ChaCha20-Poly1305 for encryption operations, avoiding age_core internals.
-/// Required for Go compatibility when using raw binary keys (not passphrases).
+#[cfg(test)]
+fn encrypt_with_raw_key_recipient(plaintext: &[u8], key: &[u8]) -> Result<String> {
+    let recipient = RawScryptRecipient::new(key.to_vec(), get_scrypt_work_factor());
+
+    let mut encrypted = Vec::new();
+    let mut encryptor =
+        Encryptor::with_recipients(std::iter::once(&recipient as &dyn age::Recipient))
+            .map_err(|e| PyxError::Crypto(format!("Failed to create encryptor: {e}")))?
+            .wrap_output(&mut encrypted)
+            .map_err(|e| PyxError::Crypto(format!("Failed to wrap output: {e}")))?;
+
+    encryptor
+        .write_all(plaintext)
+        .map_err(|e| PyxError::Crypto(format!("Encryption write failed: {e}")))?;
+
+    encryptor
+        .finish()
+        .map_err(|e| PyxError::Crypto(format!("Encryption finish failed: {e}")))?;
+
+    Ok(base64::engine::general_purpose::STANDARD.encode(encrypted))
+}
+
+/// Custom scrypt-based identity for legacy key-based decryption.
+/// Uses ChaCha20-Poly1305 for decryption operations, avoiding age_core internals.
+/// Required for backward compatibility with entries encrypted by the Go implementation
+/// or older pyx versions that used scrypt-based key wrapping.
 #[derive(Clone)]
 struct RawScryptIdentity {
     passphrase: Vec<u8>,
@@ -304,35 +397,19 @@ fn decrypt_with_raw_key_identity(ciphertext: &str, key: &[u8]) -> Result<Vec<u8>
     Ok(decrypted)
 }
 
-fn encrypt_with_raw_key_recipient(plaintext: &[u8], key: &[u8]) -> Result<String> {
-    let recipient = RawScryptRecipient::new(key.to_vec(), get_scrypt_work_factor());
-
-    let mut encrypted = Vec::new();
-    let mut encryptor =
-        Encryptor::with_recipients(std::iter::once(&recipient as &dyn age::Recipient))
-            .map_err(|e| PyxError::Crypto(format!("Failed to create encryptor: {e}")))?
-            .wrap_output(&mut encrypted)
-            .map_err(|e| PyxError::Crypto(format!("Failed to wrap output: {e}")))?;
-
-    encryptor
-        .write_all(plaintext)
-        .map_err(|e| PyxError::Crypto(format!("Encryption write failed: {e}")))?;
-
-    encryptor
-        .finish()
-        .map_err(|e| PyxError::Crypto(format!("Encryption finish failed: {e}")))?;
-
-    Ok(base64::engine::general_purpose::STANDARD.encode(encrypted))
-}
-
 /// Encrypt data using key bytes (used for provider API key encryption).
+/// Uses direct ChaCha20-Poly1305 with random nonce (v2 format).
 pub fn encrypt_with_key(plaintext: &[u8], key: &[u8]) -> Result<String> {
-    encrypt_with_raw_key_recipient(plaintext, key)
+    encrypt_direct(plaintext, key)
 }
 
 /// Decrypt data using key bytes (used for provider API key decryption).
-/// Uses raw byte identity for Go compatibility (no lossy string conversion).
+/// Detects v2 format by prefix and uses fast direct decryption.
+/// Falls back to scrypt-based decryption for legacy entries.
 pub fn decrypt_with_key(ciphertext: &str, key: &[u8]) -> Result<Vec<u8>> {
+    if ciphertext.starts_with(V2_PREFIX) {
+        return decrypt_direct(ciphertext, key);
+    }
     decrypt_with_raw_key_identity(ciphertext, key)
 }
 
@@ -394,12 +471,52 @@ mod tests {
 
     #[test]
     fn test_encrypt_decrypt_with_key_roundtrip() {
-        let key = vec![0, 1, 2, 3, 255, 254, 128, 42];
+        let key = [42u8; 32];
         let plaintext = b"key-based encryption";
 
         let ciphertext = encrypt_with_key(plaintext, &key).unwrap();
-        let decrypted = decrypt_with_key(&ciphertext, &key).unwrap();
+        assert!(ciphertext.starts_with("pyx2:"));
 
+        let decrypted = decrypt_with_key(&ciphertext, &key).unwrap();
         assert_eq!(decrypted, plaintext);
+    }
+
+    #[test]
+    fn test_encrypt_with_key_rejects_non_32_byte_key() {
+        let key = vec![0u8; 16];
+        let result = encrypt_with_key(b"test", &key);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_decrypt_with_key_legacy_format() {
+        let key = [42u8; 32];
+        let plaintext = b"legacy-encrypted-data";
+        let old_cipher = encrypt_with_raw_key_recipient(plaintext, &key).unwrap();
+        assert!(!old_cipher.starts_with("pyx2:"));
+
+        let decrypted = decrypt_with_key(&old_cipher, &key).unwrap();
+        assert_eq!(decrypted, plaintext);
+    }
+
+    #[test]
+    fn test_encrypt_decrypt_with_key_empty() {
+        let key = [7u8; 32];
+        let plaintext = b"";
+
+        let ciphertext = encrypt_with_key(plaintext, &key).unwrap();
+        let decrypted = decrypt_with_key(&ciphertext, &key).unwrap();
+        assert_eq!(decrypted, plaintext);
+    }
+
+    #[test]
+    fn test_decrypt_with_key_wrong_key_fails() {
+        let key = [42u8; 32];
+        let wrong_key = [99u8; 32];
+        let plaintext = b"secret data";
+
+        let ciphertext = encrypt_with_key(plaintext, &key).unwrap();
+        let result = decrypt_with_key(&ciphertext, &wrong_key);
+        assert!(result.is_err());
     }
 }

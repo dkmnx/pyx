@@ -4,7 +4,8 @@ use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
 pub const TEST_PASSPHRASE: &str = "test-passphrase";
-const TEST_MASTER_KEY: &[u8] = b"integration-master-key";
+const TEST_MASTER_KEY: &[u8; 32] =
+    b"integration-master-key\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
 
 pub struct TestEnv {
     pub xdg_data: PathBuf,
