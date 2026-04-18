@@ -144,12 +144,13 @@ impl ProvidersEnvConfig {
 
     /// Get all provider names
     pub fn provider_names(&self) -> Vec<&str> {
-        let mut names: Vec<&str> = self.simple_map.keys().map(|s| s.as_str()).collect();
+        use std::collections::HashSet;
+        let mut seen: HashSet<&str> = self.simple_map.keys().map(|s| s.as_str()).collect();
         for p in &self.providers {
-            if !names.contains(&p.name.as_str()) {
-                names.push(&p.name);
-            }
+            seen.insert(&p.name);
         }
+        let mut names: Vec<&str> = seen.into_iter().collect();
+        names.sort_unstable();
         names
     }
 

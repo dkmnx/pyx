@@ -58,7 +58,7 @@ pub fn atomic_write_with_backup<P: AsRef<Path>>(
     if had_backup {
         if let Err(e) = fs::File::create(&backup_path) {
             eprintln!(
-                "Warning: failed to truncate backup {}: {e}",
+                "Warning: failed to truncate backup {}: {e}. Sensitive data may remain.",
                 Path::new(&backup_path).display()
             );
         }
