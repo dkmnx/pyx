@@ -1,6 +1,7 @@
 //! Execute pi process
 
 use crate::error::{PyxError, Result};
+use crate::storage::paths::pi_path_cache;
 use clap::ValueEnum;
 use secrecy::{ExposeSecret, SecretString};
 use std::env;
@@ -57,6 +58,50 @@ impl ShellType {
     }
 }
 
+/// Store the resolved pi path in the cache
+fn store_pi_path(pi_path: &str) -> Result<()> {
+    let cache_path = pi_path_cache()?;
+    if let Some(parent) = cache_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    crate::storage::atomic_write::atomic_write_with_backup(&cache_path, pi_path.as_bytes(), 0o600)?;
+    Ok(())
+}
+
+/// Verify the resolved pi path against the cached path
+fn verify_pi_path(pi_path: &str) -> Result<()> {
+    let cache_path = pi_path_cache()?;
+    if !cache_path.exists() {
+        store_pi_path(pi_path)?;
+        return Ok(());
+    }
+
+    let stored = fs::read_to_string(&cache_path)?.trim().to_string();
+    if stored == pi_path {
+        return Ok(());
+    }
+
+    let current = std::fs::canonicalize(pi_path).unwrap_or_else(|_| PathBuf::from(pi_path));
+    let stored_canonical =
+        std::fs::canonicalize(&stored).unwrap_or_else(|_| PathBuf::from(&stored));
+    if stored_canonical == current {
+        return Ok(());
+    }
+
+    if std::env::var("PYX_SKIP_PI_PATH_CHECK").as_deref() == Ok("1") {
+        return Ok(());
+    }
+
+    eprintln!("Warning: pi binary path changed since last run.");
+    eprintln!("  Previous: {stored}");
+    eprintln!("  Current:  {pi_path}");
+    eprintln!("  To accept the new path, run 'pyx pi install'.");
+    eprintln!("  To skip this check, set PYX_SKIP_PI_PATH_CHECK=1");
+    Err(PyxError::CommandExecution(
+        "pi binary path changed. Run 'pyx pi install' to confirm, or PYX_SKIP_PI_PATH_CHECK=1 to bypass.".to_string(),
+    ))
+}
+
 /// Check if pi is available in PATH
 pub fn find_pi() -> Option<String> {
     which::which("pi")
@@ -71,6 +116,8 @@ pub fn spawn_pi(env_vars: &[(String, SecretString)], args: &[String]) -> Result<
             "pi not found in PATH. Run 'pyx pi install' to install.".to_string(),
         )
     })?;
+
+    verify_pi_path(&pi_path)?;
 
     let mut cmd = Command::new(&pi_path);
     cmd.args(args);
@@ -212,6 +259,11 @@ fn install_pi_impl(pm_override: Option<&str>, force: bool) -> Result<()> {
     if let Ok(version) = get_pi_version() {
         println!("pi version: {version}");
     }
+
+    if let Some(pi_path) = find_pi() {
+        store_pi_path(&pi_path)?;
+    }
+
     Ok(())
 }
 
@@ -389,19 +441,7 @@ pub fn completion_script_install_path(shell: ShellType) -> Result<PathBuf> {
 
 /// Install shell completion for the specified shell
 pub fn install_completion_for_shell(shell: ShellType) -> Result<()> {
-    let output = Command::new("pyx")
-        .args(["completion", &shell.to_string()])
-        .output()
-        .map_err(|e| {
-            PyxError::CommandExecution(format!("Failed to generate completion script: {e}"))
-        })?;
-
-    if !output.status.success() {
-        return Err(PyxError::CommandExecution(format!(
-            "Failed to generate completion script: {}",
-            String::from_utf8_lossy(&output.stderr)
-        )));
-    }
+    let output = crate::commands::completion::generate_completion_to_vec(shell)?;
 
     let script_path = completion_script_install_path(shell)?;
 
@@ -409,7 +449,7 @@ pub fn install_completion_for_shell(shell: ShellType) -> Result<()> {
         fs::create_dir_all(parent)?;
     }
 
-    fs::write(&script_path, &output.stdout)?;
+    fs::write(&script_path, &output)?;
 
     println!("✓ Completion script installed for {shell} shell");
     println!("  Script location: {}", script_path.display());
@@ -499,37 +539,21 @@ mod tests {
     fn test_install_completion_for_shell_writes_generated_script() {
         let _guard = ENV_MUTEX.lock().unwrap();
         let temp = tempdir().unwrap();
-        let bin_dir = temp.path().join("bin");
-        fs::create_dir_all(&bin_dir).unwrap();
-
-        let fake_pyx = bin_dir.join("pyx");
-        let script = r#"#!/usr/bin/env bash
-printf '%s\n' '# bash completion for pyx'
-"#;
-        fs::write(&fake_pyx, script).unwrap();
-
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&fake_pyx, fs::Permissions::from_mode(0o755)).unwrap();
 
         let home = temp.path().join("home");
         fs::create_dir_all(&home).unwrap();
 
-        let mut path_guard = EnvGuard::set_var("HOME", &home);
-        let current_path = std::env::var("PATH").unwrap_or_default();
-        let new_path = if current_path.is_empty() {
-            bin_dir.display().to_string()
-        } else {
-            format!("{}:{}", bin_dir.display(), current_path)
-        };
-        path_guard.extend(EnvGuard::set_var("PATH", new_path));
+        let _path_guard = EnvGuard::set_var("HOME", &home);
 
         install_completion_for_shell(ShellType::Bash).unwrap();
 
         let installed = home.join(".bash_completions").join("pyx.bash");
         assert!(installed.exists());
-        assert!(fs::read_to_string(installed)
-            .unwrap()
-            .contains("bash completion for pyx"));
+        let content = fs::read_to_string(&installed).unwrap();
+        assert!(
+            content.contains("pyx"),
+            "completion script must contain 'pyx': {content}"
+        );
     }
 
     #[test]

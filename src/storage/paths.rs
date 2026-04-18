@@ -79,6 +79,11 @@ pub fn passphrase_path() -> Result<PathBuf> {
     Ok(get_data_dir()?.join(".passphrase"))
 }
 
+/// Get path to pi binary path cache
+pub fn pi_path_cache() -> Result<PathBuf> {
+    Ok(get_data_dir()?.join("pi.path"))
+}
+
 /// Ensure data directory exists with proper permissions.
 ///
 /// Unix: restricts to owner-only (0o700).
