@@ -1,6 +1,7 @@
 //! Parse model metadata from pi-mono's models.generated.ts
 
 use crate::error::{PyxError, Result};
+use crate::providers::validation::validate_provider_name;
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
@@ -63,6 +64,9 @@ pub fn parse_models(content: &str) -> Result<HashMap<String, Vec<String>>> {
         }
 
         if let Some(provider) = provider_name(trimmed) {
+            if validate_provider_name(provider).is_err() {
+                continue;
+            }
             current_provider = Some(provider.to_owned());
             result.entry(provider.to_owned()).or_default();
             continue;

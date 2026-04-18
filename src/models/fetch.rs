@@ -113,6 +113,7 @@ fn fetch_models_file(config: &SourceConfig, git_ref: &str) -> Result<String> {
 }
 
 fn request_get(url: &str) -> std::result::Result<String, String> {
+    const MAX_RESPONSE_BODY_SIZE: u64 = 5 * 1024 * 1024; // 5MB
     let config = ureq::Agent::config_builder()
         .timeout_global(Some(Duration::from_secs(REQUEST_TIMEOUT_SECONDS)))
         .build();
@@ -130,6 +131,8 @@ fn request_get(url: &str) -> std::result::Result<String, String> {
 
     response
         .body_mut()
+        .with_config()
+        .limit(MAX_RESPONSE_BODY_SIZE)
         .read_to_string()
         .map_err(|err| format!("failed to read response body: {err}"))
 }
