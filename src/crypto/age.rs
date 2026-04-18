@@ -73,11 +73,11 @@ const ZERO_NONCE: &[u8; 12] = &[0; 12];
 /// AEAD encryption using ChaCha20-Poly1305 with zero nonce.
 /// Matches age_core::primitives::aead_encrypt behavior.
 /// Format: ciphertext_with_tag (no nonce prepended, since it's always zero)
-fn aead_encrypt(key: &[u8; 32], plaintext: &[u8]) -> Vec<u8> {
+fn aead_encrypt(key: &[u8; 32], plaintext: &[u8]) -> Result<Vec<u8>> {
     let cipher = ChaCha20Poly1305::new(key.into());
     cipher
         .encrypt(ZERO_NONCE.into(), plaintext)
-        .expect("ChaCha20-Poly1305 encryption success")
+        .map_err(|e| PyxError::Crypto(format!("AEAD encryption failed: {e}")))
 }
 
 /// AEAD decryption using ChaCha20-Poly1305 with zero nonce.
@@ -179,7 +179,9 @@ impl age::Recipient for RawScryptRecipient {
         let enc_key = derive_scrypt_key(&inner_salt, self.log_n, &self.passphrase)
             .map_err(|_| EncryptError::Io(std::io::Error::other("scrypt key derivation failed")))?;
 
-        let encrypted_file_key = aead_encrypt(&enc_key, file_key.expose_secret());
+        let encrypted_file_key = aead_encrypt(&enc_key, file_key.expose_secret()).map_err(|e| {
+            EncryptError::Io(std::io::Error::other(format!("encryption failed: {e}")))
+        })?;
 
         let stanza = Stanza {
             tag: SCRYPT_TAG.to_string(),
@@ -289,7 +291,7 @@ fn decrypt_with_raw_key_identity(ciphertext: &str, key: &[u8]) -> Result<Vec<u8>
     let identity = RawScryptIdentity::new(key.to_vec());
     let mut reader = decryptor
         .decrypt(std::iter::once(&identity as &dyn age::Identity))
-        .map_err(|e| PyxError::Crypto(format!("Decryption failed (wrong passphrase?): {e}")))?;
+        .map_err(|e| PyxError::Crypto(format!("Decryption failed (wrong key?): {e}")))?;
 
     let mut decrypted = Vec::new();
     reader
