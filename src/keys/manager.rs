@@ -19,9 +19,9 @@ const LEGACY_PASSPHRASE: &str = "default";
 const ENV_PASSPHRASE: &str = "PYX_PASSPHRASE";
 const MAX_FAILED_ATTEMPTS: u32 = 5;
 const LOCKOUT_DURATION_SECS: u64 = 30;
+const RATE_LIMIT_MAP_MAX_CAPACITY: usize = 64;
 
 /// Master key length in bytes (256 bits)
-/// This is used throughout the codebase for consistent key generation
 pub const MASTER_KEY_BYTES: usize = 32;
 
 #[derive(Default)]
@@ -33,9 +33,43 @@ struct RateLimitState {
 static RATE_LIMITS: LazyLock<Mutex<HashMap<String, RateLimitState>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
+fn prune_stale_entries(states: &mut HashMap<String, RateLimitState>) {
+    states.retain(|_key, state| {
+        if state.failed_attempts >= MAX_FAILED_ATTEMPTS {
+            if let Some(last) = state.last_failed_attempt {
+                let elapsed = last.elapsed().as_secs();
+                if elapsed >= LOCKOUT_DURATION_SECS {
+                    return false;
+                }
+            }
+        }
+        true
+    });
+
+    if states.len() > RATE_LIMIT_MAP_MAX_CAPACITY {
+        let mut keys: Vec<_> = states.keys().cloned().collect();
+        // Sort by Reverse(elapsed time since last failure). Entries with no
+        // failures (None) sort to the end and survive; oldest-failed entries
+        // sort to the front and are evicted first.
+        keys.sort_by_key(|k| {
+            std::cmp::Reverse(
+                states
+                    .get(k)
+                    .and_then(|v| v.last_failed_attempt)
+                    .map(|i| i.elapsed()),
+            )
+        });
+        let count = states.len() - RATE_LIMIT_MAP_MAX_CAPACITY;
+        for key in keys.into_iter().take(count) {
+            states.remove(&key);
+        }
+    }
+}
+
 fn check_rate_limit(path: &Path) -> Result<()> {
     let key = path.to_string_lossy().into_owned();
     let mut states = RATE_LIMITS.lock().unwrap_or_else(|e| e.into_inner());
+    prune_stale_entries(&mut states);
     let state = states.entry(key).or_insert_with(|| RateLimitState {
         failed_attempts: 0,
         last_failed_attempt: None,
