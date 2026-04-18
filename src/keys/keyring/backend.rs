@@ -96,11 +96,13 @@ impl KeyringBackend for NativeKeyring {
 }
 
 /// Mock keyring backend for testing.
+#[cfg(test)]
 #[derive(Default)]
 pub struct MockKeyring {
     store: std::sync::Mutex<std::collections::HashMap<String, String>>,
 }
 
+#[cfg(test)]
 impl MockKeyring {
     pub fn new() -> Self {
         Self::default()
@@ -111,6 +113,7 @@ impl MockKeyring {
     }
 }
 
+#[cfg(test)]
 impl KeyringBackend for MockKeyring {
     fn get_password(&self, service: &str, username: &str) -> Result<Option<String>> {
         let store = self.store.lock().unwrap();

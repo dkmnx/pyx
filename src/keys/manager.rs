@@ -3,6 +3,7 @@
 use crate::crypto::age::{decrypt_with_passphrase, encrypt_with_passphrase};
 use crate::error::{PyxError, Result};
 use crate::keys::keyring;
+use crate::storage::atomic_write::atomic_write_with_backup;
 use crate::storage::paths::master_key_path;
 use secrecy::{ExposeSecret, SecretString};
 use std::collections::HashMap;
@@ -176,13 +177,7 @@ impl KeyManager {
             fs::create_dir_all(parent)?;
         }
 
-        fs::write(&path, &encrypted)?;
-
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            fs::set_permissions(&path, fs::Permissions::from_mode(0o600))?;
-        }
+        atomic_write_with_backup(&path, encrypted.as_bytes(), 0o600)?;
 
         Ok(())
     }

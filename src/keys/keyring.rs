@@ -10,9 +10,11 @@ mod backend;
 mod file_fallback;
 
 use self::backend::with_backend;
+pub use self::backend::KeyringBackend;
+#[cfg(test)]
+pub use self::backend::MockKeyring;
 #[cfg(test)]
 pub use self::backend::{reset_backend, set_backend};
-pub use self::backend::{KeyringBackend, MockKeyring};
 use self::file_fallback::{
     delete_passphrase_file, file_fallback_enabled, get_passphrase_file, set_passphrase_file,
 };

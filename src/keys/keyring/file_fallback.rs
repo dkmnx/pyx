@@ -1,4 +1,5 @@
 use crate::error::{PyxError, Result};
+use crate::storage::atomic_write::atomic_write_with_backup;
 use crate::storage::paths::passphrase_path;
 use scrypt::{scrypt, Params as ScryptParams};
 use secrecy::{ExposeSecret, SecretString};
@@ -26,10 +27,22 @@ pub(super) fn file_fallback_enabled() -> bool {
 }
 
 pub(super) fn set_passphrase_file(passphrase: &SecretString) -> Result<()> {
+    eprintln!(
+        "Warning: OS keyring unavailable. Storing passphrase in file with machine-derived key."
+    );
+    eprintln!("Warning: File fallback uses non-secret machine identifiers for encryption.");
+    eprintln!("Warning: This is weaker than OS keyring. Set PYX_ALLOW_FILE_FALLBACK=0 to disable.");
+
     let path = passphrase_path()?;
 
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700))?;
+        }
     }
 
     let machine_key = derive_machine_key();
@@ -39,13 +52,7 @@ pub(super) fn set_passphrase_file(passphrase: &SecretString) -> Result<()> {
     )
     .map_err(|e| PyxError::Crypto(format!("Failed to encrypt passphrase file: {e}")))?;
 
-    std::fs::write(&path, &encrypted)?;
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))?;
-    }
+    atomic_write_with_backup(&path, encrypted.as_bytes(), 0o600)?;
 
     Ok(())
 }
@@ -72,6 +79,10 @@ pub(super) fn get_passphrase_file() -> Result<Option<SecretString>> {
 
     let legacy_key = derive_machine_key_legacy(&machine_id, &user);
     if let Some(passphrase) = decrypt_passphrase_with_key(&encrypted, &legacy_key) {
+        eprintln!(
+            "Warning: passphrase file uses deprecated legacy encryption. \
+             Auto-migrating to v2 scrypt-based encryption."
+        );
         if let Err(err) = set_passphrase_file(&passphrase) {
             eprintln!("Warning: failed to migrate passphrase file encryption: {err}");
         }
@@ -93,8 +104,12 @@ fn derive_machine_key() -> SecretString {
     let machine_id = get_machine_id();
     let user = resolve_user();
 
-    derive_machine_key_v2(&machine_id, &user)
-        .unwrap_or_else(|| derive_machine_key_legacy(&machine_id, &user))
+    if let Some(key) = derive_machine_key_v2(&machine_id, &user) {
+        return key;
+    }
+
+    eprintln!("Warning: v2 scrypt derivation failed, falling back to deprecated legacy method.");
+    derive_machine_key_legacy(&machine_id, &user)
 }
 
 fn derive_machine_key_v2(machine_id: &str, user: &str) -> Option<SecretString> {
@@ -120,6 +135,7 @@ fn derive_machine_key_v2(machine_id: &str, user: &str) -> Option<SecretString> {
 }
 
 fn derive_machine_key_legacy(machine_id: &str, user: &str) -> SecretString {
+    // TODO: Remove legacy path after v0.3.0 release
     let combined = format!("{FILE_FALLBACK_KEY_PREFIX}:{machine_id}:{user}");
     SecretString::new(hex::encode(combined.as_bytes()).into_boxed_str())
 }
