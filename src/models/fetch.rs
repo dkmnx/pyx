@@ -114,8 +114,10 @@ fn fetch_models_file(config: &SourceConfig, git_ref: &str) -> Result<String> {
 
 fn request_get(url: &str) -> std::result::Result<String, String> {
     const MAX_RESPONSE_BODY_SIZE: u64 = 5 * 1024 * 1024; // 5MB
+    const MAX_ERROR_BODY_SIZE: u64 = 1024; // 1KB for error responses
     let config = ureq::Agent::config_builder()
         .timeout_global(Some(Duration::from_secs(REQUEST_TIMEOUT_SECONDS)))
+        .http_status_as_error(false) // Return response instead of error for 4xx/5xx
         .build();
     let agent: ureq::Agent = config.into();
 
@@ -124,10 +126,18 @@ fn request_get(url: &str) -> std::result::Result<String, String> {
         .header("Accept", "application/vnd.github+json")
         .header("User-Agent", "pyx-cli")
         .call()
-        .map_err(|err| match err {
-            ureq::Error::StatusCode(code) => format!("unexpected status code {code}"),
-            other => other.to_string(),
-        })?;
+        .map_err(|e| e.to_string())?;
+
+    let status = response.status().as_u16();
+    if status >= 400 {
+        let body = response
+            .body_mut()
+            .with_config()
+            .limit(MAX_ERROR_BODY_SIZE)
+            .read_to_string()
+            .unwrap_or_default();
+        return Err(format!("HTTP {status}: {}", body.trim()));
+    }
 
     response
         .body_mut()
