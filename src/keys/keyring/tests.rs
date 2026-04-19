@@ -20,7 +20,8 @@ fn test_env_passphrase_reads_non_empty() {
 fn test_file_passphrase_roundtrip() {
     let _guard = ENV_MUTEX.lock().unwrap();
     let temp = tempdir().unwrap();
-    let _env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
+    let mut env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
+    env.extend(EnvGuard::set_var("PYX_SCRYPT_WORK_FACTOR", "15"));
 
     let passphrase = SecretString::new("test-passphrase".to_string().into_boxed_str());
 
@@ -40,6 +41,8 @@ fn test_set_passphrase_writes_to_file() {
     let _guard = ENV_MUTEX.lock().unwrap();
     let temp = tempdir().unwrap();
     let mut env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
+    env.extend(EnvGuard::set_var("PYX_ALLOW_FILE_FALLBACK", "1"));
+    env.extend(EnvGuard::set_var("PYX_SCRYPT_WORK_FACTOR", "15"));
     env.extend(EnvGuard::set_var("PYX_ALLOW_FILE_FALLBACK", "1"));
 
     set_backend(Box::new(MockKeyring::new()));
@@ -61,6 +64,7 @@ fn test_has_entry_checks_file() {
     let temp = tempdir().unwrap();
     let mut env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
     env.extend(EnvGuard::set_var("PYX_ALLOW_FILE_FALLBACK", "1"));
+    env.extend(EnvGuard::set_var("PYX_SCRYPT_WORK_FACTOR", "15"));
 
     set_backend(Box::new(MockKeyring::new()));
 
@@ -81,7 +85,7 @@ fn test_clear_passphrase_removes_file_even_when_fallback_disabled() {
     let _guard = ENV_MUTEX.lock().unwrap();
     let temp = tempdir().unwrap();
     let mut env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
-    env.extend(EnvGuard::set_var("PYX_ALLOW_FILE_FALLBACK", "1"));
+    env.extend(EnvGuard::set_var("PYX_SCRYPT_WORK_FACTOR", "15"));
 
     set_backend(Box::new(MockKeyring::new()));
 
@@ -94,13 +98,8 @@ fn test_clear_passphrase_removes_file_even_when_fallback_disabled() {
         "passphrase file should exist before clear"
     );
 
-    // Disable fallback mid-test to verify cleanup still happens.
-    // Cannot use EnvGuard here — the test requires the env var to be set,
-    // then removed while the guard is still alive to test mid-flight behavior.
-    #[allow(unsafe_code)]
-    unsafe {
-        std::env::remove_var("PYX_ALLOW_FILE_FALLBACK");
-    }
+    // Now disable fallback to verify cleanup still happens.
+    let _disable_guard = EnvGuard::set_var("PYX_DISABLE_FILE_FALLBACK", "1");
     assert!(!file_fallback_enabled());
 
     clear_passphrase().unwrap();
@@ -113,10 +112,11 @@ fn test_clear_passphrase_removes_file_even_when_fallback_disabled() {
 }
 
 #[test]
-fn test_set_passphrase_does_not_write_file_by_default() {
+fn test_set_passphrase_does_not_write_file_when_opt_out() {
     let _guard = ENV_MUTEX.lock().unwrap();
     let temp = tempdir().unwrap();
-    let _env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
+    let mut env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
+    env.extend(EnvGuard::set_var("PYX_DISABLE_FILE_FALLBACK", "1"));
 
     set_backend(Box::new(MockKeyring::new()));
 
@@ -126,7 +126,7 @@ fn test_set_passphrase_does_not_write_file_by_default() {
     let file_exists = passphrase_path().map(|p| p.exists()).unwrap_or(false);
     assert!(
         !file_exists,
-        "file should not exist when fallback is disabled"
+        "file should not exist when fallback is opted out"
     );
 
     clear_passphrase().unwrap();
@@ -134,10 +134,11 @@ fn test_set_passphrase_does_not_write_file_by_default() {
 }
 
 #[test]
-fn test_get_passphrase_uses_keyring_when_fallback_disabled() {
+fn test_get_passphrase_uses_keyring_when_fallback_opted_out() {
     let _guard = ENV_MUTEX.lock().unwrap();
     let temp = tempdir().unwrap();
-    let _env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
+    let mut env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
+    env.extend(EnvGuard::set_var("PYX_DISABLE_FILE_FALLBACK", "1"));
 
     set_backend(Box::new(MockKeyring::new()));
 
@@ -156,18 +157,25 @@ fn test_get_passphrase_uses_keyring_when_fallback_disabled() {
 fn test_file_fallback_enabled_env_var() {
     let _guard = ENV_MUTEX.lock().unwrap();
 
-    assert!(!file_fallback_enabled());
+    // Default is now enabled
+    assert!(file_fallback_enabled());
 
+    // Opt-out
+    let _g0 = EnvGuard::set_var("PYX_DISABLE_FILE_FALLBACK", "1");
+    assert!(!file_fallback_enabled());
+    drop(_g0);
+
+    // Legacy opt-in still works
     let _g1 = EnvGuard::set_var("PYX_ALLOW_FILE_FALLBACK", "1");
     assert!(file_fallback_enabled());
 
     let _g2 = EnvGuard::set_var("PYX_ALLOW_FILE_FALLBACK", "true");
     assert!(file_fallback_enabled());
     drop(_g2);
-
     drop(_g1);
-    // After all guards drop, env var is unset — should return false
-    assert!(!file_fallback_enabled());
+
+    // Back to default: enabled
+    assert!(file_fallback_enabled());
 }
 
 #[test]
@@ -236,6 +244,7 @@ fn test_get_passphrase_uses_file_fallback_when_backend_errors() {
     let temp = tempdir().unwrap();
     let mut env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
     env.extend(EnvGuard::set_var("PYX_ALLOW_FILE_FALLBACK", "1"));
+    env.extend(EnvGuard::set_var("PYX_SCRYPT_WORK_FACTOR", "15"));
     env.extend(EnvGuard::remove_var("PYX_PASSPHRASE"));
 
     struct ErrorBackend;
@@ -274,7 +283,7 @@ fn test_get_passphrase_uses_file_fallback_when_backend_errors() {
 #[test]
 fn test_has_entry_returns_false_when_backend_unavailable() {
     let _guard = ENV_MUTEX.lock().unwrap();
-    let _env = EnvGuard::remove_var("PYX_ALLOW_FILE_FALLBACK");
+    let _env = EnvGuard::set_var("PYX_DISABLE_FILE_FALLBACK", "1");
 
     struct EmptyBackend;
     impl crate::keys::keyring::backend::KeyringBackend for EmptyBackend {
@@ -304,7 +313,7 @@ fn test_set_passphrase_succeeds_when_backend_available() {
     let _guard = ENV_MUTEX.lock().unwrap();
     let temp = tempdir().unwrap();
     let mut env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
-    env.extend(EnvGuard::remove_var("PYX_ALLOW_FILE_FALLBACK"));
+    env.extend(EnvGuard::set_var("PYX_DISABLE_FILE_FALLBACK", "1"));
     env.extend(EnvGuard::remove_var("PYX_PASSPHRASE"));
 
     set_backend(Box::new(MockKeyring::new()));
@@ -327,15 +336,6 @@ fn test_set_passphrase_succeeds_when_backend_available() {
 }
 
 /// Test that NativeKeyring::is_available() returns a valid result
-/// (true on platforms with a working keyring, false in CI/headless environments).
-/// This test validates the keyring crate integration.
-#[test]
-fn test_native_keyring_is_available_returns_valid_result() {
-    // This test simply verifies the keyring crate integration works
-    // and doesn't panic. The result depends on the runtime environment.
-    let _ = backend::NativeKeyring::is_available();
-}
-
 /// Test that the NativeKeyring backend can perform get/set/delete operations
 /// or gracefully report that it's unavailable.
 ///
@@ -351,21 +351,19 @@ fn test_native_keyring_roundtrip_when_available() {
         return;
     }
 
-    if !NativeKeyring::is_available() {
-        // Keyring daemon not available in this environment (e.g., headless Linux)
-        eprintln!("Skipping native keyring test: no keyring backend available");
-        return;
-    }
-
+    // Try keyring operations directly — if the keyring daemon isn't available,
+    // the operations will error and we skip the test.
     let backend = NativeKeyring;
     let service = "pyx-test-roundtrip";
     let username = "test-user";
     let password = "test-password-123";
 
     // Set
-    backend
-        .set_password(service, username, password)
-        .expect("set_password should succeed with available backend");
+    let set_result = backend.set_password(service, username, password);
+    if set_result.is_err() {
+        eprintln!("Skipping native keyring test: no keyring backend available");
+        return;
+    }
 
     // Get
     let result = backend

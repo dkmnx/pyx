@@ -68,7 +68,26 @@ fn store_pi_path(pi_path: &str) -> Result<()> {
     Ok(())
 }
 
-/// Verify the resolved pi path against the cached path
+/// Read just the path line from the cache, handling both legacy (path\nhash)
+/// and current (path-only) formats.
+fn read_cached_path(cache_path: &std::path::Path) -> Option<String> {
+    let content = fs::read_to_string(cache_path).ok()?;
+    // Legacy format: "path\nhash" - take only the first line.
+    // Current format: "path" - the entire trimmed content.
+    let path = content.lines().next()?;
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    Some(trimmed.to_string())
+}
+
+/// Verify the resolved pi path against the cached path.
+///
+/// Pi auto-updates frequently (npm/bun), so we only verify the **path** stays
+/// the same, not the binary content. If the path changes we silently update
+/// the cache rather than blocking the user - a path change without a version
+/// change is rare and harmless, and a version change doesn't warrant blocking.
 fn verify_pi_path(pi_path: &str) -> Result<()> {
     let cache_path = pi_path_cache()?;
     if !cache_path.exists() {
@@ -76,30 +95,35 @@ fn verify_pi_path(pi_path: &str) -> Result<()> {
         return Ok(());
     }
 
-    let stored = fs::read_to_string(&cache_path)?.trim().to_string();
+    let stored = match read_cached_path(&cache_path) {
+        Some(p) => p,
+        None => {
+            // Corrupt or empty cache - rewrite it.
+            store_pi_path(pi_path)?;
+            return Ok(());
+        }
+    };
+
     if stored == pi_path {
         return Ok(());
     }
 
+    // Resolve symlinks - /usr/local/bin/pi and ~/.bun/bin/pi might point at
+    // the same binary after an update.
     let current = std::fs::canonicalize(pi_path).unwrap_or_else(|_| PathBuf::from(pi_path));
     let stored_canonical =
         std::fs::canonicalize(&stored).unwrap_or_else(|_| PathBuf::from(&stored));
     if stored_canonical == current {
+        // Same binary, different path (e.g. symlink changed) - update cache.
+        store_pi_path(pi_path)?;
         return Ok(());
     }
 
-    if std::env::var("PYX_SKIP_PI_PATH_CHECK").as_deref() == Ok("1") {
-        return Ok(());
-    }
-
-    eprintln!("Warning: pi binary path changed since last run.");
-    eprintln!("  Previous: {stored}");
-    eprintln!("  Current:  {pi_path}");
-    eprintln!("  To accept the new path, run 'pyx pi install'.");
-    eprintln!("  To skip this check, set PYX_SKIP_PI_PATH_CHECK=1");
-    Err(PyxError::CommandExecution(
-        "pi binary path changed. Run 'pyx pi install' to confirm, or PYX_SKIP_PI_PATH_CHECK=1 to bypass.".to_string(),
-    ))
+    // Path genuinely changed - pi may have been upgraded, reinstalled, or
+    // moved. Auto-update the cache instead of blocking the user.
+    eprintln!("Note: pi path changed ({stored} -> {pi_path}), updating cache.");
+    store_pi_path(pi_path)?;
+    Ok(())
 }
 
 /// Check if pi is available in PATH
@@ -122,55 +146,15 @@ pub fn spawn_pi(env_vars: &[(String, SecretString)], args: &[String]) -> Result<
     let mut cmd = Command::new(&pi_path);
     cmd.args(args);
 
-    cmd.env_clear();
-
-    const SAFE_ENV_VARS: &[&str] = &[
-        "PATH",
-        "HOME",
-        "TERM",
-        "LANG",
-        "LOGNAME",
-        "USER",
-        "SHELL",
-        "TMPDIR",
-        "XDG_CONFIG_HOME",
-        "XDG_DATA_HOME",
-        "XDG_CACHE_HOME",
-        "XDG_RUNTIME_DIR",
-        "LC_ALL",
-        "LC_CTYPE",
-        "LC_MESSAGES",
-        "TZ",
-        "HTTP_PROXY",
-        "HTTPS_PROXY",
-        "NO_PROXY",
-        "ALL_PROXY",
-        "http_proxy",
-        "https_proxy",
-        "no_proxy",
-        "all_proxy",
-        "SSL_CERT_FILE",
-        "CURL_CA_BUNDLE",
-        "NODE_EXTRA_CA_CERTS",
-        "NODE_OPTIONS",
-        "DISPLAY",
-        "WAYLAND_DISPLAY",
-    ];
-    for &var in SAFE_ENV_VARS {
-        if let Ok(val) = std::env::var(var) {
-            cmd.env(var, val);
-        }
-    }
-
+    // Don't clear the environment — pi needs the full terminal environment
+    // (COLORTERM, TERM_PROGRAM, TERMINFO, etc.) for its TUI to function.
+    // We only inject the provider API keys on top of the inherited env.
     for (key, value) in env_vars {
         cmd.env(key, value.expose_secret());
     }
 
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        cmd.process_group(0);
-    }
+    // Do NOT set process_group(0) — the TUI needs to be in the foreground
+    // process group to receive terminal input and control the terminal.
 
     let mut child = cmd
         .spawn()

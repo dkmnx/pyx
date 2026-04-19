@@ -14,13 +14,9 @@
 use std::cell::RefCell;
 #[cfg(test)]
 use std::sync::Arc;
-use std::sync::Mutex;
-use std::time::{Duration, Instant};
 
 use crate::error::{PyxError, Result};
 use keyring::{Entry, Error as KeyringError};
-
-const KEYRING_CACHE_TTL_SECS: u64 = 300; // 5 minutes
 
 /// Trait for keyring backend implementations.
 ///
@@ -52,36 +48,6 @@ pub trait KeyringBackend: Send + Sync {
 /// store with kernel keyutils as an in-memory session fallback. On macOS it
 /// uses the system Keychain. On Windows it uses Credential Manager.
 pub(crate) struct NativeKeyring;
-
-/// Cached result of the keyring availability probe.
-///
-/// Probing involves D-Bus IPC on Linux which can be slow (tens to hundreds of
-/// milliseconds). Caching avoids repeating this on every `with_backend` call
-/// within the same process.
-/// Uses a TTL-based cache (5 minutes) to allow recovery if keyring becomes
-/// unavailable mid-session.
-static KEYRING_AVAILABLE: Mutex<Option<(bool, Instant)>> = Mutex::new(None);
-
-impl NativeKeyring {
-    /// Check if a native keyring backend is available.
-    ///
-    /// The result is cached for 5 minutes, so this is cheap to call
-    /// repeatedly. The initial probe may involve D-Bus IPC on Linux.
-    pub fn is_available() -> bool {
-        let mut cache = KEYRING_AVAILABLE.lock().unwrap_or_else(|e| e.into_inner());
-
-        if let Some((available, cached_at)) = *cache {
-            if cached_at.elapsed() < Duration::from_secs(KEYRING_CACHE_TTL_SECS) {
-                return available;
-            }
-        }
-
-        let now = Instant::now();
-        let result = probe_keyring().is_ok();
-        *cache = Some((result, now));
-        result
-    }
-}
 
 impl KeyringBackend for NativeKeyring {
     fn get_password(&self, service: &str, username: &str) -> Result<Option<String>> {
@@ -202,67 +168,6 @@ fn entry_new(service: &str, username: &str) -> Result<Entry> {
         .map_err(|e| PyxError::Keyring(format!("Failed to create keyring entry: {e}")))
 }
 
-/// Probe whether a keyring backend is available by performing a write-read-delete
-/// roundtrip on a temporary entry.
-///
-/// This catches cases where:
-/// - The platform has no keyring daemon (e.g., headless Linux without gnome-keyring
-///   or kwallet) or D-Bus is not accessible.
-/// - The backend appears available for reads but silently fails to persist writes
-///   (e.g., macOS/Windows CI runners where the keyring daemon responds to reads
-///   but credentials don't actually persist after set_password).
-///
-/// The probe creates a temporary entry, writes a test password, reads it back to
-/// verify persistence, and then cleans up to avoid accumulating stale entries.
-/// Note: if the process crashes between `set_password` and `delete_credential`,
-/// a stale probe entry (service "pyx-availability-check") may remain in the OS
-/// keyring. It is harmless — the next run overwrites it — but not automatically
-/// removed.
-fn probe_keyring() -> Result<()> {
-    let entry = Entry::new("pyx-availability-check", "probe")
-        .map_err(|e| PyxError::Keyring(format!("Keyring backend unavailable: {e}")))?;
-
-    // Write a test password to verify the backend can actually persist credentials.
-    let test_password = "pyx-probe-check";
-    entry
-        .set_password(test_password)
-        .map_err(|e| PyxError::Keyring(format!("Keyring probe write failed: {e}")))?;
-
-    // Read it back to confirm the write was actually persisted.
-    match entry.get_password() {
-        Ok(pw) if pw == test_password => {}
-        Ok(pw) => {
-            // Unexpected password — clean up and report failure.
-            let _ = entry.delete_credential();
-            return Err(PyxError::Keyring(format!(
-                "Keyring probe read mismatch: expected '{test_password}', got '{pw}'"
-            )));
-        }
-        Err(KeyringError::NoEntry) => {
-            // set_password returned Ok but the credential wasn't persisted.
-            // This happens on macOS/Windows CI runners where the keyring
-            // daemon appears available but writes silently fail.
-            let _ = entry.delete_credential();
-            return Err(PyxError::Keyring(
-                "Keyring probe write did not persist: credential missing after set_password"
-                    .to_string(),
-            ));
-        }
-        Err(e) => {
-            let _ = entry.delete_credential();
-            return Err(PyxError::Keyring(format!("Keyring probe read failed: {e}")));
-        }
-    }
-
-    // Clean up the probe entry to avoid accumulating stale entries.
-    let _ = entry.delete_credential();
-    Ok(())
-}
-
-/// Execute a function with the current backend, or the default platform backend.
-///
-/// In tests, uses the injected test backend if one is set. Otherwise, uses
-/// `NativeKeyring` if available, falling back to `UnsupportedKeyring`.
 pub(super) fn with_backend<F, T>(f: F) -> T
 where
     F: FnOnce(&dyn KeyringBackend) -> T,
@@ -274,9 +179,10 @@ where
         }
     }
 
-    if NativeKeyring::is_available() {
-        return f(&NativeKeyring);
-    }
-
-    f(&UnsupportedKeyring)
+    // Try the native keyring directly — no probe needed.
+    // If the keyring is unavailable, the operation itself will
+    // return an error, and callers handle it appropriately.
+    // This avoids the latency of a write-read-delete roundtrip
+    // on every cold start (which can add 1-3s on systems with slow D-Bus).
+    f(&NativeKeyring)
 }

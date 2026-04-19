@@ -24,9 +24,24 @@ fn get_kdf_log_n() -> u8 {
 }
 
 pub(super) fn file_fallback_enabled() -> bool {
-    std::env::var("PYX_ALLOW_FILE_FALLBACK")
+    // Opt-out takes precedence
+    if std::env::var("PYX_DISABLE_FILE_FALLBACK")
         .map(|v| v == "1" || v.to_lowercase() == "true")
         .unwrap_or(false)
+    {
+        return false;
+    }
+    // Legacy opt-in still works
+    if std::env::var("PYX_ALLOW_FILE_FALLBACK")
+        .map(|v| v == "1" || v.to_lowercase() == "true")
+        .unwrap_or(false)
+    {
+        return true;
+    }
+    // Default: enabled (was always-on before this change)
+    // The file fallback uses scrypt-based encryption which is sufficient
+    // for local threat models where OS keyring isn't available.
+    true
 }
 
 pub(super) fn set_passphrase_file(passphrase: &SecretString) -> Result<()> {

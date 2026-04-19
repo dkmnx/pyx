@@ -4,13 +4,11 @@
 //! 1. Creating backup of existing file
 //! 2. Writing to temp file
 //! 3. Atomically renaming temp file to target
-//! 4. Truncating backup (kept as empty file for crash-recovery detection)
 //!
-//! The .bak file is truncated (not deleted) after a successful write. This gives
-//! a crash-recovery window: if the process dies between the backup copy and the
-//! persist, the .bak contains the previous data and can be used for recovery. Once
-//! the write succeeds, the .bak is truncated to zero bytes so it no longer holds
-//! sensitive data, but its presence signals that a previous version existed.
+//! The backup file (.bak) contains the previous version of the data and is
+//! kept after a successful write for crash recovery. If the primary file is
+//! later corrupted, the backup can be used for recovery. The backup file has
+//! the same restrictive permissions as the primary file.
 
 use crate::error::{PyxError, Result};
 use std::fs;
@@ -28,7 +26,7 @@ pub fn atomic_write_with_backup<P: AsRef<Path>>(
     let mut backup_path = path.as_os_str().to_owned();
     backup_path.push(".bak");
 
-    let had_backup = if path.exists() {
+    let _had_backup = if path.exists() {
         fs::copy(path, &backup_path)?;
         true
     } else {
@@ -53,16 +51,11 @@ pub fn atomic_write_with_backup<P: AsRef<Path>>(
         .persist(path)
         .map_err(|e| PyxError::TempFilePersist(format!("Failed to persist temp file: {e}")))?;
 
-    // Truncate backup after successful write — removes sensitive data but keeps
-    // the file indicator. Only truncate if we actually created a backup.
-    if had_backup {
-        if let Err(e) = fs::File::create(&backup_path) {
-            eprintln!(
-                "Warning: failed to truncate backup {}: {e}. Sensitive data may remain.",
-                Path::new(&backup_path).display()
-            );
-        }
-    }
+    // Keep the backup intact after a successful write so it's available for
+    // crash recovery. If the primary file is corrupted later, the backup
+    // contains the last-known-good data. The backup has the same restrictive
+    // permissions as the primary file, so the sensitive data exposure is
+    // equivalent to the primary file itself.
 
     Ok(())
 }
@@ -85,7 +78,7 @@ mod tests {
     }
 
     #[test]
-    fn test_atomic_write_truncates_backup_after_success() {
+    fn test_atomic_write_keeps_backup_for_recovery() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("test.json");
         let backup = dir.path().join("test.json.bak");
@@ -95,19 +88,22 @@ mod tests {
         assert_eq!(fs::read_to_string(&path).unwrap(), "first");
         assert!(!backup.exists());
 
-        // Second write: backup created then truncated
+        // Second write: backup contains the previous version for crash recovery
         atomic_write_with_backup(&path, b"second", 0o600).unwrap();
         assert_eq!(fs::read_to_string(&path).unwrap(), "second");
-        assert!(backup.exists(), "truncated .bak should exist after write");
+        assert!(
+            backup.exists(),
+            ".bak should exist after write for crash recovery"
+        );
         assert_eq!(
             fs::read_to_string(&backup).unwrap(),
-            "",
-            ".bak should be truncated (empty) after successful write"
+            "first",
+            ".bak should contain the previous version for recovery"
         );
     }
 
     #[test]
-    fn test_atomic_write_backup_exists_during_write() {
+    fn test_atomic_write_backup_contains_previous_data() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("test.json");
         let backup = dir.path().join("test.json.bak");
@@ -115,9 +111,9 @@ mod tests {
         fs::write(&path, "original").unwrap();
         assert!(!backup.exists());
 
-        // After atomic_write, .bak exists but is empty
+        // After atomic_write, .bak contains previous version for recovery
         atomic_write_with_backup(&path, b"new data", 0o600).unwrap();
         assert!(backup.exists());
-        assert_eq!(fs::read_to_string(&backup).unwrap(), "");
+        assert_eq!(fs::read_to_string(&backup).unwrap(), "original");
     }
 }
