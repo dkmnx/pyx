@@ -18,17 +18,29 @@ Pyx provides secure storage and management of API keys for AI providers. It encr
 
 ## Quick Start
 
+### Install macOS/Linux
+
 ```bash
-# Install (macOS / Linux)
 curl -fsSL https://raw.githubusercontent.com/dkmnx/pyx/main/install.sh | sh
+```
 
-# Install (Windows PowerShell)
+### Install Windows (PowerShell)
+
+```bash
 irm https://raw.githubusercontent.com/dkmnx/pyx/main/install.ps1 | iex
+```
 
-# Or build from source
-git clone https://github.com/dkmnx/pyx.git && cd pyx && just install
+### Build from source
 
-# Setup
+```bash
+git clone https://github.com/dkmnx/pyx.git
+cd pyx
+just install
+```
+
+### Setup
+
+```bash
 pyx init
 pyx add
 
@@ -105,4 +117,3 @@ just check
 ## License
 
 [MIT](LICENSE)
-
