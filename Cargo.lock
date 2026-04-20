@@ -2158,7 +2158,6 @@ name = "pyx-rs"
 version = "0.1.0"
 dependencies = [
  "age",
- "age-core",
  "assert_cmd",
  "base64 0.22.1",
  "chacha20poly1305",
