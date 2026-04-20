@@ -48,15 +48,6 @@ pub struct Database {
 }
 
 impl Database {
-    fn from_providers(providers: Vec<ProviderEntry>) -> Self {
-        let mut db = Self {
-            providers,
-            index: HashMap::new(),
-        };
-        db.rebuild_index();
-        db
-    }
-
     fn rebuild_index(&mut self) {
         self.index.clear();
         for (idx, entry) in self.providers.iter().enumerate() {
@@ -88,16 +79,9 @@ impl Database {
         }
 
         let content = std::fs::read_to_string(path)?;
-
-        // Preferred format: { "providers": [...] }
-        if let Ok(mut database) = serde_json::from_str::<Self>(&content) {
-            database.rebuild_index();
-            return Ok(database);
-        }
-
-        // Compatibility format (Go): top-level provider array
-        let providers: Vec<ProviderEntry> = serde_json::from_str(&content)?;
-        Ok(Self::from_providers(providers))
+        let mut database: Self = serde_json::from_str(&content)?;
+        database.rebuild_index();
+        Ok(database)
     }
 
     /// Save database to file with atomic write and backup
@@ -113,8 +97,13 @@ impl Database {
             std::fs::create_dir_all(parent)?;
         }
 
-        // Write in Go-compatible top-level array format.
-        let content = serde_json::to_string_pretty(&self.providers)?;
+        // Write in object format: { "providers": [...] }
+        let mut wrapper = serde_json::Map::new();
+        wrapper.insert(
+            "providers".to_string(),
+            serde_json::to_value(&self.providers)?,
+        );
+        let content = serde_json::to_string_pretty(&wrapper)?;
         atomic_write_with_backup(path, content.as_bytes(), 0o600)?;
         Ok(())
     }
@@ -253,7 +242,7 @@ mod tests {
     }
 
     #[test]
-    fn test_load_go_compat_array_format() {
+    fn test_load_go_compat_array_format_rejected() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("database.json");
 
@@ -268,9 +257,11 @@ mod tests {
 
         std::fs::write(&path, content).unwrap();
 
-        let db = Database::load_from_path(&path).unwrap();
-        assert_eq!(db.len(), 1);
-        assert!(db.has_provider("openai"));
+        let result = Database::load_from_path(&path);
+        assert!(
+            result.is_err(),
+            "Go-compatible array format should no longer be accepted"
+        );
     }
 
     #[test]

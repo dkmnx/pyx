@@ -18,7 +18,7 @@ fn setup_pyx_env(temp: &TempDir) -> TestEnv {
 fn setup_empty_pyx_env(temp: &TempDir) -> TestEnv {
     let env = create_test_env(temp);
     write_master_key(&env.data_dir);
-    fs::write(env.data_dir.join("database.json"), "[]").unwrap();
+    fs::write(env.data_dir.join("database.json"), "{\"providers\":[]}").unwrap();
     env
 }
 

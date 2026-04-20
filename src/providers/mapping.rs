@@ -2,13 +2,11 @@
 //!
 //! Implements the unified provider registry with deterministic precedence:
 //! 1. providers.json (highest priority)
-//! 2. settings.json.customProviderEnvVars (legacy)
-//! 3. Built-in hardcoded mappings (compatibility)
-//! 4. Derived env-var naming (fallback)
+//! 2. Built-in hardcoded mappings (compatibility)
+//! 3. Derived env-var naming (fallback)
 
 use crate::error::Result;
 use crate::storage::providers_env::ProvidersEnvConfig;
-use crate::storage::settings::Settings;
 use std::collections::HashMap;
 
 /// Built-in hardcoded provider mappings for compatibility with Go implementation.
@@ -55,32 +53,22 @@ fn derive_env_var(provider_name: &str) -> String {
 /// Unified provider environment variable resolver
 pub struct ProviderEnvResolver {
     providers_config: Option<ProvidersEnvConfig>,
-    settings: Settings,
     builtin_mappings: HashMap<&'static str, &'static str>,
 }
 
 impl ProviderEnvResolver {
     /// Create a new provider resolver (loads from filesystem)
     pub fn new() -> Result<Self> {
-        // Load settings - fail if file exists but is corrupted
-        let settings = Settings::load().map_err(|e| {
-            crate::error::PyxError::Config(format!(
-                "Failed to load settings (may be corrupted): {e}"
-            ))
-        })?;
-
         Ok(Self {
             providers_config: ProvidersEnvConfig::load()?,
-            settings,
             builtin_mappings: get_builtin_mappings(),
         })
     }
 
     /// Create a provider resolver with explicit configuration (for testing)
-    pub fn with_config(providers_config: Option<ProvidersEnvConfig>, settings: Settings) -> Self {
+    pub fn with_config(providers_config: Option<ProvidersEnvConfig>) -> Self {
         Self {
             providers_config,
-            settings,
             builtin_mappings: get_builtin_mappings(),
         }
     }
@@ -95,17 +83,12 @@ impl ProviderEnvResolver {
             }
         }
 
-        // 2. Check settings.json customProviderEnvVars (legacy)
-        if let Some(env_var) = self.settings.get_custom_env_var(provider_name) {
-            return Ok(env_var.clone());
-        }
-
-        // 3. Check built-in hardcoded mappings
+        // 2. Check built-in hardcoded mappings
         if let Some(env_var) = self.builtin_mappings.get(provider_name) {
             return Ok(env_var.to_string());
         }
 
-        // 4. Derive from provider name (fallback)
+        // 3. Derive from provider name (fallback)
         Ok(derive_env_var(provider_name))
     }
 
@@ -116,11 +99,6 @@ impl ProviderEnvResolver {
             if config.get_env_var(provider_name).is_some() {
                 return true;
             }
-        }
-
-        // Check settings.json
-        if self.settings.get_custom_env_var(provider_name).is_some() {
-            return true;
         }
 
         // Check built-in mappings
@@ -146,7 +124,6 @@ impl Default for ProviderEnvResolver {
     fn default() -> Self {
         Self {
             providers_config: None,
-            settings: Settings::default(),
             builtin_mappings: get_builtin_mappings(),
         }
     }
@@ -190,49 +167,15 @@ mod tests {
             .upsert("openai".to_string(), "CUSTOM_OPENAI_KEY".to_string())
             .unwrap();
 
-        let resolver =
-            ProviderEnvResolver::with_config(Some(providers_config), Settings::default());
+        let resolver = ProviderEnvResolver::with_config(Some(providers_config));
 
         assert_eq!(resolver.get_env_var("openai").unwrap(), "CUSTOM_OPENAI_KEY");
     }
 
     #[test]
-    fn test_precedence_settings_over_builtin() {
-        // settings.json customProviderEnvVars takes precedence over built-in
-        let mut settings = Settings::default();
-        settings.set_custom_env_var("anthropic".to_string(), "CUSTOM_ANTHROPIC_KEY".to_string());
-
-        let resolver = ProviderEnvResolver::with_config(None, settings);
-
-        assert_eq!(
-            resolver.get_env_var("anthropic").unwrap(),
-            "CUSTOM_ANTHROPIC_KEY"
-        );
-    }
-
-    #[test]
-    fn test_precedence_providers_json_over_settings() {
-        // providers.json takes precedence over settings.json
-        let mut providers_config = ProvidersEnvConfig::default();
-        providers_config
-            .upsert("google".to_string(), "FROM_PROVIDERS_JSON".to_string())
-            .unwrap();
-
-        let mut settings = Settings::default();
-        settings.set_custom_env_var("google".to_string(), "FROM_SETTINGS_JSON".to_string());
-
-        let resolver = ProviderEnvResolver::with_config(Some(providers_config), settings);
-
-        assert_eq!(
-            resolver.get_env_var("google").unwrap(),
-            "FROM_PROVIDERS_JSON"
-        );
-    }
-
-    #[test]
     fn test_precedence_falls_back_to_builtin() {
         // Unknown provider falls back to built-in mapping
-        let resolver = ProviderEnvResolver::with_config(None, Settings::default());
+        let resolver = ProviderEnvResolver::with_config(None);
 
         assert_eq!(resolver.get_env_var("openai").unwrap(), "OPENAI_API_KEY");
         assert_eq!(
@@ -244,7 +187,7 @@ mod tests {
     #[test]
     fn test_precedence_falls_back_to_derived() {
         // Unknown provider with no built-in mapping gets derived env var
-        let resolver = ProviderEnvResolver::with_config(None, Settings::default());
+        let resolver = ProviderEnvResolver::with_config(None);
 
         assert_eq!(
             resolver.get_env_var("totally-unknown-provider").unwrap(),
@@ -259,26 +202,15 @@ mod tests {
             .upsert("custom-provider".to_string(), "CUSTOM_KEY".to_string())
             .unwrap();
 
-        let resolver =
-            ProviderEnvResolver::with_config(Some(providers_config), Settings::default());
+        let resolver = ProviderEnvResolver::with_config(Some(providers_config));
 
         assert!(resolver.has_explicit_mapping("custom-provider"));
         assert!(!resolver.has_explicit_mapping("unknown-provider"));
     }
 
     #[test]
-    fn test_has_explicit_mapping_settings() {
-        let mut settings = Settings::default();
-        settings.set_custom_env_var("legacy".to_string(), "LEGACY_KEY".to_string());
-
-        let resolver = ProviderEnvResolver::with_config(None, settings);
-
-        assert!(resolver.has_explicit_mapping("legacy"));
-    }
-
-    #[test]
     fn test_has_explicit_mapping_builtin() {
-        let resolver = ProviderEnvResolver::with_config(None, Settings::default());
+        let resolver = ProviderEnvResolver::with_config(None);
 
         assert!(resolver.has_explicit_mapping("openai"));
         assert!(resolver.has_explicit_mapping("anthropic"));
