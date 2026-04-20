@@ -211,7 +211,7 @@ fn display_session_hint() {
         "  ██  ██  ██    {}",
         "To continue this session, run:".white().dimmed()
     );
-    eprintln!("  ████  ██  ██  {}", "pyx -c".yellow());
+    eprintln!("  ████  ██  ██  {}", "pyx -c | pyx --continue".yellow());
     eprintln!("  ██    ██  ██\n");
 }
 

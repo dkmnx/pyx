@@ -77,6 +77,12 @@ clean:
     cargo clean
     rm -rf dist/
 
+# Uninstall binary
+uninstall:
+    @echo "Uninstalling {{ app_name }}..."
+    cargo uninstall {{ app_name }}
+    @echo "Uninstalled {{ app_name }}!"
+
 # Install binary
 install:
     @echo "Installing {{ app_name }}..."
