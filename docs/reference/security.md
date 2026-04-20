@@ -101,10 +101,6 @@ graph LR
 2. **Native Keyring** - keyring crate: Secret Service/gnome-keyring/kwallet + kernel keyutils (Linux), Keychain (macOS), Credential Manager (Windows)
 3. **File Fallback** - Only when `PYX_ALLOW_FILE_FALLBACK=1` is set
 
-### Legacy Passphrase Migration
-
-For users migrating from the Go implementation that used a hardcoded "default" passphrase, set `PYX_ALLOW_LEGACY_PASSPHRASE=1` to enable the deprecated fallback. This will be removed in a future version.
-
 ### File Fallback Security
 
 The file fallback (`~/.local/share/pyx/.passphrase`) is **disabled by default** because it uses machine-derived identifiers (not secret material) for encryption. This provides limited protection:

@@ -35,9 +35,8 @@ Custom mappings can be added via `providers.json`:
 ## Resolution Order
 
 1. `providers.json` - Custom mappings
-2. `settings.json` - Legacy mappings
-3. Built-in mappings
-4. Name derivation (`provider` → `PROVIDER_API_KEY`)
+2. Built-in mappings
+3. Name derivation (`provider` → `PROVIDER_API_KEY`)
 
 ## Testing
 

@@ -10,24 +10,20 @@ When pyx sets environment variables for pi, it resolves provider names to enviro
 graph TD
     A[Provider Name] --> B{providers.json?}
     B -->|Yes| C[Use custom mapping]
-    B -->|No| D{settings.json?}
-    D -->|Yes| E[Use legacy mapping]
-    D -->|No| F{Built-in mapping?}
-    F -->|Yes| G[Use built-in]
-    F -->|No| H[Derive from name]
+    B -->|No| D{Built-in mapping?}
+    D -->|Yes| E[Use built-in]
+    D -->|No| F[Derive from name]
     
     C --> Z[Set env var]
     E --> Z
-    G --> Z
-    H --> Z
+    F --> Z
 ```
 
 ## Resolution Order
 
 1. **Custom mappings** - `~/.local/share/pyx/providers.json`
-2. **Legacy settings** - `settings.json`
-3. **Built-in mappings** - 50+ providers
-4. **Name derivation** - `provider` → `PROVIDER_API_KEY`
+2. **Built-in mappings** - 50+ providers
+3. **Name derivation** - `provider` → `PROVIDER_API_KEY`
 
 ## Built-in Providers
 
@@ -114,7 +110,6 @@ pyx my-provider  # Sets MY_CUSTOM_API_KEY env var
 | `PYX_SCRYPT_WORK_FACTOR`      | Scrypt work factor (log₂)            | 18 (file fallback: 15) |
 | `PYX_SCRYPT_SALT_LEN`         | Salt length (bytes)                  | 16                     |
 | `PYX_ALLOW_FILE_FALLBACK`     | Enable file fallback (1/0)           | 0                      |
-| `PYX_ALLOW_LEGACY_PASSPHRASE` | Enable Go "default" passphrase (1/0) | 0                      |
 
 ### File Fallback
 
