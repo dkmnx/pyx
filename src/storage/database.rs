@@ -79,7 +79,17 @@ impl Database {
         }
 
         let content = std::fs::read_to_string(path)?;
-        let mut database: Self = serde_json::from_str(&content)?;
+
+        // Auto-migrate old Go-compatible format `[...]` → `{"providers":[...]}`
+        let wrapped = if content.trim().starts_with('[') {
+            let providers: Vec<ProviderEntry> = serde_json::from_str(&content)?;
+            let wrapper = serde_json::json!({ "providers": providers });
+            serde_json::to_string(&wrapper)?
+        } else {
+            content
+        };
+
+        let mut database: Self = serde_json::from_str(&wrapped)?;
         database.rebuild_index();
         Ok(database)
     }
@@ -242,7 +252,7 @@ mod tests {
     }
 
     #[test]
-    fn test_load_go_compat_array_format_rejected() {
+    fn test_load_go_compat_array_format() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("database.json");
 
@@ -257,11 +267,9 @@ mod tests {
 
         std::fs::write(&path, content).unwrap();
 
-        let result = Database::load_from_path(&path);
-        assert!(
-            result.is_err(),
-            "Go-compatible array format should no longer be accepted"
-        );
+        let db = Database::load_from_path(&path).unwrap();
+        assert_eq!(db.len(), 1);
+        assert!(db.has_provider("openai"));
     }
 
     #[test]

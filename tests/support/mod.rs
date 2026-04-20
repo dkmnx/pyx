@@ -64,7 +64,7 @@ pub fn write_provider_database_entries(data_dir: &Path, entries: &[(&str, &str)]
         .collect::<Vec<_>>()
         .join(",\n");
 
-    let db_content = format!("{{\n  \"providers\": [\n{}\n  ]\n}}", providers);
+    let db_content = format!("[\n{}\n]", providers);
     fs::write(data_dir.join("database.json"), db_content).unwrap();
 }
 
