@@ -31,14 +31,7 @@ pub(super) fn file_fallback_enabled() -> bool {
     {
         return false;
     }
-    // Legacy opt-in still works
-    if std::env::var("PYX_ALLOW_FILE_FALLBACK")
-        .map(|v| v == "1" || v.to_lowercase() == "true")
-        .unwrap_or(false)
-    {
-        return true;
-    }
-    // Default: enabled (was always-on before this change)
+    // Default: enabled
     // The file fallback uses scrypt-based encryption which is sufficient
     // for local threat models where OS keyring isn't available.
     true
@@ -95,18 +88,6 @@ pub(super) fn get_passphrase_file() -> Result<Option<SecretString>> {
         }
     }
 
-    let legacy_key = derive_machine_key_legacy(&machine_id, &user);
-    if let Some(passphrase) = decrypt_passphrase_with_key(&encrypted, &legacy_key) {
-        eprintln!(
-            "Warning: passphrase file uses deprecated legacy encryption. \
-             Auto-migrating to v2 scrypt-based encryption."
-        );
-        if let Err(err) = set_passphrase_file(&passphrase) {
-            eprintln!("Warning: failed to migrate passphrase file encryption: {err}");
-        }
-        return Ok(Some(passphrase));
-    }
-
     Ok(None)
 }
 
@@ -122,12 +103,8 @@ fn derive_machine_key() -> SecretString {
     let machine_id = get_machine_id();
     let user = resolve_user();
 
-    if let Some(key) = derive_machine_key_v2(&machine_id, &user) {
-        return key;
-    }
-
-    eprintln!("Warning: v2 scrypt derivation failed, falling back to deprecated legacy method.");
-    derive_machine_key_legacy(&machine_id, &user)
+    derive_machine_key_v2(&machine_id, &user)
+        .expect("scrypt key derivation failed — check PYX_SCRYPT_WORK_FACTOR")
 }
 
 fn derive_machine_key_v2(machine_id: &str, user: &str) -> Option<SecretString> {
@@ -150,12 +127,6 @@ fn derive_machine_key_v2(machine_id: &str, user: &str) -> Option<SecretString> {
     .ok()?;
 
     Some(SecretString::new(hex::encode(output).into_boxed_str()))
-}
-
-fn derive_machine_key_legacy(machine_id: &str, user: &str) -> SecretString {
-    // TODO: Remove legacy path after v0.3.0 release
-    let combined = format!("{FILE_FALLBACK_KEY_PREFIX}:{machine_id}:{user}");
-    SecretString::new(hex::encode(combined.as_bytes()).into_boxed_str())
 }
 
 fn resolve_user() -> String {
@@ -245,20 +216,7 @@ fn get_machine_id() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::EnvGuard;
-    use crate::ENV_MUTEX;
     use secrecy::ExposeSecret;
-    use tempfile::tempdir;
-
-    fn legacy_machine_key_for_current_host() -> SecretString {
-        let machine_id = get_machine_id();
-        let user = std::env::var("USER")
-            .or_else(|_| std::env::var("USERNAME"))
-            .unwrap_or_else(|_| "unknown-user".to_string());
-
-        let combined = format!("pyx-passphrase:{machine_id}:{user}");
-        SecretString::new(hex::encode(combined.as_bytes()).into_boxed_str())
-    }
 
     #[test]
     fn derive_machine_key_is_not_plain_hex_encoding() {
@@ -271,34 +229,5 @@ mod tests {
         let legacy = hex::encode(format!("pyx-passphrase:{machine_id}:{user}").as_bytes());
 
         assert_ne!(derived.expose_secret(), legacy);
-    }
-
-    #[test]
-    fn get_passphrase_file_migrates_legacy_encryption_format() {
-        let _guard = ENV_MUTEX.lock().unwrap();
-        let temp = tempdir().unwrap();
-        let _env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
-
-        let passphrase = SecretString::new("legacy-passphrase".to_string().into_boxed_str());
-        let legacy_key = legacy_machine_key_for_current_host();
-
-        let encrypted = crate::crypto::age::encrypt_with_passphrase(
-            passphrase.expose_secret().as_bytes(),
-            &legacy_key,
-        )
-        .unwrap();
-
-        let path = passphrase_path().unwrap();
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).unwrap();
-        }
-        std::fs::write(&path, &encrypted).unwrap();
-
-        let before = std::fs::read_to_string(&path).unwrap();
-        let loaded = get_passphrase_file().unwrap().unwrap();
-        let after = std::fs::read_to_string(&path).unwrap();
-
-        assert_eq!(loaded.expose_secret(), passphrase.expose_secret());
-        assert_ne!(before, after);
     }
 }

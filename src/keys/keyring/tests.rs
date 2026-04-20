@@ -165,15 +165,6 @@ fn test_file_fallback_enabled_env_var() {
     assert!(!file_fallback_enabled());
     drop(_g0);
 
-    // Legacy opt-in still works
-    let _g1 = EnvGuard::set_var("PYX_ALLOW_FILE_FALLBACK", "1");
-    assert!(file_fallback_enabled());
-
-    let _g2 = EnvGuard::set_var("PYX_ALLOW_FILE_FALLBACK", "true");
-    assert!(file_fallback_enabled());
-    drop(_g2);
-    drop(_g1);
-
     // Back to default: enabled
     assert!(file_fallback_enabled());
 }

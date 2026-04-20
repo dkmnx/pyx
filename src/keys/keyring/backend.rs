@@ -115,31 +115,6 @@ impl KeyringBackend for MockKeyring {
     }
 }
 
-/// Unsupported keyring backend for platforms where no backend is available.
-/// All operations return errors.
-#[allow(dead_code)]
-pub(crate) struct UnsupportedKeyring;
-
-impl KeyringBackend for UnsupportedKeyring {
-    fn get_password(&self, _service: &str, _username: &str) -> Result<Option<String>> {
-        Err(PyxError::Keyring(
-            "Keyring not supported on this platform".to_string(),
-        ))
-    }
-
-    fn set_password(&self, _service: &str, _username: &str, _password: &str) -> Result<()> {
-        Err(PyxError::Keyring(
-            "Keyring not supported on this platform".to_string(),
-        ))
-    }
-
-    fn delete_password(&self, _service: &str, _username: &str) -> Result<()> {
-        Err(PyxError::Keyring(
-            "Keyring not supported on this platform".to_string(),
-        ))
-    }
-}
-
 #[cfg(test)]
 thread_local! {
     static TEST_BACKEND: RefCell<Option<Arc<dyn KeyringBackend>>> = RefCell::new(None);

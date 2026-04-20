@@ -15,7 +15,6 @@ use std::sync::Mutex;
 use std::time::Instant;
 use zeroize::Zeroizing;
 
-const LEGACY_PASSPHRASE: &str = "default";
 const ENV_PASSPHRASE: &str = "PYX_PASSPHRASE";
 const MAX_FAILED_ATTEMPTS: u32 = 5;
 const LOCKOUT_DURATION_SECS: u64 = 30;
@@ -126,7 +125,7 @@ pub struct KeyManager {
 
 impl KeyManager {
     /// Load master key from encrypted file using passphrase resolution.
-    /// Matches Go implementation: env var → keyring → legacy "default"
+    /// Resolution order: env var → keyring
     /// Includes rate limiting for failed decryption attempts.
     pub fn load() -> Result<Self> {
         // Matches Go's getPassphrase priority
@@ -138,7 +137,6 @@ impl KeyManager {
         let encrypted_content = fs::read_to_string(&path)
             .map_err(|e| PyxError::Config(format!("Failed to read master.key: {e}")))?;
 
-        // Matches Go's fallback chain
         let passphrases = build_passphrase_candidates(&primary_passphrase);
 
         // No interactive prompt - matches Go
@@ -272,20 +270,6 @@ fn build_passphrase_candidates(primary: &SecretString) -> Vec<SecretString> {
         }
     }
 
-    // Legacy passphrase fallback is deprecated and opt-in only
-    // Set PYX_ALLOW_LEGACY_PASSPHRASE=1 to enable (for migration purposes)
-    if primary.expose_secret() != LEGACY_PASSPHRASE
-        && std::env::var("PYX_ALLOW_LEGACY_PASSPHRASE").as_deref() == Ok("1")
-    {
-        eprintln!(
-            "Warning: Using deprecated legacy passphrase fallback. \
-                   This will be removed in a future version."
-        );
-        candidates.push(SecretString::new(
-            LEGACY_PASSPHRASE.to_string().into_boxed_str(),
-        ));
-    }
-
     candidates
 }
 
@@ -315,44 +299,16 @@ mod tests {
     use crate::ENV_MUTEX;
 
     #[test]
-    fn test_decrypt_master_key_with_legacy_fallback() {
-        let wrong = SecretString::new("wrong-passphrase".to_string().into_boxed_str());
-        let legacy = SecretString::new(LEGACY_PASSPHRASE.to_string().into_boxed_str());
-        let plaintext = b"master-key-bytes";
-
-        let encrypted = encrypt_with_passphrase(plaintext, &legacy).unwrap();
-        let decrypted = decrypt_master_key_with_candidates(&encrypted, &[wrong, legacy]).unwrap();
-
-        assert_eq!(decrypted, plaintext);
-    }
-
-    #[test]
-    fn test_build_passphrase_candidates_adds_env_only_by_default() {
+    fn test_build_passphrase_candidates_adds_env_only() {
         let _guard = ENV_MUTEX.lock().unwrap();
         let _env = EnvGuard::set_var(ENV_PASSPHRASE, "env-pass");
 
         let primary = SecretString::new("keyring-pass".to_string().into_boxed_str());
         let candidates = build_passphrase_candidates(&primary);
 
-        // By default, legacy passphrase is NOT added (opt-in only)
         assert_eq!(candidates.len(), 2);
         assert_eq!(candidates[0].expose_secret(), "keyring-pass");
         assert_eq!(candidates[1].expose_secret(), "env-pass");
-    }
-
-    #[test]
-    fn test_build_passphrase_candidates_adds_legacy_when_enabled() {
-        let _guard = ENV_MUTEX.lock().unwrap();
-        let _env = EnvGuard::set_var("PYX_ALLOW_LEGACY_PASSPHRASE", "1");
-
-        let primary = SecretString::new("keyring-pass".to_string().into_boxed_str());
-        let candidates = build_passphrase_candidates(&primary);
-
-        // When legacy is enabled (but no env var set), we get:
-        // 0: primary, 1: legacy
-        assert_eq!(candidates.len(), 2);
-        assert_eq!(candidates[0].expose_secret(), "keyring-pass");
-        assert_eq!(candidates[1].expose_secret(), LEGACY_PASSPHRASE);
     }
 
     #[test]
