@@ -68,14 +68,10 @@ fn store_pi_path(pi_path: &str) -> Result<()> {
     Ok(())
 }
 
-/// Read just the path line from the cache, handling both legacy (path\nhash)
-/// and current (path-only) formats.
+/// Read the cached pi path.
 fn read_cached_path(cache_path: &std::path::Path) -> Option<String> {
     let content = fs::read_to_string(cache_path).ok()?;
-    // Legacy format: "path\nhash" - take only the first line.
-    // Current format: "path" - the entire trimmed content.
-    let path = content.lines().next()?;
-    let trimmed = path.trim();
+    let trimmed = content.trim();
     if trimmed.is_empty() {
         return None;
     }

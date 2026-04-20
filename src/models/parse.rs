@@ -105,19 +105,6 @@ pub fn parse_models(content: &str) -> Result<HashMap<String, Vec<String>>> {
     Ok(parsed)
 }
 
-/// Legacy parser helper that flattens all parsed model IDs.
-pub fn parse_model_data(models_content: &str) -> Result<Vec<String>> {
-    let parsed = parse_models(models_content)?;
-    let mut providers: Vec<_> = parsed.into_iter().collect();
-    providers.sort_by(|(left, _), (right, _)| left.cmp(right));
-
-    let mut flattened = Vec::new();
-    for (_, models) in providers {
-        flattened.extend(models);
-    }
-    Ok(flattened)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -189,29 +176,6 @@ export const models = {
             parsed.get("anthropic"),
             Some(&vec!["anthropic/claude-3".to_string()])
         );
-    }
-
-    #[test]
-    fn parse_model_data_returns_models_in_deterministic_order() {
-        let content = r#"
-"openai": {
-  id: "openai/gpt-4.1"
-}
-"anthropic": {
-  id: "anthropic/claude-3-7-sonnet"
-}
-"#;
-
-        for _ in 0..32 {
-            let parsed = parse_model_data(content).expect("should flatten parsed models");
-            assert_eq!(
-                parsed,
-                vec![
-                    "anthropic/claude-3-7-sonnet".to_string(),
-                    "openai/gpt-4.1".to_string()
-                ]
-            );
-        }
     }
 
     #[test]

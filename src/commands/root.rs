@@ -123,7 +123,7 @@ fn build_provider_env_vars(
     Ok(env_map.into_iter().collect())
 }
 
-/// Decrypt an API key, with passphrase fallback for legacy entries.
+/// Decrypt an API key, with passphrase fallback for entries not yet migrated to v2.
 fn decrypt_api_key(cipher: &str, master_key: &[u8]) -> Result<SecretString> {
     let api_key_bytes = match decrypt_with_key(cipher, master_key) {
         Ok(bytes) => bytes,
