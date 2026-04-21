@@ -39,10 +39,14 @@ impl ProviderEntry {
     }
 }
 
+const DATABASE_FORMAT_VERSION: &str = "1";
+
 /// Database containing all provider entries
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Database {
     providers: Vec<ProviderEntry>,
+    #[serde(default)]
+    format_version: String,
     #[serde(skip)]
     index: HashMap<String, usize>,
 }
@@ -80,16 +84,20 @@ impl Database {
 
         let content = std::fs::read_to_string(path)?;
 
-        // Auto-migrate old Go-compatible format `[...]` → `{"providers":[...]}`
-        let mut database = if content.trim().starts_with('[') {
-            // Legacy array format — parse directly into Database
+        let mut database: Database = if content.trim().starts_with('[') {
+            // Pre-versioned legacy array format — migrate on read
             let providers: Vec<ProviderEntry> = serde_json::from_str(&content)?;
             Self {
                 providers,
+                format_version: DATABASE_FORMAT_VERSION.to_string(),
                 index: HashMap::new(),
             }
         } else {
-            serde_json::from_str(&content)?
+            let mut db: Database = serde_json::from_str(&content)?;
+            if db.format_version.is_empty() {
+                db.format_version = DATABASE_FORMAT_VERSION.to_string();
+            }
+            db
         };
         database.rebuild_index();
         Ok(database)
@@ -108,8 +116,12 @@ impl Database {
             std::fs::create_dir_all(parent)?;
         }
 
-        // Write in object format: { "providers": [...] }
+        // Write in versioned object format: { "format_version": "1", "providers": [...] }
         let mut wrapper = serde_json::Map::new();
+        wrapper.insert(
+            "format_version".to_string(),
+            serde_json::to_value(DATABASE_FORMAT_VERSION)?,
+        );
         wrapper.insert(
             "providers".to_string(),
             serde_json::to_value(&self.providers)?,
