@@ -401,4 +401,166 @@ mod tests {
         assert!(!is_non_interactive(&terminal, &[s("--model"), s("gpt-4")]));
         assert!(!is_non_interactive(&terminal, &[]));
     }
+
+    // --- build_provider_env_vars integration tests ---
+
+    /// Set up an isolated environment: temp data dir, mock keyring, generated master key.
+    /// Returns the env guards (dropping them cleans up) and the raw 32-byte master key.
+    struct KeyEnv {
+        _env: crate::test_helpers::EnvGuard,
+        _temp: tempfile::TempDir,
+        master_key_bytes: [u8; 32],
+    }
+
+    fn setup_key_env() -> KeyEnv {
+        use crate::keys::keyring::{set_backend, MockKeyring};
+        use tempfile::tempdir;
+
+        let temp = tempdir().unwrap();
+        set_backend(Box::new(MockKeyring::new()));
+
+        let mut env = crate::test_helpers::EnvGuard::set_var(
+            "XDG_DATA_HOME",
+            temp.path().to_string_lossy().to_string(),
+        );
+        env.extend(crate::test_helpers::EnvGuard::set_var(
+            "PYX_SCRYPT_WORK_FACTOR",
+            "15",
+        ));
+        env.extend(crate::test_helpers::EnvGuard::remove_var("PYX_PASSPHRASE"));
+
+        let manager = KeyManager::generate().unwrap();
+        let key_bytes: Vec<u8> = manager.get_key_bytes().unwrap().to_vec();
+        let master_key_bytes: [u8; 32] = key_bytes.try_into().unwrap();
+
+        let passphrase =
+            SecretString::new("test-build-provider-env-vars".to_string().into_boxed_str());
+        KeyManager::set_passphrase(&passphrase).unwrap();
+        manager.save().unwrap();
+
+        KeyEnv {
+            _env: env,
+            _temp: temp,
+            master_key_bytes,
+        }
+    }
+
+    fn cleanup_key_env() {
+        use crate::keys::keyring::reset_backend;
+        let _ = KeyManager::clear_passphrase();
+        let _ = KeyManager::delete_master_key();
+        reset_backend();
+    }
+
+    impl Drop for KeyEnv {
+        fn drop(&mut self) {
+            cleanup_key_env();
+        }
+    }
+
+    fn encrypt_api_key_for_test(plaintext: &str, key: &[u8; 32]) -> String {
+        encrypt_with_key(plaintext.as_bytes(), key).unwrap()
+    }
+
+    fn make_db_with_providers(providers: &[(&str, &str)], master_key: &[u8; 32]) -> Database {
+        let mut db = Database::default();
+        for (name, api_key) in providers {
+            let cipher = encrypt_api_key_for_test(api_key, master_key);
+            db.upsert(ProviderEntry::new(name.to_string(), cipher));
+        }
+        db
+    }
+
+    #[test]
+    fn test_build_provider_env_vars_single_provider() {
+        let _key_env = setup_key_env();
+        let db = make_db_with_providers(&[("openai", "sk-test-123")], &_key_env.master_key_bytes);
+
+        let result = build_provider_env_vars(&db, &[s("openai")]).unwrap();
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].0, "OPENAI_API_KEY");
+        assert_eq!(result[0].1.expose_secret(), "sk-test-123");
+    }
+
+    #[test]
+    fn test_build_provider_env_vars_multiple_providers() {
+        let _key_env = setup_key_env();
+        let db = make_db_with_providers(
+            &[("openai", "sk-openai"), ("anthropic", "sk-ant-key")],
+            &_key_env.master_key_bytes,
+        );
+
+        let result = build_provider_env_vars(&db, &[s("openai"), s("anthropic")]).unwrap();
+
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].0, "ANTHROPIC_API_KEY");
+        assert_eq!(result[0].1.expose_secret(), "sk-ant-key");
+        assert_eq!(result[1].0, "OPENAI_API_KEY");
+        assert_eq!(result[1].1.expose_secret(), "sk-openai");
+    }
+
+    #[test]
+    fn test_build_provider_env_vars_shared_env_var_same_key() {
+        // openai and openai-codex both map to OPENAI_API_KEY — should deduplicate when keys match.
+        let _key_env = setup_key_env();
+        let db = make_db_with_providers(
+            &[("openai", "sk-same-key"), ("openai-codex", "sk-same-key")],
+            &_key_env.master_key_bytes,
+        );
+
+        let result = build_provider_env_vars(&db, &[s("openai"), s("openai-codex")]).unwrap();
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].0, "OPENAI_API_KEY");
+        assert_eq!(result[0].1.expose_secret(), "sk-same-key");
+    }
+
+    #[test]
+    fn test_build_provider_env_vars_conflicting_keys_rejected() {
+        // Two providers mapping to the same env var but with different API keys must fail.
+        let _key_env = setup_key_env();
+        let db = make_db_with_providers(
+            &[("openai", "sk-key-a"), ("openai-codex", "sk-key-b")],
+            &_key_env.master_key_bytes,
+        );
+
+        let result = build_provider_env_vars(&db, &[s("openai"), s("openai-codex")]);
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, PyxError::Validation(_)));
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Conflicting API keys"),
+            "Expected conflict message, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_build_provider_env_vars_missing_provider_rejected() {
+        let _key_env = setup_key_env();
+        let db = make_db_with_providers(&[("openai", "sk-test")], &_key_env.master_key_bytes);
+
+        let result = build_provider_env_vars(&db, &[s("anthropic")]);
+
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), PyxError::ProviderNotFound(_)));
+    }
+
+    #[test]
+    fn test_build_provider_env_vars_unknown_provider_derives_env_var() {
+        // Provider not in built-in mapping should derive env var via naming convention.
+        let _key_env = setup_key_env();
+        let db = make_db_with_providers(
+            &[("my-custom-provider", "custom-key")],
+            &_key_env.master_key_bytes,
+        );
+
+        let result = build_provider_env_vars(&db, &[s("my-custom-provider")]).unwrap();
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].0, "MY_CUSTOM_PROVIDER_API_KEY");
+        assert_eq!(result[0].1.expose_secret(), "custom-key");
+    }
 }
