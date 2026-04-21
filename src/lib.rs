@@ -23,10 +23,62 @@ pub use keys::manager::KeyManager;
 pub use storage::database::{Database, ProviderEntry};
 pub use storage::models_cache::ModelsCache;
 
-/// Global mutex for tests that modify environment variables.
-/// `std::env::set_var`/`std::env::remove_var` are NOT thread-safe on glibc even
-/// for different keys (concurrent modifications to the process environ array can
-/// corrupt reads), so all env mutations must be serialized through this lock.
+pub mod env_vars {
+    use std::env;
+
+    #[cfg(test)]
+    thread_local! {
+        static SHADOW: std::cell::RefCell<std::collections::HashMap<String, Option<String>>> =
+            std::cell::RefCell::new(std::collections::HashMap::new());
+    }
+
+    /// Read an environment variable.
+    ///
+    /// In test mode, checks a thread-local shadow map first so each test thread
+    /// gets its own isolated view. Falls back to `std::env::var` for un-shadowed vars.
+    ///
+    /// In production mode, this is just a thin wrapper around `std::env::var`.
+    pub fn var(key: &str) -> Result<String, env::VarError> {
+        #[cfg(test)]
+        {
+            if let Some(value) = SHADOW.with(|s| s.borrow().get(key).cloned()) {
+                match value {
+                    Some(v) => return Ok(v),
+                    None => return Err(env::VarError::NotPresent),
+                }
+            }
+        }
+        env::var(key)
+    }
+
+    /// Set a variable — test-only, updates thread-local shadow.
+    #[cfg(test)]
+    pub fn set_var(key: &str, value: &str) {
+        SHADOW.with(|s| {
+            s.borrow_mut()
+                .insert(key.to_string(), Some(value.to_string()));
+        });
+    }
+
+    /// Remove a variable — test-only, marks shadow as unavailable.
+    #[cfg(test)]
+    pub fn remove_var(key: &str) {
+        SHADOW.with(|s| {
+            s.borrow_mut().insert(key.to_string(), None);
+        });
+    }
+
+    /// Pop shadow entry — test-only. Returns true if key was present.
+    #[cfg(test)]
+    pub fn pop_var(key: &str) -> bool {
+        SHADOW.with(|s| s.borrow_mut().remove(key).is_some())
+    }
+}
+
+/// No-op mutex for backward compatibility. Tests no longer need to acquire this —
+/// thread-local storage in `env_vars` provides per-thread isolation.
+/// Kept here so existing `use crate::ENV_MUTEX; let _guard = ENV_MUTEX.lock().unwrap();`
+/// patterns continue to compile without modification.
 #[cfg(test)]
 pub static ENV_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
@@ -62,6 +114,7 @@ mod tests {
             || line.contains("env::set_var(")
             || line.contains("env::remove_var("))
             && !line.contains("EnvGuard")
+            && !line.contains("env_vars::")
     }
 
     fn find_block_end(lines: &[String], start: usize) -> usize {
@@ -86,7 +139,7 @@ mod tests {
         lines.len().saturating_sub(1)
     }
 
-    fn env_mutations_without_mutex(path: &Path) -> std::io::Result<Vec<usize>> {
+    fn env_mutations_without_guard(path: &Path) -> std::io::Result<Vec<usize>> {
         let content = fs::read_to_string(path)?;
         let lines: Vec<String> = content.lines().map(ToOwned::to_owned).collect();
 
@@ -106,18 +159,13 @@ mod tests {
             if pending_test && is_function_declaration(&lines[index]) {
                 let end = find_block_end(&lines, index);
                 let block = &lines[index..=end];
-                let first_lock = block
-                    .iter()
-                    .position(|block_line| block_line.contains("ENV_MUTEX.lock().unwrap()"));
 
                 for (offset, block_line) in block.iter().enumerate() {
                     if !is_env_mutation(block_line) {
                         continue;
                     }
 
-                    if first_lock.is_none_or(|lock| offset < lock) {
-                        issues.push(index + offset + 1);
-                    }
+                    issues.push(index + offset + 1);
                 }
 
                 pending_test = false;
@@ -132,7 +180,7 @@ mod tests {
     }
 
     #[test]
-    fn env_var_mutations_in_tests_require_env_mutex() {
+    fn env_var_mutations_in_tests_require_guard() {
         let mut files = Vec::new();
         collect_rust_files(Path::new("src"), &mut files).unwrap();
         files.sort();
@@ -140,14 +188,20 @@ mod tests {
         let mut offenders = Vec::new();
 
         for file in files {
-            for line in env_mutations_without_mutex(&file).unwrap() {
+            // test_helpers.rs and env_vars (this file) use raw env:: calls for setup/teardown — skip
+            let file_str = file.to_string_lossy();
+            if file_str.contains("test_helpers.rs") || file_str.contains("env_vars") {
+                continue;
+            }
+
+            for line in env_mutations_without_guard(&file).unwrap() {
                 offenders.push(format!("{}:{line}", file.display()));
             }
         }
 
         assert!(
             offenders.is_empty(),
-            "All std::env::set_var/remove_var calls in #[test] functions must occur after ENV_MUTEX.lock().unwrap():\n{}",
+            "All std::env::set_var/remove_var calls in #[test] functions must use EnvGuard or env_vars (not raw std::env calls):\n{}",
             offenders.join("\n")
         );
     }
