@@ -116,35 +116,34 @@ fn request_get(url: &str) -> std::result::Result<String, String> {
     const MAX_ERROR_BODY_SIZE: u64 = 1024; // 1KB for error responses
     const MAX_RETRIES: u32 = 3;
     const INITIAL_BACKOFF_MS: u64 = 500;
+
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .timeout_global(Some(Duration::from_secs(REQUEST_TIMEOUT_SECONDS)))
+        .http_status_as_error(false)
+        .build()
+        .into();
+
     let mut attempt = 0;
     let mut backoff_ms = INITIAL_BACKOFF_MS;
 
     loop {
         attempt += 1;
-        let mut response = {
-            let config = ureq::Agent::config_builder()
-                .timeout_global(Some(Duration::from_secs(REQUEST_TIMEOUT_SECONDS)))
-                .http_status_as_error(false)
-                .build();
-            let agent: ureq::Agent = config.into();
-
-            match agent
-                .get(url)
-                .header("Accept", "application/vnd.github+json")
-                .header("User-Agent", "pyx-cli")
-                .call()
-            {
-                Ok(r) => r,
-                Err(e) => {
-                    let err_str = e.to_string();
-                    if is_retryable_error(&err_str) && attempt < MAX_RETRIES {
-                        eprintln!("Request failed (attempt {attempt}/{MAX_RETRIES}), retrying in {backoff_ms}ms...");
-                        std::thread::sleep(std::time::Duration::from_millis(backoff_ms));
-                        backoff_ms *= 2;
-                        continue;
-                    }
-                    return Err(err_str);
+        let mut response = match agent
+            .get(url)
+            .header("Accept", "application/vnd.github+json")
+            .header("User-Agent", "pyx-cli")
+            .call()
+        {
+            Ok(r) => r,
+            Err(e) => {
+                let err_str = e.to_string();
+                if is_retryable_error(&err_str) && attempt < MAX_RETRIES {
+                    eprintln!("Request failed (attempt {attempt}/{MAX_RETRIES}), retrying in {backoff_ms}ms...");
+                    std::thread::sleep(std::time::Duration::from_millis(backoff_ms));
+                    backoff_ms *= 2;
+                    continue;
                 }
+                return Err(err_str);
             }
         };
 
