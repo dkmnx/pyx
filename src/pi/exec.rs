@@ -427,7 +427,12 @@ pub fn completion_script_install_path(shell: ShellType) -> Result<PathBuf> {
         .ok_or_else(|| PyxError::Config("Could not determine home directory".to_string()))?;
 
     let path = match shell {
-        ShellType::Bash => home.join(".bash_completions").join("pyx.bash"),
+        ShellType::Bash => home
+            .join(".local")
+            .join("share")
+            .join("bash-completion")
+            .join("completions")
+            .join("pyx"),
         ShellType::Zsh => home.join(".zsh").join("completions").join("_pyx"),
         ShellType::Fish => home
             .join(".config")
@@ -481,7 +486,8 @@ pub fn install_completion_for_shell(shell: ShellType) -> Result<()> {
         }
         ShellType::Bash => {
             println!();
-            println!("  To enable completions, add to ~/.bashrc:");
+            println!("  Completions will be loaded automatically by bash-completion (2.8+).");
+            println!("  If not, add to ~/.bashrc:");
             println!(
                 "    [ -f {} ] && source {}",
                 script_path.display(),
@@ -603,7 +609,12 @@ mod tests {
 
         install_completion_for_shell(ShellType::Bash).unwrap();
 
-        let installed = home.join(".bash_completions").join("pyx.bash");
+        let installed = home
+            .join(".local")
+            .join("share")
+            .join("bash-completion")
+            .join("completions")
+            .join("pyx");
         assert!(installed.exists());
         let content = fs::read_to_string(&installed).unwrap();
         assert!(
@@ -679,8 +690,11 @@ mod tests {
         set_system_paths(mock);
 
         let path = completion_script_install_path(ShellType::Bash).unwrap();
-        assert!(path.to_str().unwrap().contains("bash_completions"));
-        assert!(path.to_str().unwrap().ends_with("pyx.bash"));
+        assert!(path
+            .to_str()
+            .unwrap()
+            .contains("bash-completion/completions"));
+        assert!(path.to_str().unwrap().ends_with("pyx"));
 
         reset_system_paths();
     }
