@@ -8,14 +8,9 @@ use crate::crypto::age::decrypt_with_key;
 use crate::error::{PyxError, Result};
 use crate::keys::manager::KeyManager;
 use crate::prompt;
-use secrecy::SecretString;
 use std::io::IsTerminal;
 
-pub fn execute(
-    provider_name: Option<&str>,
-    api_key: Option<&str>,
-    skip_confirm: bool,
-) -> Result<()> {
+pub fn execute(provider_name: Option<&str>, skip_confirm: bool) -> Result<()> {
     eprintln!("Pyx Edit");
     eprintln!();
 
@@ -80,27 +75,12 @@ pub fn execute(
         }
     }
 
-    let key = match api_key {
-        Some(k) => {
-            if k.is_empty() {
-                return Err(PyxError::Validation("API key cannot be empty".to_string()));
-            }
-            SecretString::new(k.to_string().into_boxed_str())
-        }
-        None => {
-            if !stdin.is_terminal() {
-                return Err(PyxError::Validation(
-                    if provider_name.is_some() {
-                        "Non-interactive: pass --key. Use 'pyx edit --help' for details."
-                    } else {
-                        "Non-interactive: pass --provider and --key. Use 'pyx edit --help' for details."
-                    }
-                    .to_string(),
-                ));
-            }
-            crate::commands::helpers::prompt_api_key(&provider)?
-        }
-    };
+    if !stdin.is_terminal() {
+        return Err(PyxError::Validation(
+            "Non-interactive: API key must be provided interactively.".to_string(),
+        ));
+    }
+    let key = crate::commands::helpers::prompt_api_key(&provider)?;
 
     store_provider_entry(&manager, &mut db, &provider, &key)?;
 

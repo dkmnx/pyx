@@ -60,10 +60,6 @@ pub enum Commands {
         /// Provider name (interactive selection if omitted)
         #[arg(short = 'p', long = "provider")]
         provider: Option<String>,
-
-        /// API key (prompted if omitted)
-        #[arg(short = 'k', long = "key")]
-        key: Option<String>,
     },
 
     /// Edit an existing provider credential
@@ -71,10 +67,6 @@ pub enum Commands {
         /// Provider name (interactive selection if omitted)
         #[arg(short = 'p', long = "provider")]
         provider: Option<String>,
-
-        /// New API key (prompted if omitted)
-        #[arg(short = 'k', long = "key")]
-        key: Option<String>,
 
         /// Skip confirmation prompt
         #[arg(short = 'y', long)]

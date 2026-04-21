@@ -8,10 +8,9 @@ use crate::error::{PyxError, Result};
 use crate::keys::manager::KeyManager;
 use crate::prompt;
 use crate::providers::validate_provider_name;
-use secrecy::SecretString;
 use std::io::IsTerminal;
 
-pub fn execute(provider_name: Option<&str>, api_key: Option<&str>) -> Result<()> {
+pub fn execute(provider_name: Option<&str>) -> Result<()> {
     eprintln!("Pyx Add");
     eprintln!();
 
@@ -60,24 +59,13 @@ pub fn execute(provider_name: Option<&str>, api_key: Option<&str>) -> Result<()>
         }
     };
 
-    let key = match api_key {
-        Some(k) => {
-            if k.is_empty() {
-                return Err(PyxError::Validation("API key cannot be empty".to_string()));
-            }
-            SecretString::new(k.to_string().into_boxed_str())
-        }
-        None => {
-            let stdin = std::io::stdin();
-            if !stdin.is_terminal() {
-                return Err(PyxError::Validation(
-                    "Non-interactive: pass --provider and --key. Use 'pyx add --help' for details."
-                        .to_string(),
-                ));
-            }
-            crate::commands::helpers::prompt_api_key(&provider)?
-        }
-    };
+    let stdin = std::io::stdin();
+    if !stdin.is_terminal() {
+        return Err(PyxError::Validation(
+            "Non-interactive: pass --provider. API key must be provided interactively.".to_string(),
+        ));
+    }
+    let key = crate::commands::helpers::prompt_api_key(&provider)?;
 
     let is_update = store_provider_entry(&manager, &mut db, &provider, &key)?;
 

@@ -1,6 +1,5 @@
 mod support;
 
-use predicates::prelude::PredicateBooleanExt;
 use std::fs;
 use support::{
     create_test_env, prepend_path, pyx_cmd, write_executable, write_master_key, write_models_cache,
@@ -306,43 +305,6 @@ fn root_command_errors_when_not_initialized() {
 }
 
 #[test]
-fn add_subcommand_with_provider_and_key() {
-    let temp = tempdir().unwrap();
-    let env = setup_pyx_env(&temp);
-
-    let mut cmd = pyx_cmd();
-    cmd.arg("add")
-        .arg("--provider")
-        .arg("anthropic")
-        .arg("--key")
-        .arg("sk-test-add-123")
-        .env("XDG_DATA_HOME", env.xdg_data_str())
-        .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
-
-    cmd.assert().success();
-}
-
-#[test]
-fn add_subcommand_duplicate_provider_errors() {
-    let temp = tempdir().unwrap();
-    let env = setup_pyx_env(&temp);
-
-    let mut cmd = pyx_cmd();
-    cmd.arg("add")
-        .arg("--provider")
-        .arg("openai")
-        .arg("--key")
-        .arg("sk-new-key")
-        .env("XDG_DATA_HOME", env.xdg_data_str())
-        .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
-
-    cmd.assert().failure().stderr(
-        predicates::str::contains("already configured")
-            .or(predicates::str::contains("already exists")),
-    );
-}
-
-#[test]
 fn add_subcommand_requires_provider_and_key_non_interactive() {
     let temp = tempdir().unwrap();
     let env = setup_pyx_env(&temp);
@@ -356,39 +318,20 @@ fn add_subcommand_requires_provider_and_key_non_interactive() {
 }
 
 #[test]
-fn edit_subcommand_with_yes_flag_updates_key() {
+fn add_subcommand_with_provider_requires_interactive_key() {
     let temp = tempdir().unwrap();
     let env = setup_pyx_env(&temp);
 
     let mut cmd = pyx_cmd();
-    cmd.arg("edit")
+    cmd.arg("add")
         .arg("--provider")
-        .arg("openai")
-        .arg("--key")
-        .arg("sk-updated-key")
-        .arg("--yes")
+        .arg("anthropic")
         .env("XDG_DATA_HOME", env.xdg_data_str())
         .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
 
-    cmd.assert().success();
-}
-
-#[test]
-fn edit_subcommand_yes_flag_skips_confirmation() {
-    let temp = tempdir().unwrap();
-    let env = setup_pyx_env(&temp);
-
-    let mut cmd = pyx_cmd();
-    cmd.arg("edit")
-        .arg("--provider")
-        .arg("openai")
-        .arg("--key")
-        .arg("sk-no-confirm")
-        .arg("-y")
-        .env("XDG_DATA_HOME", env.xdg_data_str())
-        .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
-
-    cmd.assert().success();
+    cmd.assert().failure().stderr(predicates::str::contains(
+        "API key must be provided interactively",
+    ));
 }
 
 #[test]
@@ -402,4 +345,21 @@ fn edit_subcommand_requires_provider_and_key_non_interactive() {
         .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
 
     cmd.assert().failure();
+}
+
+#[test]
+fn edit_subcommand_with_provider_requires_interactive_key() {
+    let temp = tempdir().unwrap();
+    let env = setup_pyx_env(&temp);
+
+    let mut cmd = pyx_cmd();
+    cmd.arg("edit")
+        .arg("--provider")
+        .arg("openai")
+        .env("XDG_DATA_HOME", env.xdg_data_str())
+        .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
+
+    cmd.assert().failure().stderr(predicates::str::contains(
+        "API key must be provided interactively",
+    ));
 }
