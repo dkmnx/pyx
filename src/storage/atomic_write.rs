@@ -26,6 +26,9 @@ pub fn atomic_write_with_backup<P: AsRef<Path>>(
     let mut backup_path = path.as_os_str().to_owned();
     backup_path.push(".bak");
 
+    // Copy current file to .bak BEFORE writing new data.
+    // This captures the "last known good" state for crash recovery.
+    // The .bak is overwritten each time — only one backup exists.
     let _had_backup = if path.exists() {
         fs::copy(path, &backup_path)?;
         true
@@ -50,12 +53,6 @@ pub fn atomic_write_with_backup<P: AsRef<Path>>(
     temp_file
         .persist(path)
         .map_err(|e| PyxError::TempFilePersist(format!("Failed to persist temp file: {e}")))?;
-
-    // Keep the backup intact after a successful write so it's available for
-    // crash recovery. If the primary file is corrupted later, the backup
-    // contains the last-known-good data. The backup has the same restrictive
-    // permissions as the primary file, so the sensitive data exposure is
-    // equivalent to the primary file itself.
 
     Ok(())
 }
@@ -115,5 +112,40 @@ mod tests {
         atomic_write_with_backup(&path, b"new data", 0o600).unwrap();
         assert!(backup.exists());
         assert_eq!(fs::read_to_string(&backup).unwrap(), "original");
+    }
+
+    #[test]
+    fn test_atomic_write_only_one_backup_exists_after_multiple_writes() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("test.json");
+        let backup = dir.path().join("test.json.bak");
+
+        // Write 1: no backup
+        atomic_write_with_backup(&path, b"v1", 0o600).unwrap();
+        assert!(path.exists());
+        assert!(!backup.exists());
+
+        // Write 2: backup is v1
+        atomic_write_with_backup(&path, b"v2", 0o600).unwrap();
+        assert!(backup.exists());
+        assert_eq!(fs::read_to_string(&backup).unwrap(), "v1");
+        assert_eq!(fs::read_to_string(&path).unwrap(), "v2");
+
+        // Write 3: backup is still v1 (not v2) — only one .bak
+        atomic_write_with_backup(&path, b"v3", 0o600).unwrap();
+        assert_eq!(fs::read_to_string(&path).unwrap(), "v3");
+        assert_eq!(
+            fs::read_to_string(&backup).unwrap(),
+            "v2",
+            ".bak should contain the version written before v3 (v2)"
+        );
+
+        // Verify only one .bak exists
+        let bak_files: Vec<_> = fs::read_dir(dir.path())
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().extension().is_some_and(|ext| ext == "bak"))
+            .collect();
+        assert_eq!(bak_files.len(), 1, "only one .bak file should exist");
     }
 }

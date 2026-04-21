@@ -81,15 +81,16 @@ impl Database {
         let content = std::fs::read_to_string(path)?;
 
         // Auto-migrate old Go-compatible format `[...]` → `{"providers":[...]}`
-        let wrapped = if content.trim().starts_with('[') {
+        let mut database = if content.trim().starts_with('[') {
+            // Legacy array format — parse directly into Database
             let providers: Vec<ProviderEntry> = serde_json::from_str(&content)?;
-            let wrapper = serde_json::json!({ "providers": providers });
-            serde_json::to_string(&wrapper)?
+            Self {
+                providers,
+                index: HashMap::new(),
+            }
         } else {
-            content
+            serde_json::from_str(&content)?
         };
-
-        let mut database: Self = serde_json::from_str(&wrapped)?;
         database.rebuild_index();
         Ok(database)
     }

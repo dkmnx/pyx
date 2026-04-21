@@ -35,7 +35,7 @@ fn load_cache_or_error(args: &ModelsCommandArgs) -> Result<ModelsCache> {
                 if !args.json {
                     eprintln!("No models cache found. Run 'pyx models update' to fetch models.");
                 }
-                Err(PyxError::Cancelled)
+                Ok(ModelsCache::new("empty"))
             }
         }
         Err(e) => Err(e),

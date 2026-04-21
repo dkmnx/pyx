@@ -25,8 +25,8 @@ use std::io::{Read, Write};
 /// This provides strong protection against brute-force attacks while maintaining
 /// acceptable performance for interactive use.
 /// Can be overridden via PYX_SCRYPT_WORK_FACTOR environment variable (value 15-30).
-const DEFAULT_SCRYPT_WORK_FACTOR: u8 = 18;
-const MIN_SCRYPT_WORK_FACTOR: u8 = 15;
+pub const DEFAULT_SCRYPT_WORK_FACTOR: u8 = 18;
+pub const MIN_SCRYPT_WORK_FACTOR: u8 = 15;
 
 /// Get scrypt work factor from environment or use default
 fn get_scrypt_work_factor() -> u8 {
