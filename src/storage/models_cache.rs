@@ -8,6 +8,10 @@ use std::collections::HashMap;
 use std::path::Path;
 use time::OffsetDateTime;
 
+/// Current cache format version. Increment when the schema changes to ensure
+/// compatibility with older cached data.
+const CACHE_FORMAT_VERSION: &str = "1";
+
 /// Default TTL for models cache (24 hours)
 const DEFAULT_TTL_SECONDS: i64 = 24 * 60 * 60;
 
@@ -18,6 +22,10 @@ pub struct ModelsCache {
     #[serde(with = "time::serde::rfc3339")]
     pub updated_at: OffsetDateTime,
     pub models: HashMap<String, Vec<String>>,
+    /// Cache format version for schema compatibility.
+    /// Defaults to "1" for backward compatibility with existing caches.
+    #[serde(default)]
+    pub cache_format_version: String,
 }
 
 impl ModelsCache {
@@ -27,6 +35,7 @@ impl ModelsCache {
             version: version.to_string(),
             updated_at: OffsetDateTime::now_utc(),
             models: HashMap::new(),
+            cache_format_version: CACHE_FORMAT_VERSION.to_string(),
         }
     }
 
@@ -46,6 +55,22 @@ impl ModelsCache {
 
         let content = std::fs::read_to_string(path)?;
         let cache: Self = serde_json::from_str(&content)?;
+
+        // Check format version compatibility.
+        // - Missing field (empty string) → allowed for backward compat with v0 caches
+        // - "1" → current format
+        // - anything else → outdated, needs refresh
+        if !cache.cache_format_version.is_empty()
+            && cache.cache_format_version != CACHE_FORMAT_VERSION
+        {
+            return Err(crate::error::PyxError::Config(
+                format!(
+                    "Models cache format version mismatch (found {}, expected {}). Run 'pyx models update' to refresh.",
+                    cache.cache_format_version, CACHE_FORMAT_VERSION
+                )
+            ));
+        }
+
         Ok(cache)
     }
 
@@ -210,6 +235,70 @@ mod tests {
         assert!(
             !cache2.is_stale(86400),
             "cache aged TTL - 0.5s should still be fresh"
+        );
+    }
+
+    #[test]
+    fn test_new_cache_has_version_field() {
+        let cache = ModelsCache::new("v1.0.0");
+        assert_eq!(cache.cache_format_version, "1");
+    }
+
+    #[test]
+    fn test_save_and_load_preserves_version() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("models.json");
+
+        let cache = ModelsCache::new("v1.0.0");
+        cache.save_to_path(&path).unwrap();
+
+        let loaded = ModelsCache::load_from_path(&path).unwrap();
+        assert_eq!(loaded.cache_format_version, "1");
+    }
+
+    #[test]
+    fn test_load_old_cache_without_version_still_works() {
+        // Old caches without the cache_format_version field deserialize with
+        // the serde default (empty string), which is allowed for backward compat.
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("models.json");
+
+        let old_content = r#"{
+          "version": "v0.5.0",
+          "updated_at": "2026-01-01T00:00:00Z",
+          "models": {}
+        }"#;
+        std::fs::write(&path, old_content).unwrap();
+
+        // Empty version string is allowed (backward compat with v0)
+        let cache = ModelsCache::load_from_path(&path).unwrap();
+        assert_eq!(cache.version, "v0.5.0");
+        assert_eq!(cache.cache_format_version, "");
+    }
+
+    #[test]
+    fn test_load_future_version_cache_returns_error() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("models.json");
+
+        // Simulate a cache from a future version with version "99"
+        let future_content = r#"{
+          "version": "v99.0.0",
+          "updated_at": "2026-01-01T00:00:00Z",
+          "models": {},
+          "cache_format_version": "99"
+        }"#;
+        std::fs::write(&path, future_content).unwrap();
+
+        let err = ModelsCache::load_from_path(&path).unwrap_err();
+        assert!(
+            matches!(err, crate::error::PyxError::Config(_)),
+            "mismatched version should return Config error"
+        );
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("99") && msg.contains("1"),
+            "error message should mention both versions"
         );
     }
 }
