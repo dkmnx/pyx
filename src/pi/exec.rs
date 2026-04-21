@@ -4,13 +4,65 @@ use crate::error::{PyxError, Result};
 use crate::storage::paths::pi_path_cache;
 use clap::ValueEnum;
 use secrecy::{ExposeSecret, SecretString};
-use std::env;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
 const PACKAGE_MANAGERS: &[&str] = &["npm", "pnpm", "yarn", "bun"];
 const PI_PACKAGE_NAME: &str = "@mariozechner/pi-coding-agent";
+
+/// System path resolution traits for testability.
+///
+/// Allows mocking `which::which` and `dirs::` functions in tests without
+/// recompiling or runtime feature flags.
+pub trait SystemPaths {
+    fn which(&self, binary: &str) -> Option<PathBuf>;
+    fn home_dir(&self) -> Option<PathBuf>;
+    fn data_local_dir(&self) -> Option<PathBuf>;
+}
+
+/// Production implementation using real system calls.
+pub struct RealSystemPaths;
+
+impl SystemPaths for RealSystemPaths {
+    fn which(&self, binary: &str) -> Option<PathBuf> {
+        which::which(binary).ok()
+    }
+
+    fn home_dir(&self) -> Option<PathBuf> {
+        dirs::home_dir()
+    }
+
+    fn data_local_dir(&self) -> Option<PathBuf> {
+        dirs::data_local_dir()
+    }
+}
+
+// Thread-local system paths instance. Tests can replace this with a mock.
+thread_local! {
+    static SYSTEM: std::cell::RefCell<Box<dyn SystemPaths + Send + Sync>> =
+        std::cell::RefCell::new(Box::new(RealSystemPaths));
+}
+
+/// Replace the system paths implementation (for testing).
+#[cfg(test)]
+pub fn set_system_paths<P: SystemPaths + Send + Sync + 'static>(paths: P) {
+    SYSTEM.with(|s| {
+        *s.borrow_mut() = Box::new(paths);
+    });
+}
+
+#[cfg(test)]
+pub fn reset_system_paths() {
+    SYSTEM.with(|s| {
+        *s.borrow_mut() = Box::new(RealSystemPaths);
+    });
+}
+
+/// Access the system paths instance.
+fn with_system<T>(f: impl FnOnce(&dyn SystemPaths) -> T) -> T {
+    SYSTEM.with(|s| f(s.borrow().as_ref()))
+}
 
 /// Shell type for completion installation
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -124,9 +176,7 @@ fn verify_pi_path(pi_path: &str) -> Result<()> {
 
 /// Check if pi is available in PATH
 pub fn find_pi() -> Option<String> {
-    which::which("pi")
-        .ok()
-        .and_then(|p| p.into_os_string().into_string().ok())
+    with_system(|sys| sys.which("pi")).and_then(|p| p.into_os_string().into_string().ok())
 }
 
 /// Spawn pi process with environment variables
@@ -186,7 +236,7 @@ pub fn install_pi_with_prompt(force: bool) -> Result<()> {
 
     let available: Vec<String> = PACKAGE_MANAGERS
         .iter()
-        .filter(|pm| which::which(pm).is_ok())
+        .filter(|pm| with_system(|sys| sys.which(pm).is_some()))
         .map(|pm| pm.to_string())
         .collect();
 
@@ -248,11 +298,13 @@ fn install_pi_impl(pm_override: Option<&str>, force: bool) -> Result<()> {
 }
 
 fn detect_package_manager() -> Result<String> {
-    PACKAGE_MANAGERS
-        .iter()
-        .find(|pm| which::which(pm).is_ok())
-        .map(|s| s.to_string())
-        .ok_or_else(no_package_manager_error)
+    with_system(|sys| {
+        PACKAGE_MANAGERS
+            .iter()
+            .find(|pm| sys.which(pm).is_some())
+            .map(|s| s.to_string())
+            .ok_or_else(no_package_manager_error)
+    })
 }
 
 fn no_package_manager_error() -> PyxError {
@@ -370,7 +422,7 @@ pub fn show_pi_status() -> Result<()> {
 
 /// Detect current shell type
 pub fn detect_current_shell() -> ShellType {
-    if let Ok(shell) = env::var("SHELL") {
+    if let Ok(shell) = crate::env_vars::var("SHELL") {
         let shell_path = PathBuf::from(&shell);
         if let Some(name) = shell_path.file_name().and_then(|n| n.to_str()) {
             match name {
@@ -382,7 +434,7 @@ pub fn detect_current_shell() -> ShellType {
         }
     }
 
-    if env::var("__FISH_VERSION_DIR").is_ok() {
+    if crate::env_vars::var("__FISH_VERSION_DIR").is_ok() {
         return ShellType::Fish;
     }
 
@@ -402,7 +454,7 @@ pub fn detect_current_shell() -> ShellType {
 
 /// Get completion script install path for a shell type
 pub fn completion_script_install_path(shell: ShellType) -> Result<PathBuf> {
-    let home = dirs::home_dir()
+    let home = with_system(|sys| sys.home_dir())
         .ok_or_else(|| PyxError::Config("Could not determine home directory".to_string()))?;
 
     let path = match shell {
@@ -486,17 +538,72 @@ pub fn platform_info() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::EnvGuard;
-    use crate::ENV_MUTEX;
+    use std::collections::HashMap;
     use std::fs;
     use tempfile::tempdir;
 
-    #[test]
-    fn test_find_pi_returns_option() {
-        let result = find_pi();
-        if let Some(path) = result {
-            assert!(!path.is_empty());
+    struct MockSystemPaths {
+        which_results: HashMap<String, Option<PathBuf>>,
+        home_dir: Option<PathBuf>,
+        data_local_dir: Option<PathBuf>,
+    }
+
+    impl MockSystemPaths {
+        fn new() -> Self {
+            Self {
+                which_results: HashMap::new(),
+                home_dir: None,
+                data_local_dir: None,
+            }
         }
+
+        fn with_which(mut self, binary: &str, result: Option<PathBuf>) -> Self {
+            self.which_results.insert(binary.to_string(), result);
+            self
+        }
+
+        fn with_home_dir(mut self, path: PathBuf) -> Self {
+            self.home_dir = Some(path);
+            self
+        }
+    }
+
+    impl SystemPaths for MockSystemPaths {
+        fn which(&self, binary: &str) -> Option<PathBuf> {
+            self.which_results.get(binary).cloned().unwrap_or(None)
+        }
+
+        fn home_dir(&self) -> Option<PathBuf> {
+            self.home_dir.clone()
+        }
+
+        fn data_local_dir(&self) -> Option<PathBuf> {
+            self.data_local_dir.clone()
+        }
+    }
+
+    #[test]
+    fn test_find_pi_with_mock() {
+        let mock = MockSystemPaths::new().with_which("pi", Some(PathBuf::from("/mock/bin/pi")));
+        set_system_paths(mock);
+
+        let result = find_pi();
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), "/mock/bin/pi");
+
+        // Reset to real
+        reset_system_paths();
+    }
+
+    #[test]
+    fn test_find_pi_not_found_with_mock() {
+        let mock = MockSystemPaths::new().with_which("pi", None);
+        set_system_paths(mock);
+
+        let result = find_pi();
+        assert!(result.is_none());
+
+        reset_system_paths();
     }
 
     #[test]
@@ -517,13 +624,13 @@ mod tests {
     #[test]
     #[cfg(unix)]
     fn test_install_completion_for_shell_writes_generated_script() {
-        let _guard = ENV_MUTEX.lock().unwrap();
         let temp = tempdir().unwrap();
 
         let home = temp.path().join("home");
         fs::create_dir_all(&home).unwrap();
 
-        let _path_guard = EnvGuard::set_var("HOME", &home);
+        let mock = MockSystemPaths::new().with_home_dir(home.clone());
+        set_system_paths(mock);
 
         install_completion_for_shell(ShellType::Bash).unwrap();
 
@@ -534,6 +641,8 @@ mod tests {
             content.contains("pyx"),
             "completion script must contain 'pyx': {content}"
         );
+
+        reset_system_paths();
     }
 
     #[test]
@@ -593,51 +702,67 @@ mod tests {
 
     #[test]
     fn test_completion_script_install_path_bash() {
-        let _guard = ENV_MUTEX.lock().unwrap();
         let temp = tempdir().unwrap();
         let home = temp.path().join("home");
-        std::fs::create_dir_all(&home).unwrap();
-        let _env = EnvGuard::set_var("HOME", &home);
+        fs::create_dir_all(&home).unwrap();
+
+        let mock = MockSystemPaths::new().with_home_dir(home.clone());
+        set_system_paths(mock);
+
         let path = completion_script_install_path(ShellType::Bash).unwrap();
         assert!(path.to_str().unwrap().contains("bash_completions"));
         assert!(path.to_str().unwrap().ends_with("pyx.bash"));
+
+        reset_system_paths();
     }
 
     #[test]
     fn test_completion_script_install_path_zsh() {
-        let _guard = ENV_MUTEX.lock().unwrap();
         let temp = tempdir().unwrap();
         let home = temp.path().join("home");
-        std::fs::create_dir_all(&home).unwrap();
-        let _env = EnvGuard::set_var("HOME", &home);
+        fs::create_dir_all(&home).unwrap();
+
+        let mock = MockSystemPaths::new().with_home_dir(home.clone());
+        set_system_paths(mock);
+
         let path = completion_script_install_path(ShellType::Zsh).unwrap();
         assert!(path.to_str().unwrap().contains(".zsh"));
         assert!(path.to_str().unwrap().contains("completions"));
         assert!(path.to_str().unwrap().ends_with("_pyx"));
+
+        reset_system_paths();
     }
 
     #[test]
     fn test_completion_script_install_path_fish() {
-        let _guard = ENV_MUTEX.lock().unwrap();
         let temp = tempdir().unwrap();
         let home = temp.path().join("home");
-        std::fs::create_dir_all(&home).unwrap();
-        let _env = EnvGuard::set_var("HOME", &home);
+        fs::create_dir_all(&home).unwrap();
+
+        let mock = MockSystemPaths::new().with_home_dir(home.clone());
+        set_system_paths(mock);
+
         let path = completion_script_install_path(ShellType::Fish).unwrap();
         assert!(path.to_str().unwrap().contains("fish"));
         assert!(path.to_str().unwrap().ends_with("pyx.fish"));
+
+        reset_system_paths();
     }
 
     #[test]
     fn test_completion_script_install_path_powershell() {
-        let _guard = ENV_MUTEX.lock().unwrap();
         let temp = tempdir().unwrap();
         let home = temp.path().join("home");
-        std::fs::create_dir_all(&home).unwrap();
-        let _env = EnvGuard::set_var("HOME", &home);
+        fs::create_dir_all(&home).unwrap();
+
+        let mock = MockSystemPaths::new().with_home_dir(home.clone());
+        set_system_paths(mock);
+
         let path = completion_script_install_path(ShellType::Powershell).unwrap();
         assert!(path.to_str().unwrap().contains("PowerShell"));
         assert!(path.to_str().unwrap().ends_with("pyx.ps1"));
+
+        reset_system_paths();
     }
 
     #[test]
