@@ -5,7 +5,6 @@ use crate::models::parse::parse_models;
 use crate::storage::models_cache::ModelsCache;
 use crate::storage::settings::Settings;
 use serde::Deserialize;
-use std::env;
 use std::time::Duration;
 
 const DEFAULT_GITHUB_API_URL: &str = "https://api.github.com";
@@ -115,36 +114,79 @@ fn fetch_models_file(config: &SourceConfig, git_ref: &str) -> Result<String> {
 fn request_get(url: &str) -> std::result::Result<String, String> {
     const MAX_RESPONSE_BODY_SIZE: u64 = 5 * 1024 * 1024; // 5MB
     const MAX_ERROR_BODY_SIZE: u64 = 1024; // 1KB for error responses
-    let config = ureq::Agent::config_builder()
-        .timeout_global(Some(Duration::from_secs(REQUEST_TIMEOUT_SECONDS)))
-        .http_status_as_error(false) // Return response instead of error for 4xx/5xx
-        .build();
-    let agent: ureq::Agent = config.into();
+    const MAX_RETRIES: u32 = 3;
+    const INITIAL_BACKOFF_MS: u64 = 500;
+    let mut attempt = 0;
+    let mut backoff_ms = INITIAL_BACKOFF_MS;
 
-    let mut response = agent
-        .get(url)
-        .header("Accept", "application/vnd.github+json")
-        .header("User-Agent", "pyx-cli")
-        .call()
-        .map_err(|e| e.to_string())?;
+    loop {
+        attempt += 1;
+        let mut response = {
+            let config = ureq::Agent::config_builder()
+                .timeout_global(Some(Duration::from_secs(REQUEST_TIMEOUT_SECONDS)))
+                .http_status_as_error(false)
+                .build();
+            let agent: ureq::Agent = config.into();
 
-    let status = response.status().as_u16();
-    if status >= 400 {
-        let body = response
+            match agent
+                .get(url)
+                .header("Accept", "application/vnd.github+json")
+                .header("User-Agent", "pyx-cli")
+                .call()
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    let err_str = e.to_string();
+                    if is_retryable_error(&err_str) && attempt < MAX_RETRIES {
+                        eprintln!("Request failed (attempt {attempt}/{MAX_RETRIES}), retrying in {backoff_ms}ms...");
+                        std::thread::sleep(std::time::Duration::from_millis(backoff_ms));
+                        backoff_ms *= 2;
+                        continue;
+                    }
+                    return Err(err_str);
+                }
+            }
+        };
+
+        let status = response.status().as_u16();
+        if status >= 400 {
+            if is_retryable_status(status) && attempt < MAX_RETRIES {
+                let wait_ms = backoff_ms;
+                eprintln!(
+                    "HTTP {status} (attempt {attempt}/{MAX_RETRIES}), retrying in {wait_ms}ms..."
+                );
+                std::thread::sleep(std::time::Duration::from_millis(wait_ms));
+                backoff_ms *= 2;
+                continue;
+            }
+            let body = response
+                .body_mut()
+                .with_config()
+                .limit(MAX_ERROR_BODY_SIZE)
+                .read_to_string()
+                .unwrap_or_else(|e| format!("<read error: {e}>"));
+            return Err(format!("HTTP {status}: {}", body.trim()));
+        }
+
+        return response
             .body_mut()
             .with_config()
-            .limit(MAX_ERROR_BODY_SIZE)
+            .limit(MAX_RESPONSE_BODY_SIZE)
             .read_to_string()
-            .unwrap_or_default();
-        return Err(format!("HTTP {status}: {}", body.trim()));
+            .map_err(|err| format!("failed to read response body: {err}"));
     }
+}
 
-    response
-        .body_mut()
-        .with_config()
-        .limit(MAX_RESPONSE_BODY_SIZE)
-        .read_to_string()
-        .map_err(|err| format!("failed to read response body: {err}"))
+fn is_retryable_error(err: &str) -> bool {
+    err.contains("timeout")
+        || err.contains("connection")
+        || err.contains("broken pipe")
+        || err.contains("connection refused")
+        || err.contains("connection reset")
+}
+
+fn is_retryable_status(status: u16) -> bool {
+    status == 429 || (500..600).contains(&status)
 }
 
 fn load_source_config() -> Result<SourceConfig> {
@@ -180,7 +222,7 @@ fn load_source_config() -> Result<SourceConfig> {
 }
 
 fn apply_env_override(env_key: &str, target: &mut String) {
-    if let Ok(value) = env::var(env_key) {
+    if let Ok(value) = crate::env_vars::var(env_key) {
         if let Some(normalized) = normalize_optional_string(&value) {
             *target = normalized;
         }

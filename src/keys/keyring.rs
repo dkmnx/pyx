@@ -27,7 +27,7 @@ const USER_NAME: &str = "master-key";
 const ENV_PASSPHRASE: &str = "PYX_PASSPHRASE";
 
 fn env_passphrase() -> Option<SecretString> {
-    std::env::var(ENV_PASSPHRASE)
+    crate::env_vars::var(ENV_PASSPHRASE)
         .ok()
         .filter(|v| !v.is_empty())
         .map(|v| SecretString::new(v.into_boxed_str()))

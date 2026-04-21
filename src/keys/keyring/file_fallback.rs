@@ -2,39 +2,36 @@ use crate::crypto::get_scrypt_work_factor_with_warning;
 use crate::error::{PyxError, Result};
 use crate::storage::atomic_write::atomic_write_with_backup;
 use crate::storage::paths::passphrase_path;
+
+// Re-export constants from crypto module to avoid duplication
+pub use crate::crypto::age::{DEFAULT_SCRYPT_WORK_FACTOR, MIN_SCRYPT_WORK_FACTOR};
+
 use scrypt::{scrypt, Params as ScryptParams};
 use secrecy::{ExposeSecret, SecretString};
 
 const FILE_FALLBACK_KEY_PREFIX: &str = "pyx-passphrase";
 const FILE_FALLBACK_KDF_SALT: &[u8] = b"pyx-file-fallback-v2";
 const FILE_FALLBACK_KEY_LEN: usize = 32;
-const FILE_FALLBACK_KDF_LOG_N_DEFAULT: u8 = 15;
 const FILE_FALLBACK_KDF_R: u32 = 8;
 const FILE_FALLBACK_KDF_P: u32 = 1;
-const FILE_FALLBACK_KDF_LOG_N_MIN: u8 = 15;
 
-/// Get scrypt work factor from environment or use default (same as age.rs)
+/// Get scrypt work factor from environment or use default.
+/// Uses the same env var and logic as crypto/age.rs.
 fn get_kdf_log_n() -> u8 {
     get_scrypt_work_factor_with_warning(
         "PYX_SCRYPT_WORK_FACTOR",
-        FILE_FALLBACK_KDF_LOG_N_DEFAULT,
-        FILE_FALLBACK_KDF_LOG_N_MIN,
+        DEFAULT_SCRYPT_WORK_FACTOR,
+        MIN_SCRYPT_WORK_FACTOR,
         30,
     )
 }
 
 pub(super) fn file_fallback_enabled() -> bool {
-    // Opt-out takes precedence
-    if std::env::var("PYX_DISABLE_FILE_FALLBACK")
+    // Opt-in: only enabled when explicitly set. The file fallback uses machine-derived
+    // keys (not secret material) for encryption, which weakens the security model.
+    crate::env_vars::var("PYX_ALLOW_FILE_FALLBACK")
         .map(|v| v == "1" || v.to_lowercase() == "true")
         .unwrap_or(false)
-    {
-        return false;
-    }
-    // Default: enabled
-    // The file fallback uses scrypt-based encryption which is sufficient
-    // for local threat models where OS keyring isn't available.
-    true
 }
 
 pub(super) fn set_passphrase_file(passphrase: &SecretString) -> Result<()> {
@@ -42,7 +39,7 @@ pub(super) fn set_passphrase_file(passphrase: &SecretString) -> Result<()> {
         "Warning: OS keyring unavailable. Storing passphrase in file with machine-derived key."
     );
     eprintln!("Warning: File fallback uses non-secret machine identifiers for encryption.");
-    eprintln!("Warning: This is weaker than OS keyring. Set PYX_ALLOW_FILE_FALLBACK=0 to disable.");
+    eprintln!("Warning: This is weaker than OS keyring. Unset PYX_ALLOW_FILE_FALLBACK to disable.");
 
     let path = passphrase_path()?;
 
@@ -56,7 +53,7 @@ pub(super) fn set_passphrase_file(passphrase: &SecretString) -> Result<()> {
         }
     }
 
-    let machine_key = derive_machine_key();
+    let machine_key = derive_machine_key()?;
     let encrypted = crate::crypto::age::encrypt_with_passphrase(
         passphrase.expose_secret().as_bytes(),
         &machine_key,
@@ -99,12 +96,13 @@ pub(super) fn delete_passphrase_file() -> Result<()> {
     Ok(())
 }
 
-fn derive_machine_key() -> SecretString {
+fn derive_machine_key() -> Result<SecretString> {
     let machine_id = get_machine_id();
     let user = resolve_user();
 
-    derive_machine_key_v2(&machine_id, &user)
-        .expect("scrypt key derivation failed — check PYX_SCRYPT_WORK_FACTOR")
+    derive_machine_key_v2(&machine_id, &user).ok_or_else(|| {
+        PyxError::Crypto("scrypt key derivation failed — check PYX_SCRYPT_WORK_FACTOR".to_string())
+    })
 }
 
 fn derive_machine_key_v2(machine_id: &str, user: &str) -> Option<SecretString> {
@@ -130,8 +128,8 @@ fn derive_machine_key_v2(machine_id: &str, user: &str) -> Option<SecretString> {
 }
 
 fn resolve_user() -> String {
-    std::env::var("USER")
-        .or_else(|_| std::env::var("USERNAME"))
+    crate::env_vars::var("USER")
+        .or_else(|_| crate::env_vars::var("USERNAME"))
         .unwrap_or_else(|_| "unknown-user".to_string())
 }
 
@@ -154,13 +152,13 @@ fn get_machine_id() -> String {
 
     #[cfg(target_os = "windows")]
     {
-        if let Ok(computer_name) = std::env::var("COMPUTERNAME") {
+        if let Ok(computer_name) = crate::env_vars::var("COMPUTERNAME") {
             if !computer_name.is_empty() {
                 return computer_name;
             }
         }
-        let userdomain = std::env::var("USERDOMAIN").unwrap_or_default();
-        let username = std::env::var("USERNAME").unwrap_or_default();
+        let userdomain = crate::env_vars::var("USERDOMAIN").unwrap_or_default();
+        let username = crate::env_vars::var("USERNAME").unwrap_or_default();
         if !userdomain.is_empty() || !username.is_empty() {
             return format!("{}-{}", userdomain, username);
         }
@@ -202,9 +200,9 @@ fn get_machine_id() -> String {
         }
     }
 
-    let home = std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .unwrap_or_else(|_| std::env::var("USERNAME").unwrap_or_default());
+    let home = crate::env_vars::var("HOME")
+        .or_else(|_| crate::env_vars::var("USERPROFILE"))
+        .unwrap_or_else(|_| crate::env_vars::var("USERNAME").unwrap_or_default());
     format!(
         "pyx-fallback-{}-{}-{}",
         std::env::consts::OS,
@@ -221,10 +219,10 @@ mod tests {
     #[test]
     fn derive_machine_key_is_not_plain_hex_encoding() {
         let machine_id = get_machine_id();
-        let user = std::env::var("USER")
-            .or_else(|_| std::env::var("USERNAME"))
+        let user = crate::env_vars::var("USER")
+            .or_else(|_| crate::env_vars::var("USERNAME"))
             .unwrap_or_else(|_| "unknown-user".to_string());
-        let derived = derive_machine_key();
+        let derived = derive_machine_key().expect("derive_machine_key should succeed in test");
 
         let legacy = hex::encode(format!("pyx-passphrase:{machine_id}:{user}").as_bytes());
 

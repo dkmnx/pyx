@@ -1,12 +1,9 @@
 use super::*;
 use crate::test_helpers::EnvGuard;
-use crate::ENV_MUTEX;
 use tempfile::tempdir;
 
 #[test]
 fn test_env_passphrase_reads_non_empty() {
-    let _guard = ENV_MUTEX.lock().unwrap();
-
     let _g1 = EnvGuard::set_var(ENV_PASSPHRASE, "from-env");
     let passphrase = env_passphrase().unwrap();
     assert_eq!(passphrase.expose_secret(), "from-env");
@@ -18,7 +15,6 @@ fn test_env_passphrase_reads_non_empty() {
 
 #[test]
 fn test_file_passphrase_roundtrip() {
-    let _guard = ENV_MUTEX.lock().unwrap();
     let temp = tempdir().unwrap();
     let mut env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
     env.extend(EnvGuard::set_var("PYX_SCRYPT_WORK_FACTOR", "15"));
@@ -38,7 +34,6 @@ fn test_file_passphrase_roundtrip() {
 
 #[test]
 fn test_set_passphrase_writes_to_file() {
-    let _guard = ENV_MUTEX.lock().unwrap();
     let temp = tempdir().unwrap();
     let mut env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
     env.extend(EnvGuard::set_var("PYX_ALLOW_FILE_FALLBACK", "1"));
@@ -60,7 +55,6 @@ fn test_set_passphrase_writes_to_file() {
 
 #[test]
 fn test_has_entry_checks_file() {
-    let _guard = ENV_MUTEX.lock().unwrap();
     let temp = tempdir().unwrap();
     let mut env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
     env.extend(EnvGuard::set_var("PYX_ALLOW_FILE_FALLBACK", "1"));
@@ -82,10 +76,10 @@ fn test_has_entry_checks_file() {
 
 #[test]
 fn test_clear_passphrase_removes_file_even_when_fallback_disabled() {
-    let _guard = ENV_MUTEX.lock().unwrap();
     let temp = tempdir().unwrap();
     let mut env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
     env.extend(EnvGuard::set_var("PYX_SCRYPT_WORK_FACTOR", "15"));
+    env.extend(EnvGuard::set_var("PYX_ALLOW_FILE_FALLBACK", "1"));
 
     set_backend(Box::new(MockKeyring::new()));
 
@@ -99,7 +93,7 @@ fn test_clear_passphrase_removes_file_even_when_fallback_disabled() {
     );
 
     // Now disable fallback to verify cleanup still happens.
-    let _disable_guard = EnvGuard::set_var("PYX_DISABLE_FILE_FALLBACK", "1");
+    let _disable_guard = EnvGuard::set_var("PYX_ALLOW_FILE_FALLBACK", "0");
     assert!(!file_fallback_enabled());
 
     clear_passphrase().unwrap();
@@ -113,10 +107,9 @@ fn test_clear_passphrase_removes_file_even_when_fallback_disabled() {
 
 #[test]
 fn test_set_passphrase_does_not_write_file_when_opt_out() {
-    let _guard = ENV_MUTEX.lock().unwrap();
     let temp = tempdir().unwrap();
     let mut env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
-    env.extend(EnvGuard::set_var("PYX_DISABLE_FILE_FALLBACK", "1"));
+    env.extend(EnvGuard::set_var("PYX_ALLOW_FILE_FALLBACK", "0"));
 
     set_backend(Box::new(MockKeyring::new()));
 
@@ -135,10 +128,9 @@ fn test_set_passphrase_does_not_write_file_when_opt_out() {
 
 #[test]
 fn test_get_passphrase_uses_keyring_when_fallback_opted_out() {
-    let _guard = ENV_MUTEX.lock().unwrap();
     let temp = tempdir().unwrap();
     let mut env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
-    env.extend(EnvGuard::set_var("PYX_DISABLE_FILE_FALLBACK", "1"));
+    env.extend(EnvGuard::set_var("PYX_ALLOW_FILE_FALLBACK", "0"));
 
     set_backend(Box::new(MockKeyring::new()));
 
@@ -155,18 +147,25 @@ fn test_get_passphrase_uses_keyring_when_fallback_opted_out() {
 
 #[test]
 fn test_file_fallback_enabled_env_var() {
-    let _guard = ENV_MUTEX.lock().unwrap();
-
-    // Default is now enabled
-    assert!(file_fallback_enabled());
-
-    // Opt-out
-    let _g0 = EnvGuard::set_var("PYX_DISABLE_FILE_FALLBACK", "1");
+    // Default is disabled (opt-in)
     assert!(!file_fallback_enabled());
+
+    // Opt-in via env var
+    let _g0 = EnvGuard::set_var("PYX_ALLOW_FILE_FALLBACK", "1");
+    assert!(file_fallback_enabled());
     drop(_g0);
 
-    // Back to default: enabled
+    // Back to default: disabled
+    assert!(!file_fallback_enabled());
+
+    // Other truthy values
+    let _g1 = EnvGuard::set_var("PYX_ALLOW_FILE_FALLBACK", "true");
     assert!(file_fallback_enabled());
+    drop(_g1);
+
+    let _g2 = EnvGuard::set_var("PYX_ALLOW_FILE_FALLBACK", "TRUE");
+    assert!(file_fallback_enabled());
+    drop(_g2);
 }
 
 #[test]
@@ -231,7 +230,6 @@ fn test_delete_password_is_idempotent() {
 
 #[test]
 fn test_get_passphrase_uses_file_fallback_when_backend_errors() {
-    let _guard = ENV_MUTEX.lock().unwrap();
     let temp = tempdir().unwrap();
     let mut env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
     env.extend(EnvGuard::set_var("PYX_ALLOW_FILE_FALLBACK", "1"));
@@ -273,8 +271,7 @@ fn test_get_passphrase_uses_file_fallback_when_backend_errors() {
 
 #[test]
 fn test_has_entry_returns_false_when_backend_unavailable() {
-    let _guard = ENV_MUTEX.lock().unwrap();
-    let _env = EnvGuard::set_var("PYX_DISABLE_FILE_FALLBACK", "1");
+    // File fallback is disabled by default — no need to set PYX_ALLOW_FILE_FALLBACK=0
 
     struct EmptyBackend;
     impl crate::keys::keyring::backend::KeyringBackend for EmptyBackend {
@@ -301,10 +298,9 @@ fn test_has_entry_returns_false_when_backend_unavailable() {
 
 #[test]
 fn test_set_passphrase_succeeds_when_backend_available() {
-    let _guard = ENV_MUTEX.lock().unwrap();
     let temp = tempdir().unwrap();
     let mut env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
-    env.extend(EnvGuard::set_var("PYX_DISABLE_FILE_FALLBACK", "1"));
+    // File fallback is disabled by default — no need to set PYX_ALLOW_FILE_FALLBACK=0
     env.extend(EnvGuard::remove_var("PYX_PASSPHRASE"));
 
     set_backend(Box::new(MockKeyring::new()));
@@ -337,7 +333,7 @@ fn test_set_passphrase_succeeds_when_backend_available() {
 fn test_native_keyring_roundtrip_when_available() {
     use backend::NativeKeyring;
 
-    if std::env::var("CI").is_ok() {
+    if crate::env_vars::var("CI").is_ok() {
         eprintln!("Skipping native keyring roundtrip test in CI environment");
         return;
     }
