@@ -3,6 +3,7 @@
 use crate::error::{PyxError, Result};
 use crate::storage::paths::pi_path_cache;
 use clap::ValueEnum;
+use regex::Regex;
 use secrecy::{ExposeSecret, SecretString};
 use std::fs;
 use std::path::PathBuf;
@@ -323,42 +324,10 @@ pub fn install_pi() -> Result<()> {
 /// Matches the same pattern as `\d+\.\d+(?:\.\d+)*` without requiring the
 /// regex crate or a static compiled regex.
 fn extract_version_string(input: &str) -> Option<String> {
-    let bytes = input.as_bytes();
-    let len = bytes.len();
-    let mut start = None;
-    let mut end = 0;
-    let mut i = 0;
-
-    // Scan for a sequence of digits followed by a dot and more digits
-    while i < len {
-        if bytes[i].is_ascii_digit() {
-            // Found a digit — collect the full numeric run
-            let num_start = i;
-            while i < len && bytes[i].is_ascii_digit() {
-                i += 1;
-            }
-
-            // Must be followed by '.' and another digit sequence
-            if i < len && bytes[i] == b'.' && i + 1 < len && bytes[i + 1].is_ascii_digit() {
-                // This is the start of a version string
-                start = Some(num_start);
-                // Walk remaining "(.digits)*" groups
-                while i < len && bytes[i] == b'.' && i + 1 < len && bytes[i + 1].is_ascii_digit() {
-                    i += 1; // skip '.'
-                    while i < len && bytes[i].is_ascii_digit() {
-                        i += 1;
-                    }
-                }
-                end = i;
-                break;
-            }
-            // Not a version start — continue scanning (i already advanced past digits)
-        } else {
-            i += 1;
-        }
-    }
-
-    start.map(|s| input[s..end].to_string())
+    Regex::new(r"\d+(?:\.\d+)+")
+        .ok()
+        .and_then(|re| re.find(input))
+        .map(|m| m.as_str().to_string())
 }
 
 /// Check pi version
