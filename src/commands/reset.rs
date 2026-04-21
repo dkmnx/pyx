@@ -7,7 +7,6 @@ use crate::storage::paths::{
     settings_path,
 };
 use std::fs;
-use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 
 /// Append `.bak` to a path (backup naming convention)
@@ -31,7 +30,7 @@ pub fn execute(skip_confirm: bool) -> Result<()> {
     // Confirm deletion
     if !skip_confirm && !confirm_reset()? {
         eprintln!("Reset cancelled.");
-        return Err(PyxError::Cancelled);
+        return Ok(());
     }
 
     eprintln!();
@@ -77,15 +76,9 @@ pub fn execute(skip_confirm: bool) -> Result<()> {
 }
 
 fn confirm_reset() -> Result<bool> {
-    use std::io::stdin;
-
-    if !stdin().is_terminal() {
-        return Err(PyxError::Validation(
-            "Confirmation requires an interactive terminal. Use --yes to skip.".into(),
-        ));
-    }
-
     use inquire::Confirm;
+
+    crate::commands::helpers::require_interactive_terminal()?;
 
     let confirmed = Confirm::new("Are you sure you want to reset?")
         .with_default(false)

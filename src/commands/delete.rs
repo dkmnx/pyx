@@ -62,13 +62,8 @@ fn prompt_provider_selection(db: &Database) -> Result<String> {
 
 fn confirm_delete(provider_name: &str) -> Result<bool> {
     use inquire::Confirm;
-    use std::io::IsTerminal;
 
-    if !std::io::stdin().is_terminal() {
-        return Err(PyxError::Validation(
-            "Confirmation requires an interactive terminal. Use --yes to skip.".into(),
-        ));
-    }
+    crate::commands::helpers::require_interactive_terminal()?;
 
     let confirmed = Confirm::new(&format!(
         "Are you sure you want to delete the '{provider_name}' provider?"
@@ -172,7 +167,6 @@ mod tests {
 
     #[test]
     fn test_execute_error_for_empty_database() {
-        let _guard = crate::ENV_MUTEX.lock().unwrap();
         let dir = tempdir().unwrap();
         let _env = crate::test_helpers::EnvGuard::set_var(
             "XDG_DATA_HOME",
@@ -186,7 +180,6 @@ mod tests {
 
     #[test]
     fn test_execute_error_for_nonexistent_provider() {
-        let _guard = crate::ENV_MUTEX.lock().unwrap();
         let dir = tempdir().unwrap();
         let _env = crate::test_helpers::EnvGuard::set_var(
             "XDG_DATA_HOME",

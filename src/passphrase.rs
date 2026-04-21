@@ -79,13 +79,11 @@ mod tests {
     use crate::keys::keyring::{get_passphrase, reset_backend, set_backend, MockKeyring};
     use crate::keys::manager::KeyManager;
     use crate::test_helpers::EnvGuard;
-    use crate::ENV_MUTEX;
     use secrecy::ExposeSecret;
     use tempfile::tempdir;
 
     #[test]
     fn load_with_passphrase_restores_keyring_entry() {
-        let _guard = ENV_MUTEX.lock().unwrap();
         let temp = tempdir().unwrap();
         let _env = EnvGuard::set_var("XDG_DATA_HOME", temp.path());
 

@@ -273,8 +273,6 @@ mod tests {
 
     #[test]
     fn test_decrypt_api_key_both_paths_fail() {
-        let _guard = crate::ENV_MUTEX.lock().unwrap();
-
         // PYX_PASSPHRASE ensures get_passphrase() returns immediately without
         // hitting the OS keyring (which may be unavailable in test environments).
         // This dependency relies on get_passphrase()'s env-var-first priority.

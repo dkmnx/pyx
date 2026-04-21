@@ -13,6 +13,7 @@ use crate::storage::paths::database_path;
 use crate::storage::providers_env::ProvidersEnvConfig;
 use secrecy::{ExposeSecret, SecretString};
 use std::collections::HashSet;
+use std::io::IsTerminal;
 use std::time::Instant;
 
 pub fn load_or_create_database() -> Result<Database> {
@@ -88,6 +89,15 @@ pub fn create_new_master_key() -> Result<KeyManager> {
     eprintln!();
 
     Ok(manager)
+}
+
+pub fn require_interactive_terminal() -> Result<()> {
+    if !std::io::stdin().is_terminal() {
+        return Err(PyxError::Validation(
+            "This operation requires an interactive terminal. Use --yes to skip.".into(),
+        ));
+    }
+    Ok(())
 }
 
 pub fn fetch_providers() -> Result<()> {
@@ -228,14 +238,12 @@ static TIME_FORMAT: std::sync::LazyLock<Vec<time::format_description::FormatItem
 mod tests {
     use super::*;
     use crate::test_helpers::EnvGuard;
-    use crate::ENV_MUTEX;
     use std::cell::Cell;
     use tempfile::tempdir;
     use time::{Duration, OffsetDateTime};
 
     #[test]
     fn fetch_providers_skips_remote_fetch_when_cache_is_fresh() {
-        let _guard = ENV_MUTEX.lock().unwrap();
         let temp = tempdir().unwrap();
         let _env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
 
@@ -256,7 +264,6 @@ mod tests {
 
     #[test]
     fn fetch_providers_uses_stale_cache_when_refresh_fails() {
-        let _guard = ENV_MUTEX.lock().unwrap();
         let temp = tempdir().unwrap();
         let _env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
 
@@ -277,7 +284,6 @@ mod tests {
 
     #[test]
     fn fetch_providers_errors_when_cache_missing_and_refresh_fails() {
-        let _guard = ENV_MUTEX.lock().unwrap();
         let temp = tempdir().unwrap();
         let _env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
 
@@ -289,7 +295,6 @@ mod tests {
 
     #[test]
     fn get_provider_list_includes_custom_providers_without_models_cache() {
-        let _guard = ENV_MUTEX.lock().unwrap();
         let temp = tempdir().unwrap();
         let _env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
 
@@ -308,7 +313,6 @@ mod tests {
 
     #[test]
     fn test_has_custom_providers_returns_true_when_configured() {
-        let _guard = ENV_MUTEX.lock().unwrap();
         let temp = tempdir().unwrap();
         let _env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
 
@@ -323,7 +327,6 @@ mod tests {
 
     #[test]
     fn test_has_custom_providers_returns_false_when_empty() {
-        let _guard = ENV_MUTEX.lock().unwrap();
         let temp = tempdir().unwrap();
         let _env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
 
@@ -335,7 +338,6 @@ mod tests {
 
     #[test]
     fn test_has_custom_providers_returns_false_when_no_config() {
-        let _guard = ENV_MUTEX.lock().unwrap();
         let temp = tempdir().unwrap();
         let _env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
 
@@ -384,7 +386,6 @@ mod tests {
 
     #[test]
     fn test_get_provider_list_deduplicates() {
-        let _guard = ENV_MUTEX.lock().unwrap();
         let temp = tempdir().unwrap();
         let _env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
 
