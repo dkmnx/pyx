@@ -10,7 +10,7 @@ use std::path::PathBuf;
 
 /// Resolve pi sessions root directory (`~/.pi/agent/sessions`).
 pub fn pi_sessions_dir() -> Result<PathBuf> {
-    let home = dirs::home_dir()
+    let home = crate::storage::paths::with_data_dir_paths(|p| p.home_dir())
         .ok_or_else(|| PyxError::Config("Could not determine home directory".to_string()))?;
     Ok(home.join(".pi").join("agent").join("sessions"))
 }
