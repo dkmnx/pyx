@@ -11,7 +11,11 @@ use crate::prompt;
 use secrecy::SecretString;
 use std::io::IsTerminal;
 
-pub fn execute(provider_name: Option<&str>, api_key: Option<&str>) -> Result<()> {
+pub fn execute(
+    provider_name: Option<&str>,
+    api_key: Option<&str>,
+    skip_confirm: bool,
+) -> Result<()> {
     eprintln!("Pyx Edit");
     eprintln!();
 
@@ -40,7 +44,16 @@ pub fn execute(provider_name: Option<&str>, api_key: Option<&str>) -> Result<()>
             }
             name.to_string()
         }
-        None => select_provider_interactive(&db)?,
+        None => {
+            let stdin = std::io::stdin();
+            if !stdin.is_terminal() {
+                return Err(PyxError::Validation(
+                    "Non-interactive: pass --provider and --key. Use 'pyx edit --help' for details."
+                        .to_string(),
+                ));
+            }
+            select_provider_interactive(&db)?
+        }
     };
 
     let masked = {
@@ -58,7 +71,8 @@ pub fn execute(provider_name: Option<&str>, api_key: Option<&str>) -> Result<()>
     eprintln!();
 
     let stdin = std::io::stdin();
-    if stdin.is_terminal() {
+    if stdin.is_terminal() && !skip_confirm {
+        crate::commands::helpers::require_interactive_terminal()?;
         let confirm = prompt::prompt_confirm("Overwrite with new key?")?;
         if !confirm {
             eprintln!("\nEdit cancelled.");

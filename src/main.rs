@@ -50,8 +50,8 @@ fn run_subcommand_mode() -> Result<()> {
         Some(Commands::Add { provider, key }) => {
             pyx_rs::commands::add::execute(provider.as_deref(), key.as_deref())?;
         }
-        Some(Commands::Edit { provider, key }) => {
-            pyx_rs::commands::edit::execute(provider.as_deref(), key.as_deref())?;
+        Some(Commands::Edit { provider, key, yes }) => {
+            pyx_rs::commands::edit::execute(provider.as_deref(), key.as_deref(), *yes)?;
         }
         Some(Commands::List { json }) => {
             if *json {

@@ -75,6 +75,10 @@ pub enum Commands {
         /// New API key (prompted if omitted)
         #[arg(short = 'k', long = "key")]
         key: Option<String>,
+
+        /// Skip confirmation prompt
+        #[arg(short = 'y', long)]
+        yes: bool,
     },
 
     /// List configured providers

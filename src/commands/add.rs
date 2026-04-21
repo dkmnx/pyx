@@ -36,6 +36,13 @@ pub fn execute(provider_name: Option<&str>, api_key: Option<&str>) -> Result<()>
             name.to_string()
         }
         None => {
+            let stdin = std::io::stdin();
+            if !stdin.is_terminal() {
+                return Err(PyxError::Validation(
+                    "Non-interactive: pass --provider and --key. Use 'pyx add --help' for details."
+                        .to_string(),
+                ));
+            }
             fetch_providers()?;
             let providers = get_provider_list()?;
             if providers.is_empty() && !has_custom_providers()? {
@@ -72,10 +79,11 @@ pub fn execute(provider_name: Option<&str>, api_key: Option<&str>) -> Result<()>
         }
     };
 
-    store_provider_entry(&manager, &mut db, &provider, &key)?;
+    let is_update = store_provider_entry(&manager, &mut db, &provider, &key)?;
 
     eprintln!();
-    eprintln!("  {provider}: Created ({})", format_time_now());
+    let action = if is_update { "Updated" } else { "Created" };
+    eprintln!("  {provider}: {action} ({})", format_time_now());
 
     Ok(())
 }
