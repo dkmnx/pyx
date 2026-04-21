@@ -140,18 +140,19 @@ impl KeyManager {
         let passphrases = build_passphrase_candidates(&primary_passphrase);
 
         // No interactive prompt - matches Go
-        let decrypted = decrypt_master_key_with_candidates(&encrypted_content, &passphrases)
-            .map_err(|e| {
+        let decrypted = Zeroizing::new(
+            decrypt_master_key_with_candidates(&encrypted_content, &passphrases).map_err(|e| {
                 record_failed_attempt(&path);
                 PyxError::Crypto(format!(
                     "Failed to decrypt master key: {e}. Run 'pyx init' to reconfigure."
                 ))
-            })?;
+            })?,
+        );
 
         reset_failed_attempts(&path);
 
         // Hex encoding avoids binary data issues in storage
-        let master_key_hex = hex::encode(&decrypted);
+        let master_key_hex = hex::encode(decrypted.as_slice());
 
         Ok(Self {
             key: SecretString::new(master_key_hex.into_boxed_str()),
@@ -168,15 +169,16 @@ impl KeyManager {
 
         let passphrases = build_passphrase_candidates(passphrase);
 
-        let decrypted = decrypt_master_key_with_candidates(&encrypted_content, &passphrases)
-            .map_err(|e| {
+        let decrypted = Zeroizing::new(
+            decrypt_master_key_with_candidates(&encrypted_content, &passphrases).map_err(|e| {
                 record_failed_attempt(&path);
                 PyxError::Crypto(format!("Failed to decrypt master key: {e}"))
-            })?;
+            })?,
+        );
 
         reset_failed_attempts(&path);
 
-        let master_key_hex = hex::encode(&decrypted);
+        let master_key_hex = hex::encode(decrypted.as_slice());
 
         Ok(Self {
             key: SecretString::new(master_key_hex.into_boxed_str()),
@@ -198,10 +200,12 @@ impl KeyManager {
 
     /// Save encrypted master key to disk using the provided passphrase
     pub fn save_with_passphrase(&self, passphrase: &SecretString) -> Result<()> {
-        let key_bytes = hex::decode(self.key.expose_secret())
-            .map_err(|e| PyxError::Crypto(format!("Invalid master key hex: {e}")))?;
+        let key_bytes = Zeroizing::new(
+            hex::decode(self.key.expose_secret())
+                .map_err(|e| PyxError::Crypto(format!("Invalid master key hex: {e}")))?,
+        );
 
-        let encrypted = encrypt_with_passphrase(&key_bytes, passphrase)
+        let encrypted = encrypt_with_passphrase(key_bytes.as_slice(), passphrase)
             .map_err(|e| PyxError::Crypto(format!("Failed to encrypt master key: {e}")))?;
 
         let path = master_key_path()?;
@@ -264,7 +268,7 @@ impl KeyManager {
 fn build_passphrase_candidates(primary: &SecretString) -> Vec<SecretString> {
     let mut candidates: Vec<SecretString> = vec![primary.clone()];
 
-    if let Ok(env_value) = std::env::var(ENV_PASSPHRASE) {
+    if let Ok(env_value) = crate::env_vars::var(ENV_PASSPHRASE) {
         if !env_value.is_empty() && env_value != primary.expose_secret() {
             candidates.push(SecretString::new(env_value.into_boxed_str()));
         }
@@ -296,11 +300,9 @@ mod tests {
     use super::*;
     use crate::keys::keyring::{reset_backend, set_backend, MockKeyring};
     use crate::test_helpers::EnvGuard;
-    use crate::ENV_MUTEX;
 
     #[test]
     fn test_build_passphrase_candidates_adds_env_only() {
-        let _guard = ENV_MUTEX.lock().unwrap();
         let _env = EnvGuard::set_var(ENV_PASSPHRASE, "env-pass");
 
         let primary = SecretString::new("keyring-pass".to_string().into_boxed_str());
@@ -315,13 +317,14 @@ mod tests {
     fn test_generate_and_save_with_mock_keyring() {
         use tempfile::tempdir;
 
-        let _guard = ENV_MUTEX.lock().unwrap();
         let temp = tempdir().unwrap();
         let _data_dir = temp.path().join("pyx");
 
         // Set up test environment
         set_backend(Box::new(MockKeyring::new()));
-        let _env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
+        let mut _env =
+            EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
+        _env.extend(EnvGuard::set_var("PYX_SCRYPT_WORK_FACTOR", "15"));
 
         // Generate a new key manager
         let manager = KeyManager::generate().unwrap();
