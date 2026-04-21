@@ -221,11 +221,11 @@ pub fn format_time_now() -> String {
 
 pub fn mask_key(key: &str) -> String {
     let chars: Vec<char> = key.chars().collect();
-    if chars.len() < 8 {
+    if chars.len() < 6 {
         return "****".to_string();
     }
-    let start: String = chars[..3].iter().collect();
-    let end: String = chars[chars.len() - 3..].iter().collect();
+    let start: String = chars[..2].iter().collect();
+    let end: String = chars[chars.len() - 2..].iter().collect();
     format!("{start}...{end}")
 }
 
@@ -409,17 +409,17 @@ mod tests {
 
     #[test]
     fn test_mask_key_standard() {
-        assert_eq!(mask_key("sk-1234567890abcdef"), "sk-...def");
+        assert_eq!(mask_key("sk-1234567890abcdef"), "sk...ef");
     }
 
     #[test]
     fn test_mask_key_short() {
         assert_eq!(mask_key("short"), "****");
-        assert_eq!(mask_key("1234567"), "****");
+        assert_eq!(mask_key("12345"), "****");
     }
 
     #[test]
-    fn test_mask_key_exactly_8() {
-        assert_eq!(mask_key("12345678"), "123...678");
+    fn test_mask_key_exactly_6() {
+        assert_eq!(mask_key("123456"), "12...56");
     }
 }
