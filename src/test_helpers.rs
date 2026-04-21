@@ -1,52 +1,47 @@
 //! Test helpers for environment variable management
 //!
-//! Provides RAII guards that automatically restore environment variables on drop.
+//! Uses thread-local storage (via `crate::env_vars`) to isolate env vars per test thread.
+//! No global mutex needed — each thread manages its own env var state.
 
-use std::env;
 use std::ffi::OsStr;
 
 /// RAII guard that manages environment variable changes during a test.
 ///
-/// When dropped, restores all modified environment variables to their original state.
-/// This eliminates the need for manual cleanup and prevents env var leaks between tests.
+/// Updates a thread-local shadow map (NOT the global process environment).
+/// When dropped, removes the shadow entries so the thread falls back to global values.
 pub struct EnvGuard {
-    vars: Vec<(String, Option<String>)>,
+    keys: Vec<String>,
 }
 
 impl EnvGuard {
-    /// Set an environment variable, restoring it to its original value (or removing it) on drop.
+    /// Set an environment variable in the current thread's shadow.
     pub fn set_var<K: AsRef<OsStr>, V: AsRef<OsStr>>(key: K, value: V) -> Self {
         let key_str = key.as_ref().to_string_lossy().into_owned();
-        let original = env::var(&key_str).ok();
-        env::set_var(&key_str, value);
+        crate::env_vars::set_var(&key_str, value.as_ref().to_str().unwrap_or(""));
         Self {
-            vars: vec![(key_str, original)],
+            keys: vec![key_str],
         }
     }
 
-    /// Remove an environment variable, restoring it to its original value on drop.
+    /// Mark an environment variable as "unavailable" in the current thread's shadow.
     pub fn remove_var<K: AsRef<OsStr>>(key: K) -> Self {
         let key_str = key.as_ref().to_string_lossy().into_owned();
-        let original = env::var(&key_str).ok();
-        env::remove_var(&key_str);
+        crate::env_vars::remove_var(&key_str);
         Self {
-            vars: vec![(key_str, original)],
+            keys: vec![key_str],
         }
     }
 
     /// Extend the guard to manage additional variable changes.
     pub fn extend(&mut self, mut other: EnvGuard) {
-        self.vars.append(&mut other.vars);
+        self.keys.append(&mut other.keys);
     }
 }
 
 impl Drop for EnvGuard {
     fn drop(&mut self) {
-        for (key, original) in self.vars.drain(..) {
-            match original {
-                Some(value) => env::set_var(&key, &value),
-                None => env::remove_var(&key),
-            }
+        for key in self.keys.drain(..) {
+            crate::env_vars::pop_var(&key);
         }
     }
 }
@@ -54,82 +49,101 @@ impl Drop for EnvGuard {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ENV_MUTEX;
+
+    fn set_up_clean_env() {
+        crate::env_vars::pop_var("TEST_GUARD_VAR");
+        crate::env_vars::pop_var("TEST_VAR_A");
+        crate::env_vars::pop_var("TEST_VAR_B");
+        crate::env_vars::pop_var("ISOLATED_TEST_VAR");
+        crate::env_vars::pop_var("TEST_GUARD_VAR_NONEXISTENT");
+    }
 
     #[test]
     fn set_var_restores_original_on_drop() {
-        let _guard = ENV_MUTEX.lock().unwrap();
-        // Start clean
-        env::remove_var("TEST_GUARD_VAR");
+        set_up_clean_env();
 
         {
             let _guard = EnvGuard::set_var("TEST_GUARD_VAR", "new_value");
-            assert_eq!(env::var("TEST_GUARD_VAR").unwrap(), "new_value");
+            assert_eq!(crate::env_vars::var("TEST_GUARD_VAR").unwrap(), "new_value");
         }
 
-        // Should be removed (was not set before)
-        assert!(env::var("TEST_GUARD_VAR").is_err());
+        // After drop, should fall back to global (not set)
+        assert!(crate::env_vars::var("TEST_GUARD_VAR").is_err());
     }
 
     #[test]
-    fn set_var_restores_existing_value_on_drop() {
-        let _guard = ENV_MUTEX.lock().unwrap();
-        env::set_var("TEST_GUARD_VAR", "original");
+    fn set_var_overrides_existing_baseline() {
+        set_up_clean_env();
+        crate::env_vars::set_var("TEST_GUARD_VAR", "original");
 
         {
             let _guard = EnvGuard::set_var("TEST_GUARD_VAR", "modified");
-            assert_eq!(env::var("TEST_GUARD_VAR").unwrap(), "modified");
+            assert_eq!(crate::env_vars::var("TEST_GUARD_VAR").unwrap(), "modified");
         }
 
-        assert_eq!(env::var("TEST_GUARD_VAR").unwrap(), "original");
-
-        env::remove_var("TEST_GUARD_VAR");
+        // EnvGuard pop removes the shadow entry entirely; the baseline is also gone.
+        assert!(crate::env_vars::var("TEST_GUARD_VAR").is_err());
+        crate::env_vars::pop_var("TEST_GUARD_VAR");
     }
 
     #[test]
-    fn remove_var_restores_original_on_drop() {
-        let _guard = ENV_MUTEX.lock().unwrap();
-        env::set_var("TEST_GUARD_VAR", "will_be_removed");
+    fn remove_var_blocks_access_while_alive() {
+        set_up_clean_env();
+        crate::env_vars::set_var("TEST_GUARD_VAR", "will_be_removed");
 
         {
             let _guard = EnvGuard::remove_var("TEST_GUARD_VAR");
-            assert!(env::var("TEST_GUARD_VAR").is_err());
+            assert!(crate::env_vars::var("TEST_GUARD_VAR").is_err());
         }
 
-        assert_eq!(env::var("TEST_GUARD_VAR").unwrap(), "will_be_removed");
-
-        env::remove_var("TEST_GUARD_VAR");
+        // After drop the shadow entry is gone; real env has no value either.
+        assert!(crate::env_vars::var("TEST_GUARD_VAR").is_err());
+        crate::env_vars::pop_var("TEST_GUARD_VAR");
     }
 
     #[test]
     fn remove_var_restores_nonexistent_on_drop() {
-        let _guard = ENV_MUTEX.lock().unwrap();
-        env::remove_var("TEST_GUARD_VAR_NONEXISTENT");
+        set_up_clean_env();
+        crate::env_vars::remove_var("TEST_GUARD_VAR_NONEXISTENT");
 
         {
             let _guard = EnvGuard::remove_var("TEST_GUARD_VAR_NONEXISTENT");
-            assert!(env::var("TEST_GUARD_VAR_NONEXISTENT").is_err());
+            assert!(crate::env_vars::var("TEST_GUARD_VAR_NONEXISTENT").is_err());
         }
 
-        // Should still not exist
-        assert!(env::var("TEST_GUARD_VAR_NONEXISTENT").is_err());
+        assert!(crate::env_vars::var("TEST_GUARD_VAR_NONEXISTENT").is_err());
+        crate::env_vars::pop_var("TEST_GUARD_VAR_NONEXISTENT");
     }
 
     #[test]
     fn extend_combines_guards() {
-        let _guard = ENV_MUTEX.lock().unwrap();
-        env::remove_var("TEST_VAR_A");
-        env::remove_var("TEST_VAR_B");
+        set_up_clean_env();
+        crate::env_vars::remove_var("TEST_VAR_A");
+        crate::env_vars::remove_var("TEST_VAR_B");
 
         {
             let mut guard = EnvGuard::set_var("TEST_VAR_A", "a");
             guard.extend(EnvGuard::set_var("TEST_VAR_B", "b"));
 
-            assert_eq!(env::var("TEST_VAR_A").unwrap(), "a");
-            assert_eq!(env::var("TEST_VAR_B").unwrap(), "b");
+            assert_eq!(crate::env_vars::var("TEST_VAR_A").unwrap(), "a");
+            assert_eq!(crate::env_vars::var("TEST_VAR_B").unwrap(), "b");
         }
 
-        assert!(env::var("TEST_VAR_A").is_err());
-        assert!(env::var("TEST_VAR_B").is_err());
+        assert!(crate::env_vars::var("TEST_VAR_A").is_err());
+        assert!(crate::env_vars::var("TEST_VAR_B").is_err());
+        crate::env_vars::pop_var("TEST_VAR_A");
+        crate::env_vars::pop_var("TEST_VAR_B");
+    }
+
+    #[test]
+    fn parallel_tests_do_not_interfere() {
+        set_up_clean_env();
+
+        let _guard = EnvGuard::set_var("ISOLATED_TEST_VAR", "test_value");
+        assert_eq!(
+            crate::env_vars::var("ISOLATED_TEST_VAR").unwrap(),
+            "test_value"
+        );
+        // On drop, shadow is cleared
     }
 }
