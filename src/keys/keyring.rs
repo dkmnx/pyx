@@ -14,6 +14,10 @@ pub use self::backend::KeyringBackend;
 #[cfg(test)]
 pub use self::backend::MockKeyring;
 #[cfg(test)]
+pub use self::backend::ReadNoneWriteFailsBackend;
+#[cfg(test)]
+pub use self::backend::UnavailableBackend;
+#[cfg(test)]
 pub use self::backend::{reset_backend, set_backend};
 use self::file_fallback::{
     delete_passphrase_file, file_fallback_enabled, get_passphrase_file, set_passphrase_file,
@@ -145,6 +149,23 @@ pub fn has_entry() -> bool {
     }
 
     false
+}
+
+/// Get passphrase from the OS keyring backend only.
+///
+/// Bypasses the PYX_PASSPHRASE env var and file fallback.
+/// Used when determining whether to overwrite an existing keyring entry.
+///
+/// Unlike `has_entry()`, this function propagates backend errors rather than
+/// swallowing them. Callers that can tolerate transient keyring failures
+/// should handle the `Err` case explicitly (e.g., by treating it as "no
+/// existing passphrase found" and proceeding).
+pub(crate) fn get_keyring_passphrase() -> Result<Option<SecretString>> {
+    match with_backend(|b| b.get_password(SERVICE_NAME, USER_NAME)) {
+        Ok(Some(pw)) => Ok(Some(SecretString::new(pw.into_boxed_str()))),
+        Ok(None) => Ok(None),
+        Err(e) => Err(e),
+    }
 }
 
 #[cfg(test)]

@@ -61,11 +61,12 @@ fn prompt_for_passphrase() -> Result<KeyManager> {
 
     let passphrase = passphrase::prompt_existing_passphrase(Some("Passphrase"))?;
 
-    passphrase::load_key_manager_with_passphrase(&passphrase).map_err(|e| {
-        PyxError::Crypto(format!(
+    passphrase::load_key_manager_with_passphrase(&passphrase).map_err(|e| match e {
+        PyxError::Keyring(_) => e,
+        _ => PyxError::Crypto(format!(
             "Failed to decrypt master key: {e}. \
              If you forgot your passphrase, run 'pyx reset' to start fresh."
-        ))
+        )),
     })
 }
 

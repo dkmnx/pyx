@@ -134,6 +134,48 @@ pub fn reset_backend() {
     });
 }
 
+/// Keyring backend that returns None for reads and fails all writes.
+/// Useful for simulating a keyring that is available but has no entries.
+#[cfg(test)]
+pub struct ReadNoneWriteFailsBackend;
+
+#[cfg(test)]
+impl KeyringBackend for ReadNoneWriteFailsBackend {
+    fn get_password(&self, _: &str, _: &str) -> crate::error::Result<Option<String>> {
+        Ok(None)
+    }
+    fn set_password(&self, _: &str, _: &str, _: &str) -> crate::error::Result<()> {
+        Err(crate::error::PyxError::Keyring(
+            "Backend unavailable".to_string(),
+        ))
+    }
+    fn delete_password(&self, _: &str, _: &str) -> crate::error::Result<()> {
+        Ok(())
+    }
+}
+
+/// Keyring backend that fails all operations.
+/// Useful for simulating a completely unavailable keyring.
+#[cfg(test)]
+pub struct UnavailableBackend;
+
+#[cfg(test)]
+impl KeyringBackend for UnavailableBackend {
+    fn get_password(&self, _: &str, _: &str) -> crate::error::Result<Option<String>> {
+        Err(crate::error::PyxError::Keyring(
+            "Backend unavailable".to_string(),
+        ))
+    }
+    fn set_password(&self, _: &str, _: &str, _: &str) -> crate::error::Result<()> {
+        Err(crate::error::PyxError::Keyring(
+            "Backend unavailable".to_string(),
+        ))
+    }
+    fn delete_password(&self, _: &str, _: &str) -> crate::error::Result<()> {
+        Ok(())
+    }
+}
+
 /// Create a new keyring entry for the given service and username.
 ///
 /// This is a helper because `Entry::new` can fail on some platforms

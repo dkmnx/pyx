@@ -3,6 +3,60 @@ use crate::test_helpers::EnvGuard;
 use tempfile::tempdir;
 
 #[test]
+fn test_get_keyring_passphrase_bypasses_env_var() {
+    let temp = tempdir().unwrap();
+    let mut env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
+    env.extend(EnvGuard::set_var("PYX_SCRYPT_WORK_FACTOR", "15"));
+    env.extend(EnvGuard::set_var("PYX_PASSPHRASE", "env-pass"));
+
+    set_backend(Box::new(MockKeyring::new()));
+
+    // Env var is set, but get_keyring_passphrase should return None
+    assert!(
+        get_keyring_passphrase().unwrap().is_none(),
+        "get_keyring_passphrase should bypass env var"
+    );
+
+    // Set in the actual keyring
+    let keyring_pass = SecretString::new("keyring-pass".to_string().into_boxed_str());
+    with_backend(|b| b.set_password(SERVICE_NAME, USER_NAME, keyring_pass.expose_secret()))
+        .unwrap();
+
+    let retrieved = get_keyring_passphrase().unwrap();
+    assert!(retrieved.is_some());
+    assert_eq!(retrieved.unwrap().expose_secret(), "keyring-pass");
+
+    clear_passphrase().unwrap();
+    reset_backend();
+}
+
+#[test]
+fn test_get_keyring_passphrase_bypasses_file_fallback() {
+    let temp = tempdir().unwrap();
+    let mut env = EnvGuard::set_var("XDG_DATA_HOME", temp.path().to_string_lossy().to_string());
+    env.extend(EnvGuard::set_var("PYX_ALLOW_FILE_FALLBACK", "1"));
+    env.extend(EnvGuard::set_var("PYX_SCRYPT_WORK_FACTOR", "15"));
+    env.extend(EnvGuard::remove_var("PYX_PASSPHRASE"));
+
+    set_backend(Box::new(ReadNoneWriteFailsBackend));
+
+    let file_pass = SecretString::new("file-pass".to_string().into_boxed_str());
+    crate::keys::keyring::set_passphrase(&file_pass).unwrap();
+
+    // Switch to a working mock keyring for querying
+    set_backend(Box::new(MockKeyring::new()));
+
+    // File fallback has a value, but get_keyring_passphrase should return None
+    assert!(
+        get_keyring_passphrase().unwrap().is_none(),
+        "get_keyring_passphrase should bypass file fallback"
+    );
+
+    crate::keys::keyring::clear_passphrase().unwrap();
+    reset_backend();
+}
+
+#[test]
 fn test_env_passphrase_reads_non_empty() {
     let _g1 = EnvGuard::set_var(ENV_PASSPHRASE, "from-env");
     let passphrase = env_passphrase().unwrap();
@@ -236,24 +290,7 @@ fn test_get_passphrase_uses_file_fallback_when_backend_errors() {
     env.extend(EnvGuard::set_var("PYX_SCRYPT_WORK_FACTOR", "15"));
     env.extend(EnvGuard::remove_var("PYX_PASSPHRASE"));
 
-    struct ErrorBackend;
-    impl crate::keys::keyring::backend::KeyringBackend for ErrorBackend {
-        fn get_password(&self, _: &str, _: &str) -> crate::error::Result<Option<String>> {
-            Err(crate::error::PyxError::Keyring(
-                "Backend unavailable".to_string(),
-            ))
-        }
-        fn set_password(&self, _: &str, _: &str, _: &str) -> crate::error::Result<()> {
-            Err(crate::error::PyxError::Keyring(
-                "Backend unavailable".to_string(),
-            ))
-        }
-        fn delete_password(&self, _: &str, _: &str) -> crate::error::Result<()> {
-            Ok(())
-        }
-    }
-
-    set_backend(Box::new(ErrorBackend));
+    set_backend(Box::new(UnavailableBackend));
 
     let passphrase = SecretString::new("file-fallback-pass".to_string().into_boxed_str());
     set_passphrase_file(&passphrase).unwrap();
