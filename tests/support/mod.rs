@@ -35,10 +35,18 @@ pub fn create_test_env(temp: &TempDir) -> TestEnv {
 }
 
 pub fn write_master_key(data_dir: &Path) {
+    std::env::set_var("PYX_SCRYPT_WORK_FACTOR", "15");
     let passphrase = SecretString::new(TEST_PASSPHRASE.to_string().into_boxed_str());
     let master_cipher =
         pyx_rs::crypto::age::encrypt_with_passphrase(TEST_MASTER_KEY, &passphrase).unwrap();
     fs::write(data_dir.join("master.key"), master_cipher).unwrap();
+}
+
+/// Create a `Command` for the pyx binary with test env vars pre-configured.
+pub fn pyx_cmd() -> assert_cmd::Command {
+    let mut cmd = assert_cmd::Command::cargo_bin("pyx").unwrap();
+    cmd.env("PYX_SCRYPT_WORK_FACTOR", "15");
+    cmd
 }
 
 pub fn write_provider_database(data_dir: &Path, provider: &str, api_key: &str) {
@@ -66,6 +74,24 @@ pub fn write_provider_database_entries(data_dir: &Path, entries: &[(&str, &str)]
 
     let db_content = format!("[\n{}\n]", providers);
     fs::write(data_dir.join("database.json"), db_content).unwrap();
+}
+
+#[allow(dead_code)]
+pub fn write_models_cache(data_dir: &Path) {
+    let content = r#"{
+  "version": "v0.1.0-test",
+  "updated_at": "2099-01-01T00:00:00Z",
+  "models": {
+    "openai": ["gpt-4", "gpt-4o", "gpt-3.5-turbo"],
+    "anthropic": ["claude-3", "claude-instant"],
+    "mistral": ["mistral-7b"],
+    "groq": ["llama3-70b"],
+    "deepseek": ["deepseek-chat"],
+    "gemini": ["gemini-pro"]
+  },
+  "cache_format_version": "1"
+}"#;
+    fs::write(data_dir.join("models.json"), content).unwrap();
 }
 
 pub fn write_executable(path: &Path, script: &str) {

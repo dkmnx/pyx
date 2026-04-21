@@ -1,16 +1,17 @@
 mod support;
 
-use assert_cmd::Command;
+use predicates::prelude::PredicateBooleanExt;
 use std::fs;
 use support::{
-    create_test_env, prepend_path, write_executable, write_master_key, write_provider_database,
-    TestEnv, TEST_PASSPHRASE,
+    create_test_env, prepend_path, pyx_cmd, write_executable, write_master_key, write_models_cache,
+    write_provider_database, TestEnv, TEST_PASSPHRASE,
 };
 use tempfile::{tempdir, TempDir};
 
 fn setup_pyx_env(temp: &TempDir) -> TestEnv {
     let env = create_test_env(temp);
     write_master_key(&env.data_dir);
+    write_models_cache(&env.data_dir);
     write_provider_database(&env.data_dir, "openai", "sk-openai-test123");
     env
 }
@@ -18,6 +19,7 @@ fn setup_pyx_env(temp: &TempDir) -> TestEnv {
 fn setup_empty_pyx_env(temp: &TempDir) -> TestEnv {
     let env = create_test_env(temp);
     write_master_key(&env.data_dir);
+    write_models_cache(&env.data_dir);
     fs::write(env.data_dir.join("database.json"), "[]").unwrap();
     env
 }
@@ -27,7 +29,7 @@ fn list_subcommand_shows_configured_providers() {
     let temp = tempdir().unwrap();
     let env = setup_pyx_env(&temp);
 
-    let mut cmd = Command::cargo_bin("pyx").unwrap();
+    let mut cmd = pyx_cmd();
     cmd.arg("list")
         .env("XDG_DATA_HOME", env.xdg_data_str())
         .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
@@ -42,7 +44,7 @@ fn list_subcommand_json_output() {
     let temp = tempdir().unwrap();
     let env = setup_pyx_env(&temp);
 
-    let mut cmd = Command::cargo_bin("pyx").unwrap();
+    let mut cmd = pyx_cmd();
     cmd.arg("list")
         .arg("--json")
         .env("XDG_DATA_HOME", env.xdg_data_str())
@@ -58,7 +60,7 @@ fn version_subcommand_shows_version() {
     let temp = tempdir().unwrap();
     let env = setup_pyx_env(&temp);
 
-    let mut cmd = Command::cargo_bin("pyx").unwrap();
+    let mut cmd = pyx_cmd();
     cmd.arg("version")
         .env("XDG_DATA_HOME", env.xdg_data_str())
         .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
@@ -71,7 +73,7 @@ fn list_subcommand_empty_database() {
     let temp = tempdir().unwrap();
     let env = setup_empty_pyx_env(&temp);
 
-    let mut cmd = Command::cargo_bin("pyx").unwrap();
+    let mut cmd = pyx_cmd();
     cmd.arg("list")
         .env("XDG_DATA_HOME", env.xdg_data_str())
         .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
@@ -83,7 +85,7 @@ fn list_subcommand_empty_database() {
 
 #[test]
 fn help_flag_works() {
-    let mut cmd = Command::cargo_bin("pyx").unwrap();
+    let mut cmd = pyx_cmd();
     cmd.arg("--help");
 
     cmd.assert()
@@ -96,7 +98,7 @@ fn delete_subcommand_removes_provider() {
     let temp = tempdir().unwrap();
     let env = setup_pyx_env(&temp);
 
-    let mut cmd = Command::cargo_bin("pyx").unwrap();
+    let mut cmd = pyx_cmd();
     cmd.arg("list")
         .env("XDG_DATA_HOME", env.xdg_data_str())
         .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
@@ -104,7 +106,7 @@ fn delete_subcommand_removes_provider() {
         .success()
         .stderr(predicates::str::contains("openai"));
 
-    let mut cmd = Command::cargo_bin("pyx").unwrap();
+    let mut cmd = pyx_cmd();
     cmd.arg("delete")
         .arg("openai")
         .arg("--yes")
@@ -114,7 +116,7 @@ fn delete_subcommand_removes_provider() {
         .success()
         .stderr(predicates::str::contains("Removed provider: openai"));
 
-    let mut cmd = Command::cargo_bin("pyx").unwrap();
+    let mut cmd = pyx_cmd();
     cmd.arg("list")
         .env("XDG_DATA_HOME", env.xdg_data_str())
         .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
@@ -128,7 +130,7 @@ fn delete_subcommand_not_found() {
     let temp = tempdir().unwrap();
     let env = setup_pyx_env(&temp);
 
-    let mut cmd = Command::cargo_bin("pyx").unwrap();
+    let mut cmd = pyx_cmd();
     cmd.arg("delete")
         .arg("nonexistent")
         .env("XDG_DATA_HOME", env.xdg_data_str())
@@ -153,7 +155,7 @@ fn models_subcommand_shows_cached_models() {
 }"#;
     fs::write(env.data_dir.join("models.json"), cache_content).unwrap();
 
-    let mut cmd = Command::cargo_bin("pyx").unwrap();
+    let mut cmd = pyx_cmd();
     cmd.arg("models")
         .env("XDG_DATA_HOME", env.xdg_data_str())
         .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
@@ -177,7 +179,7 @@ fn models_subcommand_json_output() {
 }"#;
     fs::write(env.data_dir.join("models.json"), cache_content).unwrap();
 
-    let mut cmd = Command::cargo_bin("pyx").unwrap();
+    let mut cmd = pyx_cmd();
     cmd.arg("models")
         .arg("--json")
         .env("XDG_DATA_HOME", env.xdg_data_str())
@@ -190,7 +192,7 @@ fn models_subcommand_json_output() {
 
 #[test]
 fn completion_subcommand_generates_bash() {
-    let mut cmd = Command::cargo_bin("pyx").unwrap();
+    let mut cmd = pyx_cmd();
     cmd.arg("completion").arg("bash");
     cmd.assert()
         .success()
@@ -200,7 +202,7 @@ fn completion_subcommand_generates_bash() {
 
 #[test]
 fn completion_subcommand_generates_zsh() {
-    let mut cmd = Command::cargo_bin("pyx").unwrap();
+    let mut cmd = pyx_cmd();
     cmd.arg("completion").arg("zsh");
     cmd.assert()
         .success()
@@ -210,7 +212,7 @@ fn completion_subcommand_generates_zsh() {
 
 #[test]
 fn completion_subcommand_generates_fish() {
-    let mut cmd = Command::cargo_bin("pyx").unwrap();
+    let mut cmd = pyx_cmd();
     cmd.arg("completion").arg("fish");
     cmd.assert()
         .success()
@@ -223,7 +225,7 @@ fn reset_subcommand_requires_confirmation() {
     let temp = tempdir().unwrap();
     let env = setup_pyx_env(&temp);
 
-    let mut cmd = Command::cargo_bin("pyx").unwrap();
+    let mut cmd = pyx_cmd();
     cmd.arg("reset")
         .env("XDG_DATA_HOME", env.xdg_data_str())
         .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
@@ -237,7 +239,7 @@ fn reset_subcommand_with_yes_flag_succeeds() {
     let temp = tempdir().unwrap();
     let env = setup_pyx_env(&temp);
 
-    let mut cmd = Command::cargo_bin("pyx").unwrap();
+    let mut cmd = pyx_cmd();
     cmd.arg("reset")
         .arg("--yes")
         .env("XDG_DATA_HOME", env.xdg_data_str())
@@ -255,7 +257,7 @@ fn pi_subcommand_shows_status_when_not_installed() {
     let temp = tempdir().unwrap();
     let env = setup_pyx_env(&temp);
 
-    let mut cmd = Command::cargo_bin("pyx").unwrap();
+    let mut cmd = pyx_cmd();
     cmd.arg("pi")
         .env("XDG_DATA_HOME", env.xdg_data_str())
         .env("PYX_PASSPHRASE", TEST_PASSPHRASE)
@@ -276,7 +278,7 @@ fn pi_install_subcommand_surfaces_package_manager_failures() {
     let path = prepend_path(&env.bin_dir);
     assert!(path.starts_with(&env.bin_dir.display().to_string()));
 
-    let mut cmd = Command::cargo_bin("pyx").unwrap();
+    let mut cmd = pyx_cmd();
     cmd.arg("pi")
         .arg("install")
         .env("XDG_DATA_HOME", env.xdg_data_str())
@@ -293,7 +295,7 @@ fn root_command_errors_when_not_initialized() {
     let temp = tempdir().unwrap();
     let xdg_data_str = temp.path().to_string_lossy().to_string();
 
-    let mut cmd = Command::cargo_bin("pyx").unwrap();
+    let mut cmd = pyx_cmd();
     cmd.arg("openai")
         .env("XDG_DATA_HOME", &xdg_data_str)
         .env("PATH", "/nonexistent");
@@ -301,4 +303,103 @@ fn root_command_errors_when_not_initialized() {
     cmd.assert()
         .failure()
         .stderr(predicates::str::contains("Pyx not initialized"));
+}
+
+#[test]
+fn add_subcommand_with_provider_and_key() {
+    let temp = tempdir().unwrap();
+    let env = setup_pyx_env(&temp);
+
+    let mut cmd = pyx_cmd();
+    cmd.arg("add")
+        .arg("--provider")
+        .arg("anthropic")
+        .arg("--key")
+        .arg("sk-test-add-123")
+        .env("XDG_DATA_HOME", env.xdg_data_str())
+        .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
+
+    cmd.assert().success();
+}
+
+#[test]
+fn add_subcommand_duplicate_provider_errors() {
+    let temp = tempdir().unwrap();
+    let env = setup_pyx_env(&temp);
+
+    let mut cmd = pyx_cmd();
+    cmd.arg("add")
+        .arg("--provider")
+        .arg("openai")
+        .arg("--key")
+        .arg("sk-new-key")
+        .env("XDG_DATA_HOME", env.xdg_data_str())
+        .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
+
+    cmd.assert().failure().stderr(
+        predicates::str::contains("already configured")
+            .or(predicates::str::contains("already exists")),
+    );
+}
+
+#[test]
+fn add_subcommand_requires_provider_and_key_non_interactive() {
+    let temp = tempdir().unwrap();
+    let env = setup_pyx_env(&temp);
+
+    let mut cmd = pyx_cmd();
+    cmd.arg("add")
+        .env("XDG_DATA_HOME", env.xdg_data_str())
+        .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
+
+    cmd.assert().failure();
+}
+
+#[test]
+fn edit_subcommand_with_yes_flag_updates_key() {
+    let temp = tempdir().unwrap();
+    let env = setup_pyx_env(&temp);
+
+    let mut cmd = pyx_cmd();
+    cmd.arg("edit")
+        .arg("--provider")
+        .arg("openai")
+        .arg("--key")
+        .arg("sk-updated-key")
+        .arg("--yes")
+        .env("XDG_DATA_HOME", env.xdg_data_str())
+        .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
+
+    cmd.assert().success();
+}
+
+#[test]
+fn edit_subcommand_yes_flag_skips_confirmation() {
+    let temp = tempdir().unwrap();
+    let env = setup_pyx_env(&temp);
+
+    let mut cmd = pyx_cmd();
+    cmd.arg("edit")
+        .arg("--provider")
+        .arg("openai")
+        .arg("--key")
+        .arg("sk-no-confirm")
+        .arg("-y")
+        .env("XDG_DATA_HOME", env.xdg_data_str())
+        .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
+
+    cmd.assert().success();
+}
+
+#[test]
+fn edit_subcommand_requires_provider_and_key_non_interactive() {
+    let temp = tempdir().unwrap();
+    let env = setup_pyx_env(&temp);
+
+    let mut cmd = pyx_cmd();
+    cmd.arg("edit")
+        .env("XDG_DATA_HOME", env.xdg_data_str())
+        .env("PYX_PASSPHRASE", TEST_PASSPHRASE);
+
+    cmd.assert().failure();
 }
