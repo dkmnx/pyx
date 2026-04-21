@@ -23,14 +23,30 @@ pub fn should_use_clap(args: &[String]) -> bool {
     }
 
     // Check if any positional-like argument (before --) is a known subcommand.
-    for arg in args.iter().take_while(|a| *a != "--") {
+    let mut i = 0;
+    while i < args.len() {
+        let arg = args[i].as_str();
+
+        if arg == "--" {
+            break;
+        }
+
         if arg.starts_with('-') {
+            if matches!(arg, "-s" | "--session")
+                && i + 1 < args.len()
+                && !args[i + 1].starts_with('-')
+            {
+                i += 2;
+                continue;
+            }
+            i += 1;
             continue;
         }
 
         if get_subcommand_names().iter().any(|name| name == arg) {
             return true;
         }
+        i += 1;
     }
 
     false
@@ -248,6 +264,15 @@ mod tests {
         assert!(!should_use_clap(&vecs(&["openai", "--model"])));
 
         assert!(should_use_clap(&vecs(&["add"])));
+    }
+
+    #[test]
+    fn should_not_treat_flag_values_as_subcommands() {
+        assert!(!should_use_clap(&vecs(&["-s", "abc", "openai"])));
+        assert!(!should_use_clap(&vecs(&["--session", "list", "openai"])));
+        assert!(!should_use_clap(&vecs(&["-s", "list", "openai"])));
+        assert!(!should_use_clap(&vecs(&["--session=json", "openai"])));
+        assert!(!should_use_clap(&vecs(&["-s", "add", "openai"])));
     }
 
     #[test]
