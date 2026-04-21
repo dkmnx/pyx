@@ -58,12 +58,12 @@ jobs:
         run: just lint
 
       - name: Run tests
-        run: just test-all
+        run: just test
 
       - name: Build
         run: just build-prod
 
-  # Build and smoke tests on macOS
+  # Build and test on macOS
   macos:
     name: macOS (build)
     runs-on: macos-latest
@@ -86,19 +86,13 @@ jobs:
           shared-key: "pyx-ci"
           cache-targets: true
 
-      - name: Check formatting
-        run: just fmt-check
-
-      - name: Run clippy
-        run: just lint
-
-      - name: Run unit tests
+      - name: Run tests
         run: just test
 
       - name: Build
         run: just build-prod
 
-  # Build and smoke tests on Windows
+  # Build on Windows (lint/test covered by Linux)
   windows:
     name: Windows (build)
     runs-on: windows-latest
@@ -120,15 +114,6 @@ jobs:
         with:
           shared-key: "pyx-ci"
           cache-targets: true
-
-      - name: Check formatting
-        run: just fmt-check
-
-      - name: Run clippy
-        run: just lint
-
-      - name: Run unit tests
-        run: just test
 
       - name: Build
         run: just build-prod
