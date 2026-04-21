@@ -32,20 +32,10 @@ build-prod:
     cargo build --release
     @echo "Built: target/release/{{ app_name }}"
 
-# Run tests
-test:
-    @echo "Running tests..."
+# Run unit tests
+test-unit:
+    @echo "Running unit tests..."
     cargo test --lib
-
-# Run tests with verbose output
-test-v:
-    @echo "Running tests (verbose)..."
-    cargo test --lib -- --nocapture
-
-# Run specific test
-test-run RUN:
-    @echo "Running specific test..."
-    cargo test --lib -- {{ RUN }}
 
 # Run integration tests
 test-integration:
@@ -53,8 +43,8 @@ test-integration:
     cargo test --test root_parity
     cargo test --test subcommand_tests
 
-# Run all tests (lib + integration)
-test-all: test test-integration
+# Run all tests (default test target)
+test: test-unit test-integration
 
 # Format code
 fmt:
@@ -89,11 +79,11 @@ install:
     cargo install --path . --force
 
 # All checks before committing (mutates files via fmt)
-check: fmt lint test-all
+fix-and-check: fmt lint test
     @echo "All checks passed!"
 
 # CI-friendly checks (non-mutating, for CI pipelines)
-check-ci: fmt-check lint test-all
+check: fmt-check lint test
     @echo "All CI checks passed!"
 
 # Extract latest changelog entry to a temp file
