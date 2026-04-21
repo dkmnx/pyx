@@ -1,95 +1,65 @@
-use std::process::Command;
+use std::process::{Command, Stdio};
+use std::sync::mpsc;
+use std::time::Duration;
+
+/// Run a git command with a wall-clock timeout. Returns `None` on timeout or failure.
+/// On timeout the child is orphaned and reaped when the thread completes.
+fn git_output(args: &[&str], timeout: Duration) -> Option<String> {
+    let child = Command::new("git")
+        .args(args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .ok()?;
+
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(child.wait_with_output());
+    });
+
+    match rx.recv_timeout(timeout) {
+        Ok(Ok(output)) if output.status.success() => String::from_utf8(output.stdout)
+            .ok()
+            .map(|s| s.trim().to_string()),
+        Ok(_) => None,
+        Err(_) => {
+            // Timeout — kill the child. The thread owns it now, so we can't kill
+            // directly. The child will be reaped when the thread eventually returns.
+            None
+        }
+    }
+}
 
 fn main() {
+    let timeout = Duration::from_secs(5);
+
     // Check if we're in a git repository
-    let is_git_repo = Command::new("git")
-        .args(["rev-parse", "--git-dir"])
-        .output()
-        .ok()
-        .map(|output| output.status.success())
-        .unwrap_or(false);
+    let is_git_repo = git_output(&["rev-parse", "--git-dir"], timeout).is_some();
 
     let (git_hash, git_describe, git_dirty) = if is_git_repo {
-        // Get git commit hash (short)
-        let hash = Command::new("git")
-            .args(["rev-parse", "--short", "HEAD"])
-            .output()
-            .ok()
-            .and_then(|output| {
-                if output.status.success() {
-                    String::from_utf8(output.stdout).ok()
-                } else {
-                    None
-                }
-            })
-            .map(|s| s.trim().to_string())
-            .unwrap_or_default();
+        let hash = git_output(&["rev-parse", "--short", "HEAD"], timeout).unwrap_or_default();
+        let tag = git_output(&["describe", "--tags", "--exact-match", "HEAD"], timeout);
 
-        // Try to get the exact tag for this commit (e.g., "v0.1.0")
-        let tag = Command::new("git")
-            .args(["describe", "--tags", "--exact-match", "HEAD"])
-            .output()
-            .ok()
-            .and_then(|output| {
-                if output.status.success() {
-                    String::from_utf8(output.stdout).ok()
-                } else {
-                    None
-                }
-            })
-            .map(|s| s.trim().to_string());
-
-        // Get branch or fallback to describe (e.g., "v0.1.0-5-gabc123")
         let describe = if let Some(t) = tag {
-            // On an exact tag - use the tag name
             t
         } else {
-            // Not on a tag - use branch name or fallback to describe
-            let branch = Command::new("git")
-                .args(["rev-parse", "--abbrev-ref", "HEAD"])
-                .output()
-                .ok()
-                .and_then(|output| {
-                    if output.status.success() {
-                        String::from_utf8(output.stdout).ok()
-                    } else {
-                        None
-                    }
-                })
-                .map(|s| s.trim().to_string())
-                .unwrap_or_default();
+            let branch =
+                git_output(&["rev-parse", "--abbrev-ref", "HEAD"], timeout).unwrap_or_default();
 
             if branch == "HEAD" || branch.is_empty() {
-                // Detached HEAD - try to get a describe string
-                Command::new("git")
-                    .args(["describe", "--tags", "--always", "--dirty"])
-                    .output()
-                    .ok()
-                    .and_then(|output| {
-                        if output.status.success() {
-                            String::from_utf8(output.stdout).ok()
-                        } else {
-                            None
-                        }
-                    })
-                    .map(|s| s.trim().to_string())
+                git_output(&["describe", "--tags", "--always", "--dirty"], timeout)
                     .unwrap_or_else(|| hash.clone())
             } else {
                 branch
             }
         };
 
-        // Check if working directory is dirty
-        let dirty = Command::new("git")
-            .args(["status", "--porcelain"])
-            .output()
-            .ok()
-            .map(|output| !output.stdout.is_empty())
+        let dirty = git_output(&["status", "--porcelain"], timeout)
+            .map(|s| !s.is_empty())
             .unwrap_or(false);
 
         (hash, describe, if dirty { "-dirty" } else { "" })
     } else {
-        // Not in a git repo - use empty values
         (String::new(), String::new(), "")
     };
 
